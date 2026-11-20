@@ -2,11 +2,12 @@ import "@/global.css";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { ThemeProvider } from "expo-router/react-navigation";
-import { HeroUINativeProvider, Spinner } from "heroui-native";
+import { HeroUINativeProvider } from "heroui-native";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
+import { LoadingState } from "@/components/query-state";
 import { AppThemeProvider } from "@/contexts/app-theme-provider";
 import { useNavigationTheme } from "@/hooks/use-navigation-theme";
 import { useAppStateFocus } from "@/hooks/use-refresh-on-focus";
@@ -20,8 +21,8 @@ function AuthGate() {
 
   if (isPending) {
     return (
-      <View className="bg-background flex-1 items-center justify-center">
-        <Spinner size="lg" />
+      <View className="bg-background flex-1">
+        <LoadingState />
       </View>
     );
   }

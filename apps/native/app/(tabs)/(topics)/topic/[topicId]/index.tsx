@@ -1,11 +1,12 @@
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import { router, Stack } from "expo-router";
 import { Button, Typography } from "heroui-native";
 import { View } from "react-native";
 
 import { MessageList } from "@/components/message-list";
 import { EmptyState, ErrorState, LoadingState } from "@/components/query-state";
 import { SenderAvatar } from "@/components/sender-avatar";
-import { topicTitle, useTopic } from "@/hooks/use-topic";
+import { InvalidTopicLink, TopicUnavailable } from "@/components/topic-unavailable";
+import { topicTitle, useTopic, useTopicIdParam } from "@/hooks/use-topic";
 import { isAccessError } from "@/lib/errors";
 
 function TopicHeaderTitle({ name, title }: { name: string; title: string }) {
@@ -26,19 +27,14 @@ function TopicHeaderTitle({ name, title }: { name: string; title: string }) {
   );
 }
 
-export default function TopicScreen() {
-  const { topicId = "" } = useLocalSearchParams<{ topicId: string }>();
+function TopicScreenContent({ topicId }: { topicId: string }) {
   const topic = useTopic(topicId);
 
   if (topic.isPending) {
     return <LoadingState />;
   }
   if (isAccessError(topic.error)) {
-    return (
-      <EmptyState title="Topic not available" pose="error">
-        It was deleted, or you are no longer a member.
-      </EmptyState>
-    );
+    return <TopicUnavailable />;
   }
   if (topic.isError && !topic.data) {
     return <ErrorState error={topic.error} onRetry={() => void topic.refetch()} />;
@@ -74,6 +70,7 @@ export default function TopicScreen() {
             </Typography>
           ) : undefined
         }
+        unavailable={<TopicUnavailable />}
         empty={
           <EmptyState title="No messages yet" pose="inbox-empty">
             Messages published to {name} show up here.
@@ -88,4 +85,9 @@ export default function TopicScreen() {
       />
     </>
   );
+}
+
+export default function TopicScreen() {
+  const topicId = useTopicIdParam();
+  return topicId ? <TopicScreenContent topicId={topicId} /> : <InvalidTopicLink />;
 }

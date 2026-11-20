@@ -1,15 +1,15 @@
-import { useLocalSearchParams } from "expo-router";
 import { Typography } from "heroui-native";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
-import { EmptyState, ErrorState, LoadingState } from "@/components/query-state";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { TopicDangerZone } from "@/components/topic-danger-zone";
 import { TopicEditForm } from "@/components/topic-edit-form";
 import { TopicMembers } from "@/components/topic-members";
 import { TopicSubscription } from "@/components/topic-subscription";
-import { useTopic } from "@/hooks/use-topic";
+import { InvalidTopicLink, TopicUnavailable } from "@/components/topic-unavailable";
+import { useTopic, useTopicIdParam } from "@/hooks/use-topic";
 import { isAccessError } from "@/lib/errors";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -23,19 +23,14 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export default function TopicSettingsScreen() {
-  const { topicId = "" } = useLocalSearchParams<{ topicId: string }>();
+function TopicSettingsScreenContent({ topicId }: { topicId: string }) {
   const topic = useTopic(topicId);
 
   if (topic.isPending) {
     return <LoadingState />;
   }
   if (isAccessError(topic.error)) {
-    return (
-      <EmptyState title="Topic not available" pose="error">
-        It was deleted, or you are no longer a member.
-      </EmptyState>
-    );
+    return <TopicUnavailable />;
   }
   if (topic.isError && !topic.data) {
     return <ErrorState error={topic.error} onRetry={() => void topic.refetch()} />;
@@ -62,4 +57,9 @@ export default function TopicSettingsScreen() {
       <TopicDangerZone topic={topic.data} />
     </KeyboardAwareScrollView>
   );
+}
+
+export default function TopicSettingsScreen() {
+  const topicId = useTopicIdParam();
+  return topicId ? <TopicSettingsScreenContent topicId={topicId} /> : <InvalidTopicLink />;
 }

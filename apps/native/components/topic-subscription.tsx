@@ -1,6 +1,7 @@
 import type { MyTopic } from "@notifier/contract/topic";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, ControlField, Description, Label, Separator, useToast } from "heroui-native";
+import { useRef } from "react";
 import { View } from "react-native";
 
 import { errorMessage } from "@/lib/errors";
@@ -12,9 +13,16 @@ export function TopicSubscription({ topic }: { topic: MyTopic }) {
   const { toast } = useToast();
   const mutation = useMutation(
     orpc.topics.setSubscription.mutationOptions({
-      onSuccess: async (updated) => {
-        queryClient.setQueryData(orpc.topics.get.queryKey({ input: { id: updated.id } }), updated);
-        await queryClient.invalidateQueries({ queryKey: orpc.topics.list.key() });
+      // Refetch rather than write the response over the cache: it may be older than an
+      // edit of the topic's details that finished meanwhile. The switches keep showing the
+      // sent values until the refetch lands, since the mutation stays pending until then.
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: orpc.topics.get.queryKey({ input: { id: topic.id } }),
+          }),
+          queryClient.invalidateQueries({ queryKey: orpc.topics.list.key() }),
+        ]);
       },
       onError: (error) => {
         toast.show({ variant: "danger", label: errorMessage(error, "Could not save") });
@@ -25,8 +33,23 @@ export function TopicSubscription({ topic }: { topic: MyTopic }) {
   const subscribed = mutation.isPending ? mutation.variables.subscribed : topic.subscribed;
   const muted = mutation.isPending ? Boolean(mutation.variables.muted) : topic.muted;
 
+  // One synchronous lock for both switches: a second toggle before the first settles
+  // would be computed from stale values.
+  const saveLock = useRef(false);
+
   function save(next: { subscribed: boolean; muted: boolean }) {
-    mutation.mutate({ topicId: topic.id, ...next });
+    if (saveLock.current) {
+      return;
+    }
+    saveLock.current = true;
+    mutation.mutate(
+      { topicId: topic.id, ...next },
+      {
+        onSettled: () => {
+          saveLock.current = false;
+        },
+      },
+    );
   }
 
   return (

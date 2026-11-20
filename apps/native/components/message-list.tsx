@@ -4,10 +4,10 @@ import { type ReactElement, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 
 import { MessageRow } from "@/components/message-row";
-import { ErrorState, LoadingState } from "@/components/query-state";
+import { EmptyState, ErrorState, LoadingState } from "@/components/query-state";
 import { useInbox } from "@/hooks/use-inbox";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
-import { errorMessage } from "@/lib/errors";
+import { errorMessage, isAccessError } from "@/lib/errors";
 
 /**
  * Shown above rows that are already on screen when a refresh or the next page fails;
@@ -46,6 +46,8 @@ export type MessageListProps = {
   header?: ReactElement;
   /** Shown when the list loaded and is empty. */
   empty: ReactElement;
+  /** Shown instead of any rows once the API says they are gone or no longer ours. */
+  unavailable?: ReactElement;
   onOpenMessage: (message: InboxMessage) => void;
 };
 
@@ -58,9 +60,14 @@ export function MessageList({
   unreadOnly = false,
   header,
   empty,
+  unavailable,
   onOpenMessage,
 }: MessageListProps) {
-  const { query, messages } = useInbox({ unreadOnly, topicId });
+  const { query, messages: loaded } = useInbox({ unreadOnly, topicId });
+  // A refresh that answers "not found" or "forbidden" means access is gone: cached rows
+  // must not stay on screen.
+  const isUnavailable = isAccessError(query.error);
+  const messages = isUnavailable ? [] : loaded;
   const [accent] = useThemeColor(["accent"]);
   const [isManualRefresh, setIsManualRefresh] = useState(false);
   useRefreshOnFocus(query.refetch);
@@ -95,6 +102,15 @@ export function MessageList({
   }
 
   function renderEmpty() {
+    if (isUnavailable) {
+      return (
+        unavailable ?? (
+          <EmptyState title="Messages not available" pose="error">
+            You no longer have access to these messages.
+          </EmptyState>
+        )
+      );
+    }
     if (query.isPending) {
       return <LoadingState />;
     }

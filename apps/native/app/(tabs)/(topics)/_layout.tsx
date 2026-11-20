@@ -2,6 +2,11 @@ import { Stack } from "expo-router";
 
 import { useStackScreenOptions } from "@/hooks/use-navigation-theme";
 
+/** The topic list is always the bottom of this stack, also when a deep link opens a topic. */
+export const unstable_settings = {
+  anchor: "index",
+};
+
 export default function TopicsLayout() {
   const screenOptions = useStackScreenOptions();
   return (

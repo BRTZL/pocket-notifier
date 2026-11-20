@@ -70,11 +70,21 @@ export function InviteLinkDialog({
                   <Button.Label>Share</Button.Label>
                 </Button>
                 <View className="flex-1">
-                  <CopyButton value={invite.url} variant="secondary" copiedLabel="Link copied" />
+                  <CopyButton
+                    value={invite.url}
+                    variant="secondary"
+                    copiedLabel="Link copied"
+                    isSensitive
+                  />
                 </View>
               </View>
               {devUrl ? (
-                <CopyButton value={devUrl} variant="secondary" label="Copy Expo Go link" />
+                <CopyButton
+                  value={devUrl}
+                  variant="secondary"
+                  label="Copy Expo Go link"
+                  isSensitive
+                />
               ) : null}
               <Button variant="ghost" onPress={onDone}>
                 <Button.Label>Done</Button.Label>

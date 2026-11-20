@@ -22,10 +22,20 @@ export function TopicDangerZone({ topic }: { topic: MyTopic }) {
 
   async function leaveScreens(label: string) {
     setIsConfirmOpen(false);
-    router.dismissAll();
+    // Back to the topic list (the stack's anchor), whatever opened the topic: a deep link
+    // may have put the topic screens on top of it.
+    router.dismissTo("/(tabs)/(topics)");
     toast.show({ variant: "success", label });
+    // The topic's own data must not linger: drop it, then refresh the lists that showed it.
+    queryClient.removeQueries({ queryKey: orpc.topics.get.queryKey({ input: { id: topic.id } }) });
+    queryClient.removeQueries({
+      queryKey: orpc.members.list.key({ input: { topicId: topic.id } }),
+    });
+    queryClient.removeQueries({
+      queryKey: orpc.messages.list.key({ input: { topicId: topic.id } }),
+    });
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: orpc.topics.key() }),
+      queryClient.invalidateQueries({ queryKey: orpc.topics.list.key() }),
       queryClient.invalidateQueries({ queryKey: orpc.messages.list.key() }),
     ]);
   }

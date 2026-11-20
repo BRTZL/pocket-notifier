@@ -17,7 +17,7 @@ import {
   Typography,
   useToast,
 } from "heroui-native";
-import { Fragment, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { z } from "zod";
@@ -27,9 +27,10 @@ import { SecretDialog } from "@/components/secret-dialog";
 import { daysText } from "@/lib/days";
 import { errorMessage } from "@/lib/errors";
 import { fieldErrors } from "@/lib/form";
-import { orpc } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 
 type ScopeKind = "all" | "topics";
+type CreateTokenInput = Parameters<typeof client.tokens.create>[0];
 
 const TokenForm = z.object({
   name: z.string().trim().min(1, "Name the token").max(80, "Keep it under 80 characters"),
@@ -90,22 +91,28 @@ export default function NewTokenScreen() {
   const [selected, setSelected] = useState<string[]>([]);
   const [expiry, setExpiry] = useState("");
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
+  // The secret lives only in this state for the dialog, never in the mutation cache, and
+  // is cleared when the dialog closes.
   const [created, setCreated] = useState<{ name: string; secret: string } | null>(null);
-  const create = useMutation(
-    orpc.tokens.create.mutationOptions({
-      onSuccess: async ({ token, secret }) => {
-        // The secret lives only in this screen's state, for the dialog.
-        setCreated({ name: token.name, secret });
-        await queryClient.invalidateQueries({ queryKey: orpc.tokens.list.key() });
-      },
-      onError: (error) => {
-        toast.show({ variant: "danger", label: errorMessage(error, "Could not create the token") });
-      },
-    }),
-  );
+  const submitLock = useRef(false);
+  const create = useMutation({
+    mutationKey: orpc.tokens.create.mutationKey(),
+    mutationFn: async (input: CreateTokenInput) => {
+      const { token, secret } = await client.tokens.create(input);
+      setCreated({ name: token.name, secret });
+      return token;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: orpc.tokens.list.key() });
+    },
+    onError: (error) => {
+      toast.show({ variant: "danger", label: errorMessage(error, "Could not create the token") });
+    },
+  });
 
   function submit() {
-    if (create.isPending) {
+    // Synchronous lock: a double tap must not create two tokens.
+    if (submitLock.current) {
       return;
     }
     const parsed = TokenForm.safeParse({ name, scope, topics: selected, expiresInDays: expiry });
@@ -118,11 +125,19 @@ export default function NewTokenScreen() {
       return;
     }
     setErrors({});
-    create.mutate({
-      name: parsed.data.name,
-      scope: scope === "all" ? { kind: "all" } : { kind: "topics", topics: selected },
-      expiresInDays: parsed.data.expiresInDays,
-    });
+    submitLock.current = true;
+    create.mutate(
+      {
+        name: parsed.data.name,
+        scope: scope === "all" ? { kind: "all" } : { kind: "topics", topics: selected },
+        expiresInDays: parsed.data.expiresInDays,
+      },
+      {
+        onSettled: () => {
+          submitLock.current = false;
+        },
+      },
+    );
   }
 
   function renderTopics() {

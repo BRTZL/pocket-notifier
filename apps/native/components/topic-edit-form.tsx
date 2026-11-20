@@ -22,9 +22,15 @@ export function TopicEditForm({ topic }: { topic: MyTopic }) {
   });
   const update = useMutation(
     orpc.topics.update.mutationOptions({
-      onSuccess: async (updated) => {
-        queryClient.setQueryData(orpc.topics.get.queryKey({ input: { id: updated.id } }), updated);
-        await queryClient.invalidateQueries({ queryKey: orpc.topics.list.key() });
+      onSuccess: async () => {
+        // Refetch rather than write the response over the cache: it may be older than a
+        // subscription change that finished meanwhile.
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: orpc.topics.get.queryKey({ input: { id: topic.id } }),
+          }),
+          queryClient.invalidateQueries({ queryKey: orpc.topics.list.key() }),
+        ]);
         toast.show({ variant: "success", label: "Topic saved" });
       },
       onError: (error) => {

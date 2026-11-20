@@ -24,7 +24,7 @@ export function MessageDetailScreen() {
   // Gone or no longer ours: never keep showing a cached copy or its actions.
   if (isAccessError(query.error)) {
     return (
-      <EmptyState title="Message not available">
+      <EmptyState title="Message not available" pose="error">
         It was deleted, expired, or you no longer have access to its topic.
       </EmptyState>
     );

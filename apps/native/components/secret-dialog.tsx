@@ -38,7 +38,12 @@ export function SecretDialog({
               </Alert.Content>
             </Alert>
             {secret ? (
-              <CopyButton value={secret} label="Copy token" copiedLabel="Token copied" />
+              <CopyButton
+                value={secret}
+                label="Copy token"
+                copiedLabel="Token copied"
+                isSensitive
+              />
             ) : null}
             <Button variant="ghost" onPress={onDone}>
               <Button.Label>Done</Button.Label>
