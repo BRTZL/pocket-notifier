@@ -9,8 +9,17 @@ type UserRow = {
   image?: string | null | undefined;
 };
 
+/**
+ * better-auth accepts any string as `user.image` (e.g. a relative path), while the
+ * contract requires an absolute URL. Drop values that are not, instead of failing
+ * output validation for every response that includes the user.
+ */
+function absoluteUrlOrNull(value: string | null | undefined): string | null {
+  return value && URL.canParse(value) ? value : null;
+}
+
 export function toUserSummary(row: UserRow): UserSummary {
-  return { id: row.id, name: row.name, email: row.email, image: row.image ?? null };
+  return { id: row.id, name: row.name, email: row.email, image: absoluteUrlOrNull(row.image) };
 }
 
 export type TopicStats = {

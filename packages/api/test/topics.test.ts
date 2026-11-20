@@ -1,5 +1,7 @@
 import { newId } from "@notifier/db/ids";
+import { user } from "@notifier/db/schema/auth";
 import { message, messageRead } from "@notifier/db/schema/notifier";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createTestDb, type TestDb } from "./db";
@@ -39,6 +41,22 @@ describe("me and topics", () => {
       email: "ada@example.com",
       image: null,
     });
+  });
+
+  it("returns null for stored avatar images that are not absolute URLs", async () => {
+    await testDb.db.update(user).set({ image: "/avatars/ada.png" }).where(eq(user.id, ada.id));
+    await testDb.db
+      .update(user)
+      .set({ image: "https://example.com/bob.png" })
+      .where(eq(user.id, bob.id));
+    const owner = clientFor(testDb.db, ada);
+    const created = await owner.topics.create({ name: "avatars" });
+    await owner.members.add({ topicId: created.id, email: bob.email, role: "subscriber" });
+
+    const members = await owner.members.list({ topicId: created.id });
+    expect(
+      Object.fromEntries(members.map((member) => [member.user.id, member.user.image])),
+    ).toEqual({ ada: null, bob: "https://example.com/bob.png" });
   });
 
   it("creates a topic with owner membership and subscription, and rejects duplicate names", async () => {
