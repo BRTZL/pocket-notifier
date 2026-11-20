@@ -181,6 +181,10 @@ describe("OAuth for MCP clients, end to end", () => {
     const loginHtml = await loginPage.text();
     expect(loginHtml).toContain("Test Client");
     expect(loginHtml).not.toContain("Sign up");
+    // The CSS is emitted raw: escaped quotes would break rules like font-family.
+    expect(loginHtml).toContain('"Segoe UI"');
+    expect(loginHtml).not.toContain("&quot;Segoe");
+    expect(loginPage.headers.get("Referrer-Policy")).toBe("same-origin");
     const oauthQuery = new URL(loginPath, BASE).search.slice(1);
 
     // 4. Sign in: a wrong password stays on the page, the right one goes to consent.
@@ -196,6 +200,25 @@ describe("OAuth for MCP clients, end to end", () => {
     );
     expect(wrong.status).toBe(401);
     expect(await wrong.text()).toContain("Wrong email or password.");
+
+    // Browsers may send `Origin: null` on the page's own form post; Sec-Fetch-Site decides.
+    const nullOriginForm = (site: string | null) => ({
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Origin: "null",
+        ...(site ? { "Sec-Fetch-Site": site } : {}),
+      },
+      body: new URLSearchParams({
+        email: EMAIL,
+        password: "nope nope nope",
+        oauth_query: oauthQuery,
+      }).toString(),
+      redirect: "manual" as const,
+    });
+    expect((await fetchApp("/api/oauth/login", nullOriginForm("same-origin"))).status).toBe(401);
+    expect((await fetchApp("/api/oauth/login", nullOriginForm("cross-site"))).status).toBe(403);
+    expect((await fetchApp("/api/oauth/login", nullOriginForm(null))).status).toBe(403);
     const tampered = await fetchApp(
       "/api/oauth/login",
       form({

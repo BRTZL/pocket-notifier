@@ -31,7 +31,8 @@ const PAGE_HEADERS = {
   "Cache-Control": "no-store",
   "Content-Security-Policy":
     "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'none'",
-  "Referrer-Policy": "no-referrer",
+  // "same-origin": with "no-referrer" browsers send `Origin: null` on our own form posts.
+  "Referrer-Policy": "same-origin",
   "X-Frame-Options": "DENY",
   "X-Content-Type-Options": "nosniff",
 };
@@ -60,7 +61,9 @@ function rawQuery(c: Context): string {
 function isSameOrigin(c: Context): boolean {
   const own = new URL(c.req.url).origin;
   const origin = c.req.header("Origin");
-  if (origin) {
+  // Some browsers send `Origin: null` for form posts (privacy settings, referrer
+  // policies); then trust the browser-set Sec-Fetch-Site header instead.
+  if (origin && origin !== "null") {
     return origin === own;
   }
   return c.req.header("Sec-Fetch-Site") === "same-origin";

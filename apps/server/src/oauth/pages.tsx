@@ -3,6 +3,7 @@
  * Plain HTML forms, no client script.
  */
 import { OAUTH_CONSENT_PATH, OAUTH_LOGIN_PATH } from "@notifier/auth/paths";
+import { raw } from "hono/html";
 import type { Child } from "hono/jsx";
 
 const STYLES = `
@@ -47,7 +48,8 @@ function Layout(props: { title: string; children: Child }) {
           href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700;800&display=swap"
           rel="stylesheet"
         />
-        <style>{STYLES}</style>
+        {/* raw: JSX would HTML-escape the quotes in the CSS and break rules like font-family. */}
+        <style>{raw(STYLES)}</style>
       </head>
       <body>
         <main>
