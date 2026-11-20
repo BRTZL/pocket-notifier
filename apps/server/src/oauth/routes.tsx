@@ -21,10 +21,15 @@ export type OAuthPageDeps = {
   findClient: (clientId: string) => Promise<OAuthClientInfo | null>;
 };
 
+/**
+ * No `form-action`: browsers apply it to the redirect after a form post too, and the
+ * consent post ends in a redirect to the client's loopback callback. Cross-site posts are
+ * refused by `isSameOrigin` instead.
+ */
 const PAGE_HEADERS = {
   "Cache-Control": "no-store",
   "Content-Security-Policy":
-    "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+    "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'none'",
   "Referrer-Policy": "no-referrer",
   "X-Frame-Options": "DENY",
   "X-Content-Type-Options": "nosniff",
@@ -82,14 +87,26 @@ async function redirectFrom(c: Context, answer: Response): Promise<Response | nu
   return withHeaders(response);
 }
 
-function authRequest(deps: OAuthPageDeps, path: string, body: unknown, cookie?: string) {
+/** Kept on the internal auth request, so sessions and rate limits see the real client. */
+const FORWARDED_HEADERS = [
+  "Cookie",
+  "User-Agent",
+  "CF-Connecting-IP",
+  "X-Forwarded-For",
+  "X-Real-IP",
+] as const;
+
+function authRequest(c: Context, deps: OAuthPageDeps, path: string, body: unknown) {
   const headers = new Headers({
     "Content-Type": "application/json",
     Accept: "application/json",
     Origin: deps.authOrigin,
   });
-  if (cookie) {
-    headers.set("Cookie", cookie);
+  for (const name of FORWARDED_HEADERS) {
+    const value = c.req.header(name);
+    if (value) {
+      headers.set(name, value);
+    }
   }
   return deps.authHandler(
     new Request(`${deps.authOrigin}/api/auth${path}`, {
@@ -134,7 +151,7 @@ export function registerOAuthPages<E extends Env>(app: Hono<E>, deps: OAuthPageD
     if (!(await deps.verifyOAuthQuery(oauthQuery))) {
       return messagePage(c, "Link expired", EXPIRED, 400);
     }
-    const answer = await authRequest(deps, "/sign-in/email", {
+    const answer = await authRequest(c, deps, "/sign-in/email", {
       email: form.email ?? "",
       password: form.password ?? "",
       oauth_query: oauthQuery,
@@ -199,12 +216,10 @@ export function registerOAuthPages<E extends Env>(app: Hono<E>, deps: OAuthPageD
     if (!(await deps.verifyOAuthQuery(oauthQuery))) {
       return messagePage(c, "Link expired", EXPIRED, 400);
     }
-    const answer = await authRequest(
-      deps,
-      "/oauth2/consent",
-      { accept: form.accept === "yes", oauth_query: oauthQuery },
-      c.req.header("Cookie"),
-    );
+    const answer = await authRequest(c, deps, "/oauth2/consent", {
+      accept: form.accept === "yes",
+      oauth_query: oauthQuery,
+    });
     const redirect = await redirectFrom(c, answer);
     return redirect ?? messagePage(c, "Could not finish", EXPIRED, 400);
   });

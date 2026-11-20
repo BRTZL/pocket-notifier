@@ -220,6 +220,9 @@ describe("OAuth for MCP clients, end to end", () => {
     const consentPage = await fetchApp(consentPath, { headers: { Cookie: cookie } });
     const consentHtml = await consentPage.text();
     expect(consentHtml).toContain("Allow Test Client?");
+    // `form-action` would also block the redirect to the loopback callback after Allow.
+    expect(consentPage.headers.get("Content-Security-Policy")).not.toContain("form-action");
+    expect(consentPage.headers.get("Content-Security-Policy")).toContain("frame-ancestors 'none'");
     expect(consentHtml).toContain("127.0.0.1:40123");
     expect(consentHtml).toContain("Send notifications to your phone");
     const consentQuery = new URL(consentPath, BASE).search.slice(1);
@@ -294,5 +297,57 @@ describe("OAuth for MCP clients, end to end", () => {
       }).toString(),
     });
     expect(refreshed.status).toBe(200);
+  });
+
+  async function register(redirectUris: string[]) {
+    return await fetchApp("/api/auth/oauth2/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_name: "Loopback Client",
+        redirect_uris: redirectUris,
+        token_endpoint_auth_method: "none",
+        grant_types: ["authorization_code", "refresh_token"],
+        response_types: ["code"],
+      }),
+    });
+  }
+
+  async function authorize(clientId: string, redirectUri: string) {
+    const { challenge } = await pkcePair();
+    const url = new URL(`${BASE}/api/auth/oauth2/authorize`);
+    url.search = new URLSearchParams({
+      response_type: "code",
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      scope: "notifier:read notifier:write",
+      state: "s",
+      code_challenge: challenge,
+      code_challenge_method: "S256",
+      resource: `${BASE}/mcp`,
+    }).toString();
+    return await fetchApp(url, { headers: { Accept: "text/html" }, redirect: "manual" });
+  }
+
+  it("accepts localhost and [::1] loopback redirects on any port, and refuses other http hosts", async () => {
+    for (const [registered, used] of [
+      ["http://localhost:5555/callback", "http://localhost:6666/callback"],
+      ["http://[::1]:5555/callback", "http://[::1]:7777/callback"],
+    ] as const) {
+      const response = await register([registered]);
+      expect(response.status).toBe(201);
+      const client = (await response.json()) as { client_id: string; application_type: string };
+      // Registered without application_type: inferred as a native app from the loopback URI.
+      expect(client.application_type).toBe("native");
+      const accepted = await authorize(client.client_id, used);
+      expect(accepted.status).toBe(302);
+      expect(accepted.headers.get("Location")?.startsWith("/oauth/login?")).toBe(true);
+      // Another path than the registered one is not the same redirect.
+      const otherPath = await authorize(client.client_id, used.replace("/callback", "/other"));
+      expect(otherPath.headers.get("Location")?.startsWith("/oauth/login?")).not.toBe(true);
+    }
+
+    const evil = await register(["http://evil.example/callback"]);
+    expect(evil.status).toBe(400);
   });
 });
