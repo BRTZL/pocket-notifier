@@ -25,3 +25,18 @@ export function useProject(projectId: string) {
 export function projectTitle(project: { name: string; displayName: string | null }): string {
   return project.displayName ?? project.name;
 }
+
+/**
+ * The line under a project's title: its name when a display name hides it. The personal
+ * "General" project has a generated name, so it says "Private" instead.
+ */
+export function projectNameLine(project: {
+  name: string;
+  displayName: string | null;
+  personal: boolean;
+}): string | null {
+  if (project.personal) {
+    return "Private";
+  }
+  return project.displayName && project.displayName !== project.name ? project.name : null;
+}

@@ -11,7 +11,7 @@ import { ErrorState, LoadErrorBanner, LoadingState } from "@/components/query-st
 import { HeaderIconButton, StackHeader } from "@/components/screen-header";
 import { SectionHeader, SettingsRow } from "@/components/settings-row";
 import { ThemedRefreshControl } from "@/components/themed-refresh-control";
-import { projectTitle, useProject } from "@/hooks/use-project";
+import { projectNameLine, projectTitle, useProject } from "@/hooks/use-project";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { projectGlyph } from "@/lib/chat-avatar";
 import { isAccessError } from "@/lib/errors";
@@ -173,7 +173,7 @@ function ProjectNavContent({
     <View className="bg-background flex-1">
       <StackHeader
         title={title}
-        subtitle={title === name ? null : name}
+        subtitle={projectNameLine(project.data)}
         avatar={{ kind: "glyph", name: title, glyph: projectGlyph(name) }}
         onBack={onBack}
         right={<HeaderIconButton icon="tune" label="Project settings" onPress={onOpenSettings} />}

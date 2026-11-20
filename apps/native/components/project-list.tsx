@@ -8,6 +8,7 @@ import { ChatAvatar } from "@/components/chat-avatar";
 import { EmptyState, ErrorState, LoadingState } from "@/components/query-state";
 import { HeaderIconButton, ScreenHeader } from "@/components/screen-header";
 import { ThemedRefreshControl } from "@/components/themed-refresh-control";
+import { projectNameLine } from "@/hooks/use-project";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { projectGlyph } from "@/lib/chat-avatar";
 import { orpc } from "@/utils/orpc";
@@ -23,7 +24,7 @@ function ProjectRow({ project, onPress }: { project: MyProject; onPress: () => v
   const subscription = subscriptionLabel(project);
   const title = project.displayName ?? project.name;
   const unread = project.unreadCount > 0;
-  const details = [project.displayName ? project.name : null, project.role, subscription]
+  const details = [projectNameLine(project), project.role, subscription]
     .filter(Boolean)
     .join(" · ");
   return (
