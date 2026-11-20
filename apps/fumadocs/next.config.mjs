@@ -2,21 +2,17 @@ import { createMDX } from "fumadocs-mdx/next";
 
 const withMDX = createMDX();
 
-/** @type {import('next').NextConfig} */
+/**
+ * A static export, served from Workers static assets on the deployment's root
+ * (`packages/infra/alchemy.run.ts`). `worker.ts` serves the Markdown versions of the
+ * pages (`/docs/<page>.md`, or `Accept: text/markdown`) from `/llms.mdx/docs/...`.
+ *
+ * @type {import('next').NextConfig}
+ */
 const config = {
+  output: "export",
   reactStrictMode: true,
-  async rewrites() {
-    return [
-      {
-        source: "/docs/:path*.md",
-        destination: "/llms.mdx/docs/:path*.md",
-      },
-      {
-        source: "/docs/:path*.txt",
-        destination: "/llms.mdx/docs/:path*.txt",
-      },
-    ];
-  },
+  images: { unoptimized: true },
 };
 
 export default withMDX(config);
