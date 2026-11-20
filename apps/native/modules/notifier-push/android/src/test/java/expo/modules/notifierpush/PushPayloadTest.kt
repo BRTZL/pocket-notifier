@@ -11,7 +11,7 @@ class PushPayloadTest {
 
   private fun data(vararg extra: Pair<String, String>): Map<String, String> =
     mapOf(
-      "v" to "1",
+      "v" to "2",
       "kind" to "message",
       "id" to "msg_01jd8x5k2m9q7r4t6v8w0y3z5a",
       "project" to "rezme",
@@ -35,6 +35,11 @@ class PushPayloadTest {
     assertEquals("rezme", parsed.project)
     assertEquals(projectId, parsed.projectId)
     assertEquals("c:improving-performance", parsed.conversationKey)
+  }
+
+  @Test
+  fun dropsVersionOnePayloads() {
+    assertNull(PushPayload.parse(data() + ("v" to "1")))
   }
 
   @Test
@@ -65,7 +70,7 @@ class PushPayloadTest {
   }
 
   @Test
-  fun olderPushesFallBackToTheLinkThenTheInbox() {
+  fun pushesWithoutAThreadFallBackToTheLinkThenTheInbox() {
     assertEquals(
       "https://example.com/run/1",
       PushNotifications.tapTarget(message("clickUrl" to "https://example.com/run/1")),

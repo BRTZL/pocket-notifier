@@ -29,9 +29,9 @@ data class PushMessage(
   val raw: Map<String, String>,
   val id: String,
   val project: String,
-  /** With `conversationKey`, the thread a tap opens; `""` in pushes from older servers. */
+  /** With `conversationKey`, the thread a tap opens. */
   val projectId: String,
-  /** `c:<conversation id>` or `p:<project id>`; `""` in pushes from older servers. */
+  /** `c:<conversation id>` or `p:<project id>`. */
   val conversationKey: String,
   val title: String,
   val body: String,
@@ -53,7 +53,7 @@ sealed interface Push {
 }
 
 object PushPayload {
-  const val VERSION = "1"
+  const val VERSION = "2"
 
   /** Not part of the wire format: replies sent from the notification, added on rebuild. */
   const val REPLIES_KEY = "_replies"

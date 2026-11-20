@@ -195,8 +195,8 @@ object PushNotifications {
 
   /**
    * What a tap opens: the message's thread, `notifier://conversation/<projectId>/<key>`.
-   * Pushes from older servers have no thread; they open the `clickUrl` when it is a web or
-   * notifier link, else the inbox.
+   * Without a thread it opens the `clickUrl` when it is a web or notifier link, else the
+   * inbox.
    */
   fun tapTarget(message: PushMessage): String =
     threadUri(message.projectId, message.conversationKey)
