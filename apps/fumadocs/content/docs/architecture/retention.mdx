@@ -51,7 +51,7 @@ Delete the messages; responses and read state cascade. Repeat until nothing is e
 
 ### Sweep the rest
 
-Delete orphaned uploads, old invites and stale devices.
+Delete orphaned uploads, old invites and stale devices, also 500 at a time and within the same 20-second budget. Invites and devices are found without an index: there are only a few per user.
 
 </Step>
 </Steps>

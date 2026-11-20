@@ -41,16 +41,17 @@ describe("createDispatch", () => {
     });
   });
 
-  it("runs fan-out in waitUntil, off the request log, and never rejects", async () => {
-    vi.spyOn(console, "log").mockImplementation(() => undefined);
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
+  it("runs fan-out in waitUntil, off the request log, never rejects and never logs error text", async () => {
+    const consoleSpies = (["log", "info", "warn", "error"] as const).map((method) =>
+      vi.spyOn(console, method).mockImplementation(() => undefined),
+    );
     const log = requestLog();
     const waitUntil = vi.fn<(promise: Promise<unknown>) => void>();
     const sender: PushSender = { send: vi.fn() };
     // A database that fails, so the background task throws.
     const db = {
       select: () => {
-        throw new Error("db down");
+        throw new Error("SENTINEL_DB_TEXT");
       },
     } as unknown as Database;
     const dispatch = createDispatch({
@@ -65,6 +66,9 @@ describe("createDispatch", () => {
     expect(sender.send).not.toHaveBeenCalled();
     expect(log.set).not.toHaveBeenCalled();
     expect(log.error).not.toHaveBeenCalled();
+    const logged = JSON.stringify(consoleSpies.map((spy) => spy.mock.calls));
+    expect(logged).toContain("push task failed");
+    expect(logged).not.toContain("SENTINEL_DB_TEXT");
     vi.restoreAllMocks();
   });
 });
@@ -95,9 +99,9 @@ describe("createScheduledHandler", () => {
     const db = {} as Database;
     const cleanup = vi.fn(async () => ({
       messages: 2,
-      messagesDone: true,
       invites: 0,
       devices: 1,
+      done: true,
     }));
     const waitUntil = vi.fn<(promise: Promise<unknown>) => void>();
     const scheduledTime = Date.UTC(2026, 10, 20, 13);

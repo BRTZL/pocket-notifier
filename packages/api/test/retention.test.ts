@@ -47,6 +47,17 @@ describe("runRetention", () => {
     return id;
   }
 
+  async function staleDevice(token: string, daysAgo: number) {
+    await testDb.db.insert(device).values({
+      id: newId("device"),
+      userId: bob.id,
+      pushToken: token,
+      name: token,
+      platform: "android",
+      lastSeenAt: new Date(NOW.getTime() - daysAgo * DAY),
+    });
+  }
+
   async function count(table: typeof message | typeof messageRead | typeof messageResponse) {
     const [row] = await testDb.db.select({ n: sql<number>`count(*)` }).from(table);
     return row?.n ?? 0;
@@ -68,7 +79,7 @@ describe("runRetention", () => {
 
     const result = await runRetention(testDb.db, { now: NOW });
 
-    expect(result).toEqual({ messages: 1, messagesDone: true, invites: 0, devices: 0 });
+    expect(result).toEqual({ messages: 1, invites: 0, devices: 0, done: true });
     const ids = (await testDb.db.select({ id: message.id }).from(message)).map((row) => row.id);
     expect(ids).toEqual([kept]);
     expect(await count(messageRead)).toBe(1);
@@ -82,14 +93,15 @@ describe("runRetention", () => {
     await messageExpiringIn(DAY);
     const result = await runRetention(testDb.db, { now: NOW, batchSize: 2 });
     expect(result.messages).toBe(5);
-    expect(result.messagesDone).toBe(true);
+    expect(result.done).toBe(true);
     expect(await count(message)).toBe(1);
   });
 
-  it("stops deleting messages when the time budget is used up", async () => {
+  it("stops the whole run when the time budget is used up", async () => {
     for (let index = 0; index < 5; index += 1) {
       await messageExpiringIn(-DAY);
     }
+    await staleDevice("stale", 61);
     let clock = 0;
     const result = await runRetention(testDb.db, {
       now: NOW,
@@ -102,8 +114,11 @@ describe("runRetention", () => {
       },
     });
     expect(result.messages).toBe(2);
-    expect(result.messagesDone).toBe(false);
+    expect(result.done).toBe(false);
     expect(await count(message)).toBe(3);
+    // Invites and devices share the budget, so the stale device waits for the next run.
+    expect(result.devices).toBe(0);
+    expect(await testDb.db.select({ id: device.id }).from(device)).toHaveLength(1);
   });
 
   it("deletes invites that ended more than 30 days ago", async () => {
@@ -127,7 +142,7 @@ describe("runRetention", () => {
       });
     }
 
-    const result = await runRetention(testDb.db, { now: NOW });
+    const result = await runRetention(testDb.db, { now: NOW, batchSize: 2 });
 
     expect(result.invites).toBe(3);
     const left = (await testDb.db.select({ id: invite.id }).from(invite)).map((row) => row.id);
@@ -139,35 +154,41 @@ describe("runRetention", () => {
     ]);
   });
 
-  it("deletes devices not seen for 60 days", async () => {
+  it("deletes devices not seen for 60 days, in batches", async () => {
     for (const [token, daysAgo] of [
-      ["stale", 61],
+      ["stale-1", 61],
+      ["stale-2", 70],
+      ["stale-3", 90],
       ["recent", 59],
     ] as const) {
-      await testDb.db.insert(device).values({
-        id: newId("device"),
-        userId: bob.id,
-        pushToken: token,
-        name: token,
-        platform: "android",
-        lastSeenAt: new Date(NOW.getTime() - daysAgo * DAY),
-      });
+      await staleDevice(token, daysAgo);
     }
-    const result = await runRetention(testDb.db, { now: NOW });
-    expect(result.devices).toBe(1);
+    const result = await runRetention(testDb.db, { now: NOW, batchSize: 2 });
+    expect(result.devices).toBe(3);
+    expect(result.done).toBe(true);
     const tokens = (await testDb.db.select({ token: device.pushToken }).from(device)).map(
       (row) => row.token,
     );
     expect(tokens).toEqual(["recent"]);
   });
 
+  it("finds expired messages through the expires_at index", async () => {
+    const plan = await testDb.d1
+      .prepare(
+        'explain query plan select "id" from "message" where "message"."expires_at" < ? limit 500',
+      )
+      .bind(NOW.getTime())
+      .all<{ detail: string }>();
+    expect(plan.results.map((row) => row.detail).join(" ")).toContain("message_expiresAt_idx");
+  });
+
   it("touches nothing when nothing is due", async () => {
     await messageExpiringIn(DAY);
     expect(await runRetention(testDb.db, { now: NOW })).toEqual({
       messages: 0,
-      messagesDone: true,
       invites: 0,
       devices: 0,
+      done: true,
     });
     expect(await count(message)).toBe(1);
   });
