@@ -2,6 +2,7 @@ import { DEFAULT_PRIORITY } from "@notifier/contract/priority";
 import { RETENTION_DAYS } from "@notifier/contract/topic";
 import { defineRelationsPart, sql } from "drizzle-orm";
 import {
+  check,
   index,
   integer,
   primaryKey,
@@ -47,6 +48,7 @@ export const topicMember = sqliteTable(
   (table) => [
     primaryKey({ columns: [table.topicId, table.userId] }),
     index("topic_member_userId_idx").on(table.userId),
+    check("topic_member_role_check", sql`${table.role} in ('owner', 'publisher', 'subscriber')`),
   ],
 );
 
@@ -86,7 +88,13 @@ export const accessToken = sqliteTable(
     revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
   },
-  (table) => [index("access_token_userId_idx").on(table.userId)],
+  (table) => [
+    index("access_token_userId_idx").on(table.userId),
+    check(
+      "access_token_hash_check",
+      sql`length(${table.hash}) = 64 and ${table.hash} not glob '*[^0-9a-f]*'`,
+    ),
+  ],
 );
 
 export const message = sqliteTable(
@@ -98,10 +106,10 @@ export const message = sqliteTable(
       .references(() => topic.id, { onDelete: "cascade" }),
     title: text("title"),
     body: text("body").default("").notNull(),
-    priority: integer("priority").default(DEFAULT_PRIORITY).notNull(),
-    tagsJson: text("tags_json").default("[]").notNull(),
+    priority: integer("priority").notNull(),
+    tagsJson: text("tags_json").notNull(),
     clickUrl: text("click_url"),
-    actionsJson: text("actions_json").default("[]").notNull(),
+    actionsJson: text("actions_json").notNull(),
     conversationJson: text("conversation_json"),
     senderJson: text("sender_json"),
     publishedBy: text("published_by").references(() => user.id, { onDelete: "set null" }),
@@ -112,6 +120,7 @@ export const message = sqliteTable(
   (table) => [
     index("message_topicId_id_idx").on(table.topicId, table.id),
     index("message_expiresAt_idx").on(table.expiresAt),
+    check("message_priority_check", sql`${table.priority} between 1 and 5`),
   ],
 );
 
@@ -150,6 +159,7 @@ export const messageResponse = sqliteTable(
       table.userId,
       table.actionKey,
     ),
+    check("message_response_kind_check", sql`${table.kind} in ('ack', 'text')`),
   ],
 );
 
@@ -167,7 +177,10 @@ export const device = sqliteTable(
     lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).default(nowMs).notNull(),
     createdAt: createdAt(),
   },
-  (table) => [index("device_userId_idx").on(table.userId)],
+  (table) => [
+    index("device_userId_idx").on(table.userId),
+    check("device_platform_check", sql`${table.platform} in ('android', 'ios')`),
+  ],
 );
 
 export const invite = sqliteTable(
@@ -179,7 +192,7 @@ export const invite = sqliteTable(
       .references(() => user.id, { onDelete: "cascade" }),
     codeHash: text("code_hash").notNull().unique(),
     email: text("email"),
-    grantsJson: text("grants_json").default("[]").notNull(),
+    grantsJson: text("grants_json").notNull(),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
     acceptedAt: integer("accepted_at", { mode: "timestamp_ms" }),
     acceptedBy: text("accepted_by").references(() => user.id, { onDelete: "set null" }),

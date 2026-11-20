@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "2b0f4326-7756-49b1-acbb-3c2d85271088",
+  "id": "8256cc41-caf8-4fbf-b0b1-3f45d290b9b0",
   "prevIds": [
     "ae5ab7ad-b11a-4804-954a-a3d63482b514"
   ],
@@ -624,7 +624,7 @@
       "type": "text",
       "notNull": true,
       "autoincrement": false,
-      "default": "'[]'",
+      "default": null,
       "generated": null,
       "entityType": "columns"
     },
@@ -724,7 +724,7 @@
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
-      "default": "3",
+      "default": null,
       "generated": null,
       "entityType": "columns"
     },
@@ -734,7 +734,7 @@
       "type": "text",
       "notNull": true,
       "autoincrement": false,
-      "default": "'[]'",
+      "default": null,
       "generated": null,
       "entityType": "columns"
     },
@@ -754,7 +754,7 @@
       "type": "text",
       "notNull": true,
       "autoincrement": false,
-      "default": "'[]'",
+      "default": null,
       "generated": null,
       "entityType": "columns"
     },
@@ -1672,6 +1672,36 @@
       ],
       "nameExplicit": false,
       "entityType": "uniques"
+    },
+    {
+      "table": "access_token",
+      "name": "access_token_hash_check",
+      "value": "length(\"hash\") = 64 and \"hash\" not glob '*[^0-9a-f]*'",
+      "entityType": "checks"
+    },
+    {
+      "table": "device",
+      "name": "device_platform_check",
+      "value": "\"platform\" in ('android', 'ios')",
+      "entityType": "checks"
+    },
+    {
+      "table": "message",
+      "name": "message_priority_check",
+      "value": "\"priority\" between 1 and 5",
+      "entityType": "checks"
+    },
+    {
+      "table": "message_response",
+      "name": "message_response_kind_check",
+      "value": "\"kind\" in ('ack', 'text')",
+      "entityType": "checks"
+    },
+    {
+      "table": "topic_member",
+      "name": "topic_member_role_check",
+      "value": "\"role\" in ('owner', 'publisher', 'subscriber')",
+      "entityType": "checks"
     }
   ],
   "renames": []

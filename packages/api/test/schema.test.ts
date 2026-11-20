@@ -34,6 +34,8 @@ describe("notifier schema", () => {
         title: "Hello",
         body: "World",
         priority: 3,
+        tagsJson: "[]",
+        actionsJson: "[]",
         publishedBy: userId,
         expiresAt: new Date(now.getTime() + 86_400_000),
       }),

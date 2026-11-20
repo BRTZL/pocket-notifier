@@ -9,7 +9,8 @@ CREATE TABLE `access_token` (
 	`last_used_at` integer,
 	`revoked_at` integer,
 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	CONSTRAINT `fk_access_token_user_id_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE
+	CONSTRAINT `fk_access_token_user_id_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE,
+	CONSTRAINT "access_token_hash_check" CHECK(length("hash") = 64 and "hash" not glob '*[^0-9a-f]*')
 );
 --> statement-breakpoint
 CREATE TABLE `device` (
@@ -21,7 +22,8 @@ CREATE TABLE `device` (
 	`app_version` text,
 	`last_seen_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	CONSTRAINT `fk_device_user_id_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE
+	CONSTRAINT `fk_device_user_id_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE,
+	CONSTRAINT "device_platform_check" CHECK("platform" in ('android', 'ios'))
 );
 --> statement-breakpoint
 CREATE TABLE `invite` (
@@ -29,7 +31,7 @@ CREATE TABLE `invite` (
 	`created_by` text NOT NULL,
 	`code_hash` text NOT NULL UNIQUE,
 	`email` text,
-	`grants_json` text DEFAULT '[]' NOT NULL,
+	`grants_json` text NOT NULL,
 	`expires_at` integer NOT NULL,
 	`accepted_at` integer,
 	`accepted_by` text,
@@ -44,10 +46,10 @@ CREATE TABLE `message` (
 	`topic_id` text NOT NULL,
 	`title` text,
 	`body` text DEFAULT '' NOT NULL,
-	`priority` integer DEFAULT 3 NOT NULL,
-	`tags_json` text DEFAULT '[]' NOT NULL,
+	`priority` integer NOT NULL,
+	`tags_json` text NOT NULL,
 	`click_url` text,
-	`actions_json` text DEFAULT '[]' NOT NULL,
+	`actions_json` text NOT NULL,
 	`conversation_json` text,
 	`sender_json` text,
 	`published_by` text,
@@ -56,7 +58,8 @@ CREATE TABLE `message` (
 	`expires_at` integer NOT NULL,
 	CONSTRAINT `fk_message_topic_id_topic_id_fk` FOREIGN KEY (`topic_id`) REFERENCES `topic`(`id`) ON DELETE CASCADE,
 	CONSTRAINT `fk_message_published_by_user_id_fk` FOREIGN KEY (`published_by`) REFERENCES `user`(`id`) ON DELETE SET NULL,
-	CONSTRAINT `fk_message_token_id_access_token_id_fk` FOREIGN KEY (`token_id`) REFERENCES `access_token`(`id`) ON DELETE SET NULL
+	CONSTRAINT `fk_message_token_id_access_token_id_fk` FOREIGN KEY (`token_id`) REFERENCES `access_token`(`id`) ON DELETE SET NULL,
+	CONSTRAINT "message_priority_check" CHECK("priority" between 1 and 5)
 );
 --> statement-breakpoint
 CREATE TABLE `message_read` (
@@ -77,7 +80,8 @@ CREATE TABLE `message_response` (
 	`text` text,
 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
 	CONSTRAINT `fk_message_response_message_id_message_id_fk` FOREIGN KEY (`message_id`) REFERENCES `message`(`id`) ON DELETE CASCADE,
-	CONSTRAINT `fk_message_response_user_id_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE
+	CONSTRAINT `fk_message_response_user_id_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE,
+	CONSTRAINT "message_response_kind_check" CHECK("kind" in ('ack', 'text'))
 );
 --> statement-breakpoint
 CREATE TABLE `subscription` (
@@ -108,7 +112,8 @@ CREATE TABLE `topic_member` (
 	`added_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
 	CONSTRAINT `topic_member_pk` PRIMARY KEY(`topic_id`, `user_id`),
 	CONSTRAINT `fk_topic_member_topic_id_topic_id_fk` FOREIGN KEY (`topic_id`) REFERENCES `topic`(`id`) ON DELETE CASCADE,
-	CONSTRAINT `fk_topic_member_user_id_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE
+	CONSTRAINT `fk_topic_member_user_id_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE,
+	CONSTRAINT "topic_member_role_check" CHECK("role" in ('owner', 'publisher', 'subscriber'))
 );
 --> statement-breakpoint
 CREATE INDEX `access_token_userId_idx` ON `access_token` (`user_id`);--> statement-breakpoint
