@@ -146,6 +146,7 @@ export default function NewInviteScreen() {
       <TextField isInvalid={Boolean(errors.email)}>
         <Label>Email</Label>
         <Input
+          variant="secondary"
           value={email}
           onChangeText={setEmail}
           placeholder="Anyone with the link"
@@ -166,7 +167,13 @@ export default function NewInviteScreen() {
 
       <TextField isRequired isInvalid={Boolean(errors.expiresInDays)}>
         <Label>Expires after (days)</Label>
-        <Input value={expiry} onChangeText={setExpiry} keyboardType="number-pad" maxLength={2} />
+        <Input
+          variant="secondary"
+          value={expiry}
+          onChangeText={setExpiry}
+          keyboardType="number-pad"
+          maxLength={2}
+        />
         {errors.expiresInDays ? null : <Description>1–30 days.</Description>}
         <FieldError>{errors.expiresInDays}</FieldError>
       </TextField>

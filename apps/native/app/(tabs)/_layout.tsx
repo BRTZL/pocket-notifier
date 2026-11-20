@@ -1,27 +1,35 @@
 import { NativeTabs } from "expo-router/native-tabs";
-import { useThemeColor } from "heroui-native";
 
 import { UserQueryProvider } from "@/components/user-query-provider";
+import { useTokenColors } from "@/hooks/use-token-color";
 import { authClient } from "@/lib/auth-client";
 
+/** Tab label type: Figtree 700 at 12.5pt, as in the design. */
+const LABEL_FONT = { fontFamily: "Figtree_700Bold", fontSize: 12.5 } as const;
+
 function Tabs() {
-  const [background, accent, muted, accentSoft] = useThemeColor([
-    "background",
-    "accent",
+  const [surface, foreground, muted, accentSoft, accentSoftForeground] = useTokenColors([
+    "surface",
+    "foreground",
     "muted",
     "accent-soft",
-  ]);
+    "accent-soft-foreground",
+  ] as const);
 
   return (
     <NativeTabs
-      backgroundColor={background}
-      tintColor={accent}
-      iconColor={{ default: muted, selected: accent }}
+      backgroundColor={surface}
+      tintColor={accentSoftForeground}
+      iconColor={{ default: muted, selected: accentSoftForeground }}
       indicatorColor={accentSoft}
-      labelStyle={{ default: { color: muted }, selected: { color: accent } }}
+      rippleColor={accentSoft}
+      labelStyle={{
+        default: { ...LABEL_FONT, color: muted },
+        selected: { ...LABEL_FONT, color: foreground },
+      }}
     >
       <NativeTabs.Trigger name="(inbox)">
-        <NativeTabs.Trigger.Icon sf="tray.fill" md="inbox" />
+        <NativeTabs.Trigger.Icon sf="bubble.left.and.bubble.right.fill" md="forum" />
         <NativeTabs.Trigger.Label>Inbox</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="(topics)">

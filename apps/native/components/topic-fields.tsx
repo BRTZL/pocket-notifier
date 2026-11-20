@@ -92,6 +92,7 @@ export function TopicFields({
         <TextField isRequired isInvalid={Boolean(errors.name)} isDisabled={isDisabled}>
           <Label>Name</Label>
           <Input
+            variant="secondary"
             value={values.name}
             onChangeText={(text) => onChange("name", text)}
             placeholder="e.g. ci-alerts"
@@ -108,6 +109,7 @@ export function TopicFields({
       <TextField isInvalid={Boolean(errors.displayName)} isDisabled={isDisabled}>
         <Label>Display name</Label>
         <Input
+          variant="secondary"
           value={values.displayName}
           onChangeText={(text) => onChange("displayName", text)}
           placeholder="Optional"
@@ -118,6 +120,7 @@ export function TopicFields({
       <TextField isInvalid={Boolean(errors.description)} isDisabled={isDisabled}>
         <Label>Description</Label>
         <TextArea
+          variant="secondary"
           value={values.description}
           onChangeText={(text) => onChange("description", text)}
           placeholder="Optional"
@@ -133,6 +136,7 @@ export function TopicFields({
       <TextField isRequired isInvalid={Boolean(errors.retentionDays)} isDisabled={isDisabled}>
         <Label>Keep messages for (days)</Label>
         <Input
+          variant="secondary"
           value={values.retentionDays}
           onChangeText={(text) => onChange("retentionDays", text)}
           keyboardType="number-pad"

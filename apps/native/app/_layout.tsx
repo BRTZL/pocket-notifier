@@ -1,11 +1,23 @@
 import "@/global.css";
+import {
+  Figtree_400Regular,
+  Figtree_500Medium,
+  Figtree_600SemiBold,
+  Figtree_700Bold,
+  Figtree_800ExtraBold,
+  useFonts,
+} from "@expo-google-fonts/figtree";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { ThemeProvider } from "expo-router/react-navigation";
-import { HeroUINativeProvider } from "heroui-native";
+import { StatusBar } from "expo-status-bar";
+import * as SystemUI from "expo-system-ui";
+import { HeroUINativeProvider, useThemeColor } from "heroui-native";
+import { useEffect } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import { useUniwind } from "uniwind";
 
 import { LoadingState } from "@/components/query-state";
 import { AppThemeProvider } from "@/contexts/app-theme-provider";
@@ -42,6 +54,14 @@ function AuthGate() {
 
 function ThemedApp() {
   const navigationTheme = useNavigationTheme();
+  const { theme } = useUniwind();
+  const background = useThemeColor("background");
+  // The window behind the status bar and its icons follow the theme, so a dark theme has
+  // no white strip.
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(background);
+    StatusBar.setStyle(theme === "dark" ? "light" : "dark");
+  }, [background, theme]);
   return (
     <ThemeProvider value={navigationTheme}>
       <AuthGate />
@@ -50,6 +70,19 @@ function ThemedApp() {
 }
 
 export default function Layout() {
+  // Figtree is the app's only typeface (see global.css). Until it is loaded nothing
+  // renders, so no text flashes in the system font; a load error falls back to it.
+  const [fontsLoaded, fontError] = useFonts({
+    Figtree_400Regular,
+    Figtree_500Medium,
+    Figtree_600SemiBold,
+    Figtree_700Bold,
+    Figtree_800ExtraBold,
+  });
+  if (!(fontsLoaded || fontError)) {
+    return null;
+  }
+
   return (
     <QueryClientProvider client={publicQueryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>

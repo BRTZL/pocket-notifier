@@ -35,7 +35,7 @@ export function useStackScreenOptions() {
   return {
     headerStyle: { backgroundColor: background },
     headerTintColor: foreground,
-    headerTitleStyle: { color: foreground },
+    headerTitleStyle: { color: foreground, fontFamily: "Figtree_800ExtraBold", fontSize: 17 },
     headerShadowVisible: false,
     contentStyle: { backgroundColor: background },
   };

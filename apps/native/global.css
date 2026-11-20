@@ -1,3 +1,142 @@
 @import "tailwindcss";
 @import "uniwind";
 @import "heroui-native/styles";
+
+/*
+ * Design direction B, "Conversations": warm white, ink text, one coral accent.
+ * Light is the primary theme; dark is derived from it. Screens use these tokens
+ * (`bg-surface`, `text-muted`, …), never raw hex.
+ */
+@theme {
+  /* Figtree, loaded in the root layout. Each weight is its own family, so no numeric
+     font-weight is applied (see the HeroUI Native "Custom Fonts" guide). */
+  --font-normal: "Figtree_400Regular";
+  --font-medium: "Figtree_500Medium";
+  --font-semibold: "Figtree_600SemiBold";
+  --font-bold: "Figtree_700Bold";
+  /* 800 for titles, chat names and asks. Not `extrabold`: that is a weight utility. */
+  --font-heavy: "Figtree_800ExtraBold";
+
+  --radius: 0.625rem;
+  /* Fields and the search pill. */
+  --field-radius: 1rem;
+}
+
+@layer theme {
+  :root {
+    @variant light {
+      --background: #ffffff;
+      --foreground: #161412;
+
+      --surface: #f4f2ef;
+      --surface-foreground: var(--foreground);
+      /* The thread canvas behind the bubbles. */
+      --surface-secondary: #faf9f7;
+      --surface-secondary-foreground: var(--foreground);
+      --surface-tertiary: #ece9e4;
+      --surface-tertiary-foreground: var(--foreground);
+
+      --overlay: #ffffff;
+      --overlay-foreground: var(--foreground);
+      --backdrop: rgba(22, 20, 18, 0.24);
+
+      --muted: #75706a;
+      /* Secondary text: unread previews, ask bodies, header icons. */
+      --foreground-secondary: #3f3b37;
+
+      --default: #f4f2ef;
+      --default-foreground: #161412;
+
+      --accent: #e94826;
+      --accent-foreground: #ffffff;
+      --accent-soft: #fde7de;
+      --accent-soft-foreground: #8a2410;
+      /* Accent as text on white (quick replies), a step darker for contrast. */
+      --accent-text: #c43a1b;
+
+      --field-background: #f4f2ef;
+      --field-foreground: #161412;
+      --field-placeholder: #a8a29b;
+      --field-border: transparent;
+
+      --success: #23935a;
+      --success-foreground: #ffffff;
+      --warning: #d98200;
+      --warning-foreground: #161412;
+      --danger: #d92d20;
+      --danger-foreground: #ffffff;
+
+      --segment: #ffffff;
+      --segment-foreground: #161412;
+
+      --border: #ece9e4;
+      --separator: #ece9e4;
+      --focus: var(--accent);
+      --link: var(--accent-text);
+
+      --surface-shadow: 0 0 0 0 transparent inset;
+      --overlay-shadow: 0 2px 8px 0 rgba(22, 20, 18, 0.06), 0 14px 28px 0 rgba(22, 20, 18, 0.08);
+      --field-shadow: 0 0 0 0 transparent inset;
+    }
+
+    @variant dark {
+      --background: #121110;
+      --foreground: #f4f2ef;
+
+      --surface: #1c1a18;
+      --surface-foreground: var(--foreground);
+      --surface-secondary: #171514;
+      --surface-secondary-foreground: var(--foreground);
+      --surface-tertiary: #2a2724;
+      --surface-tertiary-foreground: var(--foreground);
+
+      --overlay: #1c1a18;
+      --overlay-foreground: var(--foreground);
+      --backdrop: rgba(0, 0, 0, 0.4);
+
+      --muted: #a39d96;
+      --foreground-secondary: #d6d1cb;
+
+      --default: #24211f;
+      --default-foreground: #f4f2ef;
+
+      --accent: #e94826;
+      --accent-foreground: #ffffff;
+      --accent-soft: #3a1d14;
+      --accent-soft-foreground: #ffb39e;
+      --accent-text: #ff8a6b;
+
+      --field-background: #1c1a18;
+      --field-foreground: #f4f2ef;
+      --field-placeholder: #75706a;
+      --field-border: transparent;
+
+      --success: #3fb67a;
+      --success-foreground: #121110;
+      --warning: #f0a032;
+      --warning-foreground: #121110;
+      --danger: #f04438;
+      --danger-foreground: #ffffff;
+
+      --segment: #2a2724;
+      --segment-foreground: #f4f2ef;
+
+      --border: #2a2724;
+      --separator: #2a2724;
+      --focus: var(--accent);
+      --link: var(--accent-text);
+
+      --surface-shadow: 0 0 0 0 transparent inset;
+      --overlay-shadow: 0 0 1px 0 rgba(255, 255, 255, 0.2) inset;
+      --field-shadow: 0 0 0 0 transparent inset;
+    }
+  }
+}
+
+/* Tokens HeroUI does not define, as Tailwind colors. */
+@theme inline static {
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-foreground: var(--accent-soft-foreground);
+  --color-accent-text: var(--accent-text);
+}

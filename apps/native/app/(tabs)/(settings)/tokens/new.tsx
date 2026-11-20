@@ -169,6 +169,7 @@ export default function NewTokenScreen() {
       <TextField isRequired isInvalid={Boolean(errors.name)}>
         <Label>Name</Label>
         <Input
+          variant="secondary"
           value={name}
           onChangeText={setName}
           placeholder="e.g. laptop agents"
@@ -210,6 +211,7 @@ export default function NewTokenScreen() {
       <TextField isInvalid={Boolean(errors.expiresInDays)}>
         <Label>Expires after (days)</Label>
         <Input
+          variant="secondary"
           value={expiry}
           onChangeText={setExpiry}
           placeholder="Never"

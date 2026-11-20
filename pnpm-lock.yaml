@@ -169,6 +169,9 @@ importers:
       '@better-auth/expo':
         specifier: 'catalog:'
         version: 1.7.26(4545bdd6052561be77cd2fc1b605c24d)
+      '@expo-google-fonts/figtree':
+        specifier: ^0.4.1
+        version: 0.4.1
       '@expo/metro-runtime':
         specifier: ~58.0.17
         version: 58.0.17(@expo/log-box@58.0.15)(expo@58.0.26)(react-dom@19.3.0(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.13)(@react-native/metro-config@0.88.1(@babel/core@7.29.13))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
@@ -1980,6 +1983,9 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@expo-google-fonts/figtree@0.4.1':
+    resolution: {integrity: sha512-6IQQddGeR3yZBSwiIjy2kd1gA+5s2esF8JAFw6M1qqU4RUlj4Zxkw9J+gixAtZFgd+QIS875EPHqeYlpaRcCRw==}
 
   '@expo-google-fonts/material-symbols@0.4.54':
     resolution: {integrity: sha512-BcwBgi5EX5sA3sCzwPFM9Cp2squg3ugfw+e3OKBvWkZs9bEDkO0QiTeX8AlezS032vyAryikwEOqeJXVs5hNgQ==}
@@ -10671,6 +10677,8 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.2':
     optional: true
+
+  '@expo-google-fonts/figtree@0.4.1': {}
 
   '@expo-google-fonts/material-symbols@0.4.54': {}
 

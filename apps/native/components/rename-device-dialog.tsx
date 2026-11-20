@@ -61,7 +61,13 @@ export function RenameDeviceDialog({
               <Dialog.Title>Rename device</Dialog.Title>
               <TextField isInvalid={error !== null}>
                 <Label>Name</Label>
-                <Input value={name} onChangeText={setName} maxLength={80} autoFocus />
+                <Input
+                  variant="secondary"
+                  value={name}
+                  onChangeText={setName}
+                  maxLength={80}
+                  autoFocus
+                />
                 <FieldError>{error}</FieldError>
               </TextField>
               <View className="flex-row justify-end gap-3">

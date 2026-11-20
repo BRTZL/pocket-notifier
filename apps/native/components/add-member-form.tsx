@@ -70,6 +70,7 @@ export function AddMemberForm({ topicId }: { topicId: string }) {
       <TextField isInvalid={error !== null} isDisabled={add.isPending}>
         <Label>Add a member</Label>
         <Input
+          variant="secondary"
           value={email}
           onChangeText={(text) => {
             setEmail(text);
