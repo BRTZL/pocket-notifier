@@ -9,6 +9,8 @@ import { SignUp } from "@/components/sign-up";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/utils/orpc";
 
+import { ENV } from "../../src/env";
+
 function getStatusLabel(isLoading: boolean, isConnected: boolean) {
   if (isLoading) {
     return "Checking connection...";
@@ -35,11 +37,14 @@ function StatusIcon({
 }
 
 export default function Home() {
-  const healthCheck = useQuery(orpc.healthCheck.queryOptions());
-  const privateData = useQuery(orpc.privateData.queryOptions());
+  const { data: session } = authClient.useSession();
+  const healthCheck = useQuery({
+    queryKey: ["server-status"],
+    queryFn: async () => (await fetch(ENV.EXPO_PUBLIC_SERVER_URL)).text(),
+  });
+  const me = useQuery({ ...orpc.me.get.queryOptions(), enabled: Boolean(session?.user) });
   const isConnected = healthCheck.data === "OK";
   const { isLoading } = healthCheck;
-  const { data: session } = authClient.useSession();
 
   const mutedColor = useThemeColor("muted");
   const successColor = useThemeColor("success");
@@ -96,8 +101,8 @@ export default function Home() {
       </Card>
 
       <Card variant="secondary" className="mt-6 p-4">
-        <Card.Title className="mb-3">Private Data</Card.Title>
-        {privateData.data ? <Card.Description>{privateData.data.message}</Card.Description> : null}
+        <Card.Title className="mb-3">Account</Card.Title>
+        {me.data ? <Card.Description>Signed in as {me.data.email}</Card.Description> : null}
       </Card>
 
       {!session?.user && (

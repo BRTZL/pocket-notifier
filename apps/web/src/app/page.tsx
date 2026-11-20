@@ -1,7 +1,7 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 
-import { orpc } from "@/utils/orpc";
+import { SERVER_URL } from "@/lib/public-env";
 
 const TITLE_TEXT = `
  ██████╗ ███████╗████████╗████████╗███████╗██████╗
@@ -27,7 +27,10 @@ function getStatusLabel(isLoading: boolean, isConnected: boolean) {
 }
 
 export default function Home() {
-  const healthCheck = useQuery(orpc.healthCheck.queryOptions());
+  const healthCheck = useQuery({
+    queryKey: ["server-status"],
+    queryFn: async () => (await fetch(SERVER_URL)).text(),
+  });
 
   return (
     <div className="container mx-auto max-w-3xl px-4 py-2">
@@ -37,10 +40,10 @@ export default function Home() {
           <h2 className="mb-2 font-medium">API Status</h2>
           <div className="flex items-center gap-2">
             <div
-              className={`h-2 w-2 rounded-full ${healthCheck.data ? "bg-green-500" : "bg-red-500"}`}
+              className={`h-2 w-2 rounded-full ${healthCheck.data === "OK" ? "bg-green-500" : "bg-red-500"}`}
             />
             <span className="text-muted-foreground text-sm">
-              {getStatusLabel(healthCheck.isLoading, Boolean(healthCheck.data))}
+              {getStatusLabel(healthCheck.isLoading, healthCheck.data === "OK")}
             </span>
           </div>
         </section>

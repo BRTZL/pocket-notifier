@@ -1,9 +1,6 @@
-import { appRouter } from "@notifier/api/routers/index";
-import { OpenAPIHandler } from "@orpc/openapi/fetch";
-import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
+import { appRouter } from "@notifier/api/router";
 import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
-import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { initLogger } from "evlog";
 import { type BetterAuthInstance, createAuthMiddleware } from "evlog/better-auth";
 import { type EvlogVariables, evlog } from "evlog/hono";
@@ -43,19 +40,6 @@ app.use(
 
 app.on(["POST", "GET"], "/api/auth/*", async (c) => (await createAuth()).handler(c.req.raw));
 
-export const apiHandler = new OpenAPIHandler(appRouter, {
-  plugins: [
-    new OpenAPIReferencePlugin({
-      schemaConverters: [new ZodToJsonSchemaConverter()],
-    }),
-  ],
-  interceptors: [
-    onError((error) => {
-      console.error(error);
-    }),
-  ],
-});
-
 export const rpcHandler = new RPCHandler(appRouter, {
   interceptors: [
     onError((error) => {
@@ -74,15 +58,6 @@ app.use("/*", async (c, next) => {
 
   if (rpcResult.matched) {
     return c.newResponse(rpcResult.response.body, rpcResult.response);
-  }
-
-  const apiResult = await apiHandler.handle(c.req.raw, {
-    prefix: "/api-reference",
-    context,
-  });
-
-  if (apiResult.matched) {
-    return c.newResponse(apiResult.response.body, apiResult.response);
   }
 
   await next();

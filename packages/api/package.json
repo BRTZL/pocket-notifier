@@ -2,7 +2,6 @@
   "name": "@notifier/api",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {

@@ -11,10 +11,11 @@
     "env:generate": "varlock codegen"
   },
   "dependencies": {
-    "@notifier/api": "workspace:*",
+    "@notifier/contract": "workspace:*",
     "@notifier/ui": "workspace:*",
     "@opennextjs/cloudflare": "^1.20.17",
     "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/tanstack-query": "catalog:",
     "@swc/helpers": "^0.5.24",

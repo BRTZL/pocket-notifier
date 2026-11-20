@@ -1,5 +1,5 @@
 {
-  "references": [{ "path": "../../packages/api" }],
+  "references": [{ "path": "../../packages/contract" }],
   "compilerOptions": {
     "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],

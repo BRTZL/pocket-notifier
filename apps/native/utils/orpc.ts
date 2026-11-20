@@ -1,6 +1,7 @@
-import type { AppRouterClient } from "@notifier/api/routers/index";
+import type { AppContract } from "@notifier/contract";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
+import type { ContractRouterClient } from "@orpc/contract";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { Platform } from "react-native";
@@ -51,6 +52,6 @@ export const link = new RPCLink({
   },
 });
 
-export const client: AppRouterClient = createORPCClient(link);
+export const client: ContractRouterClient<AppContract> = createORPCClient(link);
 
 export const orpc = createTanstackQueryUtils(client);

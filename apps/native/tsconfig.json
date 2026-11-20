@@ -1,5 +1,5 @@
 {
-  "references": [{ "path": "../../packages/api" }],
+  "references": [{ "path": "../../packages/contract" }],
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
