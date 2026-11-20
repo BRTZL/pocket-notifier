@@ -10,6 +10,7 @@ export const AttachmentId = idSchema("attachment");
 
 export const MESSAGE_LIMITS = {
   titleLength: 250,
+  urlLength: 2048,
   bodyLength: 4096,
   tags: 5,
   tagLength: 32,
@@ -48,7 +49,7 @@ const ActionBase = z.object({
 /** Opens a URL in the browser or a deep link in another app. */
 export const ViewAction = ActionBase.extend({
   type: z.literal("view"),
-  url: z.url(),
+  url: z.url().max(MESSAGE_LIMITS.urlLength),
 });
 
 /**
@@ -57,7 +58,7 @@ export const ViewAction = ActionBase.extend({
  */
 export const HttpAction = ActionBase.extend({
   type: z.literal("http"),
-  url: z.url({ protocol: /^https$/u }),
+  url: z.url({ protocol: /^https$/u }).max(MESSAGE_LIMITS.urlLength),
   method: z.enum(["GET", "POST", "PUT", "DELETE"]).default("POST"),
   body: z.string().max(MESSAGE_LIMITS.httpBodyLength).optional(),
 });
@@ -99,7 +100,7 @@ export const PublishInput = z.object({
   priority: Priority.optional(),
   tags: z.array(Tag).max(MESSAGE_LIMITS.tags).default([]),
   /** Opened when the notification is tapped. */
-  clickUrl: z.url().optional(),
+  clickUrl: z.url().max(MESSAGE_LIMITS.urlLength).optional(),
   actions: z.array(Action).max(MESSAGE_LIMITS.actions).default([]),
   /** From a previous attachment upload to the same topic. */
   attachmentId: AttachmentId.optional(),

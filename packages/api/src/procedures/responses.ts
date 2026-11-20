@@ -3,7 +3,7 @@ import { newId } from "@notifier/db/ids";
 import { messageResponse } from "@notifier/db/schema/notifier";
 
 import { authed } from "../base";
-import { appError, badRequest, isUniqueViolation } from "../lib/errors";
+import { appError, badRequest } from "../lib/errors";
 import { findMessage, toMessage } from "../lib/messages";
 import { listResponses } from "../lib/responses";
 import { toMessageResponse } from "../lib/serialize";
@@ -43,28 +43,25 @@ const create = authed.responses.create.handler(async ({ context, input, errors }
   }
   const kind = action.input ? "text" : "ack";
 
-  try {
-    const [row] = await db
-      .insert(messageResponse)
-      .values({
-        id: newId("response"),
-        messageId: found.message.id,
-        userId: caller.id,
-        actionKey: action.key,
-        kind,
-        text: kind === "text" ? (input.text ?? null) : null,
-      })
-      .returning();
-    if (!row) {
-      throw new Error("message_response insert returned no row");
-    }
-    return toMessageResponse(row, caller);
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      throw errors.CONFLICT({ message: ALREADY_RESPONDED });
-    }
-    throw error;
+  // Only the one-response-per-action rule is a CONFLICT; any other failure surfaces.
+  const [row] = await db
+    .insert(messageResponse)
+    .values({
+      id: newId("response"),
+      messageId: found.message.id,
+      userId: caller.id,
+      actionKey: action.key,
+      kind,
+      text: kind === "text" ? (input.text ?? null) : null,
+    })
+    .onConflictDoNothing({
+      target: [messageResponse.messageId, messageResponse.userId, messageResponse.actionKey],
+    })
+    .returning();
+  if (!row) {
+    throw errors.CONFLICT({ message: ALREADY_RESPONDED });
   }
+  return toMessageResponse(row, caller);
 });
 
 const list = authed.responses.list.handler(async ({ context, input }) => {

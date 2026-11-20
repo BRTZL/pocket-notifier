@@ -8,7 +8,8 @@
     "compile": "bun build --compile --no-compile-autoload-dotenv --minify --sourcemap --bytecode ./src/index.ts --outfile server",
     "env:generate": "varlock codegen",
     "db:migrate:local": "node scripts/local-migrations.mjs && wrangler d1 migrations apply DB --local",
-    "dev:local": "pnpm run db:migrate:local && wrangler dev"
+    "dev:local": "pnpm run db:migrate:local && wrangler dev",
+    "test": "vitest run"
   },
   "dependencies": {
     "@notifier/api": "workspace:*",
@@ -30,6 +31,7 @@
     "@types/node": "catalog:",
     "tsdown": "^0.23.7",
     "typescript": "^7.0.2",
+    "vitest": "^5.1.1",
     "wrangler": "4.165.0"
   }
 }

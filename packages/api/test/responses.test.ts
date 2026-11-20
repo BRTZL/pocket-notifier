@@ -1,6 +1,6 @@
 import { message } from "@notifier/db/schema/notifier";
 import { eq } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestDb, type TestDb } from "./db";
 import {
@@ -94,6 +94,20 @@ describe("responses", () => {
     await expect(
       clientFor(testDb.db, ada).responses.create({ messageId, actionKey: "yes" }),
     ).resolves.toMatchObject({ kind: "ack" });
+  });
+
+  it("reports other insert failures as they are, not as CONFLICT", async () => {
+    const failure = new Error("UNIQUE constraint failed: message_response.id");
+    const spy = vi.spyOn(testDb.db, "insert").mockImplementationOnce(() => {
+      throw failure;
+    });
+    try {
+      await expect(
+        clientFor(testDb.db, bob).responses.create({ messageId, actionKey: "yes" }),
+      ).rejects.toBe(failure);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("is NOT_FOUND for non-members and expired messages", async () => {

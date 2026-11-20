@@ -113,6 +113,26 @@ describe("public messages API", () => {
       expect(await testDb.db.$count(message)).toBe(0);
     });
 
+    it("caps URL lengths", async () => {
+      const api = publicClientFor(testDb.db, adaSecret);
+      const long = `https://example.com/${"a".repeat(2048)}`;
+      await expect(api.messages.publish({ topic: "team", clickUrl: long })).rejects.toMatchObject(
+        codeError("BAD_REQUEST"),
+      );
+      await expect(
+        api.messages.publish({
+          topic: "team",
+          actions: [{ type: "view", label: "Open", url: long }],
+        }),
+      ).rejects.toMatchObject(codeError("BAD_REQUEST"));
+      await expect(
+        api.messages.publish({
+          topic: "team",
+          actions: [{ type: "http", label: "Go", url: long }],
+        }),
+      ).rejects.toMatchObject(codeError("BAD_REQUEST"));
+    });
+
     it("rejects attachments until they are supported", async () => {
       const api = publicClientFor(testDb.db, adaSecret);
       await expect(
@@ -332,6 +352,17 @@ describe("public messages API", () => {
         }),
       );
       expect(unknown.response?.status).toBe(404);
+
+      const tooLarge = await send(
+        new Request("http://api.test/v1/topics/team/messages", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${adaSecret}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ body: "x".repeat(70_000) }),
+        }),
+      );
+      expect(tooLarge.response?.status).toBe(413);
+      expect(await tooLarge.response?.json()).toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
+      expect(messagePublished).toHaveBeenCalledTimes(1);
 
       const attachment = await send(
         new Request("http://api.test/v1/topics/team/attachments", {
