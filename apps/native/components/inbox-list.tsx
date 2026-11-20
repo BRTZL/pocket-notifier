@@ -19,9 +19,14 @@ function matches(conversation: ConversationSummary, search: string): boolean {
     return true;
   }
   const { title, body, senderName } = conversation.lastMessage;
-  return [conversation.title, conversation.project, title, body, senderName].some((field) =>
-    field?.toLowerCase().includes(needle),
-  );
+  return [
+    conversation.title,
+    conversation.projectTitle,
+    conversation.project,
+    title,
+    body,
+    senderName,
+  ].some((field) => field?.toLowerCase().includes(needle));
 }
 
 function InboxMenu({ newestMessageId }: { newestMessageId: string | null }) {

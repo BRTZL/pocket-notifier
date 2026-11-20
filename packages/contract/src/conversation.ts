@@ -45,6 +45,11 @@ export type OpenAsk = z.infer<typeof OpenAsk>;
 export const ConversationSummary = z.object({
   projectId: ProjectId,
   project: ProjectName,
+  /**
+   * The project's display name, else its name: what to show for the project. The
+   * personal project's generated name (`general-…`) is never shown; it reads "General".
+   */
+  projectTitle: z.string().min(1),
   key: ConversationKey,
   /** `conversation.title`, else `conversation.id`, else the project's display name or name. */
   title: z.string().min(1),

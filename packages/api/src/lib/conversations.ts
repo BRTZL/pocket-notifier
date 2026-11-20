@@ -201,6 +201,7 @@ function toConversationSummary(row: SummaryRow, openAsk: OpenAsk | null): Conver
   const assembled = {
     projectId: latest.projectId,
     project: row.projectName,
+    projectTitle: row.projectDisplayName ?? row.projectName,
     key: row.key,
     title:
       conversation?.title ??

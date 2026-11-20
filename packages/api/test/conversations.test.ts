@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { conversationsQuery, previewOf } from "../src/lib/conversations";
 import { selectInbox } from "../src/lib/messages";
+import { ensureGeneralProject } from "../src/lib/projects";
 import { createTestDb, type TestDb } from "./db";
 import {
   clientFor,
@@ -478,5 +479,13 @@ describe("conversations", () => {
         ]),
       );
     });
+  });
+  it("titles the project by its display name, General for the personal project", async () => {
+    const general = await ensureGeneralProject(testDb.db, ada.id);
+    await publish({ project: general.name, body: "hi", conversation: alpha });
+    await publish({ project: "team", body: "plain" });
+    const { items } = await clientFor(testDb.db, ada).conversations.list({});
+    const byProject = Object.fromEntries(items.map((item) => [item.project, item.projectTitle]));
+    expect(byProject).toEqual({ [general.name]: "General", team: "The Team" });
   });
 });

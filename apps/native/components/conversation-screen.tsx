@@ -38,9 +38,9 @@ function describeThread(
   if (!summary) {
     return { title: fallbackTitle ?? "Conversation", subtitle: "", avatar: null, linkUrl: null };
   }
-  const { title, project, lastMessage } = summary;
+  const { title, projectTitle, lastMessage } = summary;
   // A project-level thread is titled after its project: repeating the name adds nothing.
-  const subtitle = [lastMessage.senderName, project]
+  const subtitle = [lastMessage.senderName, projectTitle]
     .filter((part) => part && part !== title)
     .join(" · ");
   return {
