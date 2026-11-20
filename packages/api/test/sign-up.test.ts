@@ -51,6 +51,16 @@ describe("invite-only sign-up", () => {
     return await testDb.db.$count(user);
   }
 
+  it("treats an empty or null inviteCode as absent for the first account", async () => {
+    await expect(signUp("first@example.com", "")).resolves.toMatchObject({
+      user: { email: "first@example.com" },
+    });
+    await expect(signUp("second@example.com", null)).rejects.toMatchObject({
+      ...forbidden,
+      message: expect.stringContaining("needs a valid invite"),
+    });
+  });
+
   it("lets the first account in without an invite, and nobody after that", async () => {
     const owner = await bootstrapOwner();
     expect(owner.email).toBe("owner@example.com");

@@ -16,8 +16,11 @@ export type AuthConfig = {
 const SIGN_UP_PATH = "/sign-up/email";
 const INVITE_REQUIRED = "Sign-up needs a valid invite code (inviteCode)";
 
+/** The body's `inviteCode`; `null` and `""` (an empty form field) count as absent. */
 function readInviteCode(body: unknown): unknown {
-  return body && typeof body === "object" && "inviteCode" in body ? body.inviteCode : undefined;
+  const code =
+    body && typeof body === "object" && "inviteCode" in body ? body.inviteCode : undefined;
+  return code === null || code === "" ? undefined : code;
 }
 
 function readEmail(body: unknown): string {
