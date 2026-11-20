@@ -8,11 +8,14 @@ import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
 
-/** The combined inbox, newest first, loaded page by page with `nextCursor`. */
-export function useInbox({ unreadOnly }: { unreadOnly: boolean }) {
+/**
+ * The combined inbox (or one topic's messages with `topicId`), newest first, loaded page
+ * by page with `nextCursor`.
+ */
+export function useInbox({ unreadOnly, topicId }: { unreadOnly: boolean; topicId?: string }) {
   const query = useInfiniteQuery(
     orpc.messages.list.infiniteOptions({
-      input: (cursor: string | undefined) => ({ cursor, limit: PAGE_SIZE, unreadOnly }),
+      input: (cursor: string | undefined) => ({ cursor, limit: PAGE_SIZE, unreadOnly, topicId }),
       initialPageParam: undefined,
       getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     }),

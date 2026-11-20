@@ -1,6 +1,7 @@
 import type { MyTopic } from "@notifier/contract/topic";
 import { useQuery } from "@tanstack/react-query";
-import { Chip, ListGroup, Separator, useThemeColor } from "heroui-native";
+import { router, Stack } from "expo-router";
+import { Button, Chip, ListGroup, Separator, useThemeColor } from "heroui-native";
 import { Fragment, useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 
@@ -20,6 +21,9 @@ function TopicRow({ topic }: { topic: MyTopic }) {
   const subscription = subscriptionLabel(topic);
   return (
     <ListGroup.Item
+      onPress={() => router.push({ pathname: "/topic/[topicId]", params: { topicId: topic.id } })}
+      className="active:bg-surface-secondary"
+      accessibilityRole="button"
       accessibilityLabel={`${topic.displayName ?? topic.name}, ${topic.unreadCount} unread${subscription ? `, ${subscription}` : ""}`}
     >
       <ListGroup.ItemPrefix>
@@ -73,9 +77,14 @@ export default function TopicsScreen() {
     }
     if (topics.data.length === 0) {
       return (
-        <EmptyState title="No topics yet" pose="topics-empty">
-          Topics you create or are invited to show up here.
-        </EmptyState>
+        <View className="gap-4">
+          <EmptyState title="No topics yet" pose="topics-empty">
+            Topics you create or are invited to show up here.
+          </EmptyState>
+          <Button onPress={() => router.push("/new")}>
+            <Button.Label>Create a topic</Button.Label>
+          </Button>
+        </View>
       );
     }
     return (
@@ -104,6 +113,15 @@ export default function TopicsScreen() {
         />
       }
     >
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Button size="sm" variant="ghost" onPress={() => router.push("/new")}>
+              <Button.Label>New topic</Button.Label>
+            </Button>
+          ),
+        }}
+      />
       {renderContent()}
     </ScrollView>
   );
