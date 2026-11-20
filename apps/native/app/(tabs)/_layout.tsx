@@ -34,7 +34,7 @@ function Tabs() {
         <NativeTabs.Trigger.Label>Inbox</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="(projects)">
-        <NativeTabs.Trigger.Icon sf="number" md="tag" />
+        <NativeTabs.Trigger.Icon sf="folder.fill" md="folder" />
         <NativeTabs.Trigger.Label>Projects</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="(settings)">

@@ -29,6 +29,10 @@ data class PushMessage(
   val raw: Map<String, String>,
   val id: String,
   val project: String,
+  /** With `conversationKey`, the thread a tap opens; `""` in pushes from older servers. */
+  val projectId: String,
+  /** `c:<conversation id>` or `p:<project id>`; `""` in pushes from older servers. */
+  val conversationKey: String,
   val title: String,
   val body: String,
   val priority: Int,
@@ -75,6 +79,8 @@ object PushPayload {
       raw = data,
       id = id,
       project = project,
+      projectId = data["projectId"] ?: "",
+      conversationKey = data["conversationKey"] ?: "",
       title = data["title"] ?: "",
       body = data["body"] ?: "",
       priority = data["priority"]?.toIntOrNull()?.coerceIn(1, 5) ?: 3,

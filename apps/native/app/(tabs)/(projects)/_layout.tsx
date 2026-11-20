@@ -19,6 +19,10 @@ export default function ProjectsLayout() {
       />
       <Stack.Screen name="project/[projectId]/settings" options={{ title: "Project settings" }} />
       <Stack.Screen name="project/[projectId]/message/[id]" options={{ title: "Message" }} />
+      <Stack.Screen
+        name="project/[projectId]/conversation/[key]"
+        options={{ title: "Conversation", headerShown: false }}
+      />
     </Stack>
   );
 }

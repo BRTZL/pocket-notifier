@@ -19,10 +19,10 @@ const PROJECT_GLYPHS: [RegExp, IconName][] = [
 /** Glyph for a project row, guessed from its name. */
 export function projectGlyph(name: string): IconName {
   const lower = name.toLowerCase();
-  return PROJECT_GLYPHS.find(([pattern]) => pattern.test(lower))?.[1] ?? "tag";
+  return PROJECT_GLYPHS.find(([pattern]) => pattern.test(lower))?.[1] ?? "folder";
 }
 
-/** The avatar for a conversation summary: the project for chats, a glyph for project feeds. */
+/** The avatar for a conversation summary: the conversation for chats, a glyph for project threads. */
 export function conversationAvatar(conversation: ConversationSummary): ChatAvatarSubject {
   if (conversation.kind === "project" && !conversation.iconUrl) {
     return { kind: "glyph", name: conversation.title, glyph: projectGlyph(conversation.project) };

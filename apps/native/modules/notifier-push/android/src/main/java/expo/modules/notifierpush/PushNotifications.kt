@@ -31,6 +31,7 @@ object PushNotifications {
   private const val ACCENT = 0xFFE94826.toInt()
   private const val MAX_ACTIONS = 3
   private val OPENABLE_SCHEMES = setOf("http", "https", "notifier")
+  private val SCHEME = Regex("^([A-Za-z][A-Za-z0-9+.-]*):")
 
   /** Same as `notificationGroupKey` in `packages/contract/src/push.ts`. */
   fun groupKey(project: String, conversationId: String): String =
@@ -158,7 +159,7 @@ object PushNotifications {
       .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
       .setOnlyAlertOnce(true)
       .setAutoCancel(true)
-      .setContentIntent(openIntent(context, Uri.parse("notifier://")))
+      .setContentIntent(tapIntent(context, message))
       .build()
     manager(context).notify(groupKey, SUMMARY_ID, summary)
   }
@@ -193,19 +194,49 @@ object PushNotifications {
   }
 
   /**
-   * What a tap opens: the `clickUrl` when it is a web or notifier link, else the inbox.
-   * The push has no project id, so it cannot link to the conversation screen yet.
+   * What a tap opens: the message's thread, `notifier://conversation/<projectId>/<key>`.
+   * Pushes from older servers have no thread; they open the `clickUrl` when it is a web or
+   * notifier link, else the inbox.
    */
-  private fun tapIntent(context: Context, message: PushMessage): PendingIntent {
-    val target = message.clickUrl.takeIf { isOpenable(it) } ?: "notifier://"
-    return openIntent(context, Uri.parse(target))
+  fun tapTarget(message: PushMessage): String =
+    threadUri(message.projectId, message.conversationKey)
+      ?: message.clickUrl.takeIf { isOpenable(it) }
+      ?: "notifier://"
+
+  /** The app link of a thread; `null` without both parts. The key may hold `:` and `/`. */
+  fun threadUri(projectId: String, conversationKey: String): String? {
+    if (projectId.isEmpty() || conversationKey.isEmpty()) {
+      return null
+    }
+    return "notifier://conversation/${encodeSegment(projectId)}/${encodeSegment(conversationKey)}"
   }
+
+  /** Percent-encodes everything but RFC 3986 unreserved characters, like `encodeURIComponent`. */
+  fun encodeSegment(value: String): String {
+    val out = StringBuilder()
+    for (byte in value.toByteArray(Charsets.UTF_8)) {
+      val code = byte.toInt() and 0xFF
+      val char = code.toChar()
+      if (char in 'A'..'Z' || char in 'a'..'z' || char in '0'..'9' || char in "-._~") {
+        out.append(char)
+      } else {
+        out.append('%').append(HEX[code shr 4]).append(HEX[code and 0x0F])
+      }
+    }
+    return out.toString()
+  }
+
+  private const val HEX = "0123456789ABCDEF"
+
+  private fun tapIntent(context: Context, message: PushMessage): PendingIntent =
+    openIntent(context, Uri.parse(tapTarget(message)))
 
   fun isOpenable(url: String?): Boolean {
     if (url.isNullOrEmpty()) {
       return false
     }
-    val scheme = Uri.parse(url).scheme?.lowercase() ?: return false
+    // Not `Uri.parse`: this also runs in plain JVM unit tests.
+    val scheme = SCHEME.find(url)?.groupValues?.get(1)?.lowercase() ?: return false
     return scheme in OPENABLE_SCHEMES
   }
 

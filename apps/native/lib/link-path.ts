@@ -40,6 +40,7 @@ const LINK_ROUTES = [
   "/project/[projectId]",
   "/project/[projectId]/settings",
   "/project/[projectId]/message/[id]",
+  "/project/[projectId]/conversation/[key]",
 ] as const;
 
 export type ReplayTarget =
