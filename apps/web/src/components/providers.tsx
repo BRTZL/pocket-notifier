@@ -8,7 +8,7 @@ import { getQueryClient } from "@/utils/orpc";
 
 import { ThemeProvider } from "./theme-provider";
 
-export default function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ children }: { children: React.ReactNode }) {
   const queryClient = getQueryClient();
 
   return (

@@ -1,5 +1,5 @@
 import { createAuth as createConfiguredAuth } from "@notifier/auth";
-import { type Database, createDb } from "@notifier/db";
+import { createDb, type Database } from "@notifier/db";
 
 import { ENV } from "./env.server";
 

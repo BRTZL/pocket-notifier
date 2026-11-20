@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 
 import { authClient } from "@/lib/auth-client";
 
-export default function UserMenu() {
+export function UserMenu() {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
 
@@ -43,7 +43,7 @@ export default function UserMenu() {
           <DropdownMenuItem
             variant="destructive"
             onClick={() => {
-              authClient.signOut({
+              void authClient.signOut({
                 fetchOptions: {
                   onSuccess: () => {
                     router.push("/");

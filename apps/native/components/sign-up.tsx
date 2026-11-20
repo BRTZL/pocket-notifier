@@ -24,7 +24,9 @@ const signUpSchema = z.object({
 });
 
 function getErrorMessage(error: unknown): string | null {
-  if (!error) return null;
+  if (!error) {
+    return null;
+  }
 
   if (typeof error === "string") {
     return error;
@@ -84,7 +86,7 @@ export function SignUp() {
               variant: "success",
               label: "Account created successfully",
             });
-            queryClient.refetchQueries();
+            void queryClient.refetchQueries();
           },
         },
       );
@@ -92,8 +94,8 @@ export function SignUp() {
   });
 
   return (
-    <Surface variant="secondary" className="p-4 rounded-lg">
-      <Text className="text-foreground font-medium mb-4">Create Account</Text>
+    <Surface variant="secondary" className="rounded-lg p-4">
+      <Text className="text-foreground mb-4 font-medium">Create Account</Text>
 
       <form.Subscribe
         selector={(state) => ({
@@ -106,7 +108,7 @@ export function SignUp() {
 
           return (
             <>
-              <FieldError isInvalid={!!formError} className="mb-3">
+              <FieldError isInvalid={Boolean(formError)} className="mb-3">
                 {formError}
               </FieldError>
 

@@ -5,8 +5,8 @@ import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { initLogger } from "evlog";
-import { createAuthMiddleware, type BetterAuthInstance } from "evlog/better-auth";
-import { evlog, type EvlogVariables } from "evlog/hono";
+import { type BetterAuthInstance, createAuthMiddleware } from "evlog/better-auth";
+import { type EvlogVariables, evlog } from "evlog/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
@@ -69,7 +69,7 @@ app.use("/*", async (c, next) => {
 
   const rpcResult = await rpcHandler.handle(c.req.raw, {
     prefix: "/rpc",
-    context: context,
+    context,
   });
 
   if (rpcResult.matched) {
@@ -78,7 +78,7 @@ app.use("/*", async (c, next) => {
 
   const apiResult = await apiHandler.handle(c.req.raw, {
     prefix: "/api-reference",
-    context: context,
+    context,
   });
 
   if (apiResult.matched) {
@@ -88,8 +88,6 @@ app.use("/*", async (c, next) => {
   await next();
 });
 
-app.get("/", (c) => {
-  return c.text("OK");
-});
+app.get("/", (c) => c.text("OK"));
 
 export default app;

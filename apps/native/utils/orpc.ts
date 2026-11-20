@@ -12,7 +12,7 @@ import { ENV } from "../src/env";
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error) => {
-      console.log(error);
+      console.error(error);
     },
   }),
 });

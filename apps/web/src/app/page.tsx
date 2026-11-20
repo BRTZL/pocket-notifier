@@ -19,6 +19,13 @@ const TITLE_TEXT = `
     ╚═╝       ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
  `;
 
+function getStatusLabel(isLoading: boolean, isConnected: boolean) {
+  if (isLoading) {
+    return "Checking...";
+  }
+  return isConnected ? "Connected" : "Disconnected";
+}
+
 export default function Home() {
   const healthCheck = useQuery(orpc.healthCheck.queryOptions());
 
@@ -32,12 +39,8 @@ export default function Home() {
             <div
               className={`h-2 w-2 rounded-full ${healthCheck.data ? "bg-green-500" : "bg-red-500"}`}
             />
-            <span className="text-sm text-muted-foreground">
-              {healthCheck.isLoading
-                ? "Checking..."
-                : healthCheck.data
-                  ? "Connected"
-                  : "Disconnected"}
+            <span className="text-muted-foreground text-sm">
+              {getStatusLabel(healthCheck.isLoading, Boolean(healthCheck.data))}
             </span>
           </div>
         </section>

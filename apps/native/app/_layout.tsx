@@ -5,7 +5,7 @@ import { HeroUINativeProvider } from "heroui-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
-import { AppThemeProvider } from "@/contexts/app-theme-context";
+import { AppThemeProvider } from "@/contexts/app-theme-provider";
 import { queryClient } from "@/utils/orpc";
 
 export const unstable_settings = {

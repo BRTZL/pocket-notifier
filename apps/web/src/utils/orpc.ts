@@ -5,6 +5,8 @@ import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { environmentManager, QueryCache, QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { SERVER_URL } from "@/lib/public-env";
+
 export function createQueryClient() {
   return new QueryClient({
     queryCache: new QueryCache({
@@ -34,15 +36,15 @@ export function getQueryClient() {
 }
 
 export const link = new RPCLink({
-  url: `${process.env.NEXT_PUBLIC_SERVER_URL!.replace(/\/$/, "")}/rpc`,
+  url: `${SERVER_URL}/rpc`,
   fetch(url, options) {
-    return fetch(url, {
+    return globalThis.fetch(url, {
       ...options,
       credentials: "include",
     });
   },
   headers: async () => {
-    if (typeof window !== "undefined") {
+    if (!environmentManager.isServer()) {
       return {};
     }
 

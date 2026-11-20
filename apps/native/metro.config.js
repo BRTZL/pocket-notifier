@@ -11,6 +11,7 @@ const blockListPatterns = Array.isArray(blockList) ? blockList : [blockList];
 
 config.resolver.blockList = [
   ...blockListPatterns,
+  // Metro rejects blockList patterns with mixed flags, so this one must not use `u`.
   /[/\\]packages[/\\]infra[/\\]\.alchemy(?:[/\\]|$)/,
 ];
 

@@ -1,74 +1,278 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": {
-    "enabled": false,
+    "enabled": true,
     "clientKind": "git",
-    "useIgnoreFile": false
+    "useIgnoreFile": true,
+    "defaultBranch": "main"
   },
   "files": {
-    "ignoreUnknown": false,
+    "ignoreUnknown": true,
     "includes": [
       "**",
+      "!**/.agents",
+      "!**/.claude",
       "!**/.next",
-      "!**/dist",
+      "!**/.open-next",
+      "!**/.source",
       "!**/.turbo",
-      "!**/.nx",
-      "!**/dev-dist",
-      "!**/.zed",
-      "!**/.vscode",
-      "!**/routeTree.gen.ts",
-      "!**/src-tauri",
-      "!**/.nuxt",
-      "!bts.jsonc",
       "!**/.expo",
       "!**/.wrangler",
       "!**/.alchemy",
-      "!**/.svelte-kit",
-      "!**/wrangler.jsonc",
-      "!**/.source",
-      "!**/convex/_generated"
+      "!**/dist",
+      "!**/*.md",
+      "!**/*.mdx",
+      "!**/src/env.ts",
+      "!**/next-env.d.ts",
+      "!**/uniwind-types.d.ts",
+      "!**/migrations",
+      "!bts.jsonc",
+      "!skills-lock.json",
+      "!pnpm-lock.yaml",
+      "!**/wrangler.jsonc"
     ]
   },
   "formatter": {
     "enabled": true,
-    "indentStyle": "tab"
-  },
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "preset": "recommended",
-      "correctness": {
-        "useExhaustiveDependencies": "info"
-      },
-      "nursery": {
-        "useTailwindSortedClasses": {
-          "level": "warn",
-          "fix": "safe"
-        }
-      },
-      "style": {
-        "noParameterAssign": "error",
-        "useAsConstAssertion": "error",
-        "useDefaultParameterLast": "error",
-        "useEnumInitializers": "error",
-        "useSelfClosingElements": "error",
-        "useSingleVarDeclarator": "error",
-        "noUnusedTemplateLiteral": "error",
-        "useNumberNamespace": "error",
-        "noInferrableTypes": "error",
-        "noUselessElse": "error"
-      }
-    }
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "lineEnding": "lf"
   },
   "javascript": {
     "formatter": {
-      "quoteStyle": "double"
+      "quoteStyle": "double",
+      "jsxQuoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always",
+      "bracketSpacing": true
     }
   },
   "css": {
     "parser": {
       "tailwindDirectives": true
     }
-  }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "all",
+      "complexity": {
+        "noExcessiveLinesPerFunction": "off",
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": {
+            "maxAllowedComplexity": 15
+          }
+        },
+        "noVoid": "off"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "error",
+        "useImportExtensions": "off",
+        "noUnresolvedImports": "off",
+        "noReactNativeRawText": "off",
+        "noSolidDestructuredProps": "off",
+        "useQwikValidLexicalScope": "off",
+        "noProcessGlobal": "off"
+      },
+      "performance": {
+        "noNamespaceImport": "off",
+        "noJsxPropsBind": "off",
+        "useSolidForComponent": "off",
+        "noBarrelFile": "off"
+      },
+      "style": {
+        "noJsxLiterals": "off",
+        "noTernary": "off",
+        "noImplicitBoolean": "off",
+        "noMagicNumbers": "off",
+        "useExportsLast": "off",
+        "useNamingConvention": "off",
+        "useConsistentTypeDefinitions": {
+          "level": "error",
+          "options": {
+            "style": "type"
+          }
+        },
+        "useComponentExportOnlyModules": {
+          "level": "error",
+          "options": {
+            "allowConstantExport": true,
+            "allowExportNames": [
+              "metadata",
+              "generateMetadata",
+              "generateStaticParams",
+              "viewport",
+              "unstable_settings"
+            ]
+          }
+        }
+      },
+      "suspicious": {
+        "noReactSpecificProps": "off",
+        "useBaseline": "off",
+        "noConsole": {
+          "level": "error",
+          "options": {
+            "allow": ["error", "warn"]
+          }
+        },
+        "useAwait": "off",
+        "noUnnecessaryConditions": "off"
+      },
+      "nursery": {
+        "noFloatingPromises": "error",
+        "noMisusedPromises": "error",
+        "useAwaitThenable": "error",
+        "noUselessAwait": "error",
+        "noUnsafePlusOperands": "error",
+        "useExhaustiveSwitchCases": "error",
+        "noUselessTypeAssertion": "error",
+        "noDuplicateTypeConstituents": "error",
+        "noRedundantTypeConstituents": "error",
+        "noMisleadingReturnType": "error",
+        "useNullishCoalescing": "error",
+        "noReturnInFinally": "error",
+        "noPromiseExecutorReturn": "error",
+        "usePromiseRejectErrors": "error",
+        "noAsyncPromiseFinally": "error",
+        "noImpliedEval": "error",
+        "noExtendNative": "error",
+        "noDynamicDelete": "error",
+        "noUselessSpread": "error",
+        "noUselessCall": "error",
+        "noUselessAssignment": "error",
+        "noUselessFallbackInSpread": "error",
+        "noMisusedSpread": "error",
+        "noBaseToString": "error",
+        "noObjectConstructor": "error",
+        "noNewArray": "error",
+        "noSelfImport": "error",
+        "noConstantComparisons": "error",
+        "noUnmodifiedLoopCondition": "error",
+        "noUninvokedArrayCallback": "error",
+        "noDuplicateMapKeys": "error",
+        "noInvalidFetchOptions": "error",
+        "noAccidentalBitwiseOperators": "error",
+        "useIncludes": "error",
+        "useStringStartsEndsWith": "error",
+        "useRegexpExec": "error",
+        "useObjectFromEntries": "error",
+        "useSetSize": "error",
+        "noReactDirectStateMutation": "error",
+        "noTanstackQueryRestDestructuring": "error",
+        "useTanstackQueryStableQueryClient": "error",
+        "useTailwindSortedClasses": {
+          "level": "error",
+          "fix": "safe"
+        }
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "**/*.config.*",
+        "**/src/app/**",
+        "**/src/proxy.ts",
+        "apps/native/app/**",
+        "apps/server/src/index.ts",
+        "packages/infra/alchemy.run.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDefaultExport": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/native/babel.config.js", "apps/native/babel-plugins/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noCommonJs": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/native/metro.config.js"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noCommonJs": "off",
+            "useUnicodeRegex": "off"
+          },
+          "correctness": {
+            "noGlobalDirnameFilename": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/db/src/schema/index.ts"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noReExportAll": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/ui/src/components/**"],
+      "linter": {
+        "rules": {
+          "security": {
+            "noSecrets": "off"
+          },
+          "style": {
+            "useComponentExportOnlyModules": "off",
+            "noExportedImports": "off"
+          },
+          "a11y": {
+            "noLabelWithoutControl": "off",
+            "useSemanticElements": "off",
+            "noNoninteractiveElementInteractions": "off",
+            "useKeyWithClickEvents": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.d.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noNamespace": "off"
+          },
+          "suspicious": {
+            "noShadow": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/fumadocs/src/app/global.css"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noImportantStyles": "off"
+          }
+        }
+      }
+    }
+  ]
 }

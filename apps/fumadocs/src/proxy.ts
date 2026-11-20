@@ -1,5 +1,5 @@
 import { isMarkdownPreferred, rewritePath } from "fumadocs-core/negotiation";
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 import { docsRoute } from "@/lib/shared";
 
@@ -8,11 +8,13 @@ const { rewrite: rewriteDocs } = rewritePath(
   `/llms.mdx${docsRoute}{/*path}.md`,
 );
 
+const MARKDOWN_FILE = /\.(?:md|txt)$/u;
+
 export default function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   // files like `/docs/page.md` are served by the rewrites of the Next.js config
   const result =
-    isMarkdownPreferred(request) && !/\.(md|txt)$/.test(pathname) && rewriteDocs(pathname);
+    isMarkdownPreferred(request) && !MARKDOWN_FILE.test(pathname) && rewriteDocs(pathname);
 
   if (result) {
     return NextResponse.rewrite(new URL(result, request.nextUrl), {

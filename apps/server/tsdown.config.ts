@@ -6,7 +6,7 @@ export default defineConfig({
   outDir: "./dist",
   clean: true,
   deps: {
-    alwaysBundle: [/@notifier\/.*/],
+    alwaysBundle: [/@notifier\/.*/u],
     neverBundle: ["cloudflare:workers"],
   },
 });

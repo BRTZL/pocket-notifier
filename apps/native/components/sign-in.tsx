@@ -23,7 +23,9 @@ const signInSchema = z.object({
 });
 
 function getErrorMessage(error: unknown): string | null {
-  if (!error) return null;
+  if (!error) {
+    return null;
+  }
 
   if (typeof error === "string") {
     return error;
@@ -80,7 +82,7 @@ function SignIn() {
               variant: "success",
               label: "Signed in successfully",
             });
-            queryClient.refetchQueries();
+            void queryClient.refetchQueries();
           },
         },
       );
@@ -88,8 +90,8 @@ function SignIn() {
   });
 
   return (
-    <Surface variant="secondary" className="p-4 rounded-lg">
-      <Text className="text-foreground font-medium mb-4">Sign In</Text>
+    <Surface variant="secondary" className="rounded-lg p-4">
+      <Text className="text-foreground mb-4 font-medium">Sign In</Text>
 
       <form.Subscribe
         selector={(state) => ({
@@ -102,7 +104,7 @@ function SignIn() {
 
           return (
             <>
-              <FieldError isInvalid={!!formError} className="mb-3">
+              <FieldError isInvalid={Boolean(formError)} className="mb-3">
                 {formError}
               </FieldError>
 
