@@ -78,8 +78,8 @@ export default function DevicesScreen() {
     if (devices.data.length === 0) {
       return (
         <EmptyState title="No devices yet" pose="thinking">
-          Each phone you sign in on with the notifier app shows up here, so you can rename or remove
-          it.
+          Each phone you sign in on with the Pocket Notifier app shows up here, so you can rename or
+          remove it.
         </EmptyState>
       );
     }

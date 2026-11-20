@@ -73,7 +73,7 @@ export default function SignInScreen() {
             Your agents, one chat away.
           </Typography>
           <Typography className="text-muted text-[16px] leading-[22px]">
-            Sign in to your notifier server.
+            Sign in to your Pocket Notifier server.
           </Typography>
         </View>
 

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "notifier",
-    "slug": "notifier",
+    "name": "Pocket Notifier",
+    "slug": "pocket-notifier",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

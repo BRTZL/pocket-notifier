@@ -103,7 +103,7 @@ export default function InviteSignUpScreen() {
   const code = parseInviteCode(rawCode);
   return (
     <View className="bg-background flex-1">
-      <StackHeader title="Join notifier" />
+      <StackHeader title="Join Pocket Notifier" />
       {code === null ? <InvalidInvite /> : <InviteSignUp code={code} />}
     </View>
   );
