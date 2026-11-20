@@ -55,3 +55,6 @@ coverage
 .cache
 tmp
 temp
+
+# Env schemas are documentation, not secrets (overrides global .env.* ignores)
+!.env.schema
