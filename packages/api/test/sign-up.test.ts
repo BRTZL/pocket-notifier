@@ -248,6 +248,58 @@ describe("invite-only sign-up", () => {
     });
   });
 
+  it("keeps the original error when releasing the claim fails too", async () => {
+    const owner = await bootstrapOwner();
+    const { code } = await clientFor(testDb.db, owner).invites.create({});
+    const realUpdate = testDb.db.update.bind(testDb.db);
+    const insertSpy = vi.spyOn(testDb.db, "insert").mockImplementationOnce(() => {
+      throw new Error("D1_ERROR: simulated user insert failure");
+    });
+    // First update is the claim (real), the second is the release (fails).
+    const updateSpy = vi
+      .spyOn(testDb.db, "update")
+      .mockImplementationOnce((table) => realUpdate(table))
+      .mockImplementationOnce(() => {
+        throw new Error("D1_ERROR: simulated release failure");
+      });
+    const body = { name: "x", email: "x@example.com", password: PASSWORD, inviteCode: code };
+    try {
+      await expect(auth.api.signUpEmail({ body })).rejects.toMatchObject({ statusCode: 422 });
+      expect(updateSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      insertSpy.mockRestore();
+      updateSpy.mockRestore();
+    }
+    expect(await testDb.db.$count(user, eq(user.email, "x@example.com"))).toBe(0);
+    // The release failed, so the invite stays claimed (no longer open).
+    await expect(clientFor(testDb.db, null).invites.preview({ code })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+
+  it("answers the same 403 for registered and new emails without a usable invite", async () => {
+    await bootstrapOwner();
+    const attempts = [undefined, "A".repeat(24), "not-a-code"].flatMap((code) =>
+      ["owner@example.com", "fresh@example.com"].map((email) => ({ code, email })),
+    );
+    const results = await Promise.allSettled(
+      attempts.map(({ code, email }) => signUp(email, code)),
+    );
+    const outcomes = results.map((result) =>
+      result.status === "rejected"
+        ? {
+            status: (result.reason as { statusCode?: number }).statusCode,
+            message: (result.reason as Error).message,
+          }
+        : { status: 200, message: "" },
+    );
+    for (let index = 0; index < outcomes.length; index += 2) {
+      expect(outcomes[index]?.status).toBe(403);
+      expect(outcomes[index + 1]).toEqual(outcomes[index]);
+    }
+    expect(await userCount()).toBe(1);
+  });
+
   it("only applies grants for topics the inviter still owns", async () => {
     const owner = await bootstrapOwner();
     const helper = await seedUser(testDb.db, "helper");

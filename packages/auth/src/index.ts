@@ -24,12 +24,19 @@ export type AuthConfig = {
 const SIGN_UP_PATH = "/sign-up/email";
 const INVITE_REQUIRED = "Sign-up needs a valid invite code (inviteCode)";
 const INVITE_UNUSABLE = "This invite is invalid, expired or already used";
+const EMAIL_MISMATCH = "This invite is for a different email address";
 
 /** The body's `inviteCode`; `null` and `""` (an empty form field) count as absent. */
 function readInviteCode(body: unknown): unknown {
   const code =
     body && typeof body === "object" && "inviteCode" in body ? body.inviteCode : undefined;
   return code === null || code === "" ? undefined : code;
+}
+
+function readEmail(body: unknown): string {
+  return body && typeof body === "object" && "email" in body && typeof body.email === "string"
+    ? body.email
+    : "";
 }
 
 /**
@@ -72,7 +79,7 @@ function inviteOnlySignUp(database: Database) {
           }
           if (!inviteAllowsEmail(open, newUser.email)) {
             throw new APIError("FORBIDDEN", {
-              message: "This invite is for a different email address",
+              message: EMAIL_MISMATCH,
             });
           }
           if (!(await claimInvite(database, open.id))) {
@@ -89,8 +96,8 @@ function inviteOnlySignUp(database: Database) {
           try {
             await finalizeInvite(database, claim.inviteId, createdUser.id);
           } catch (error) {
-            // The account is legitimately invited (the claim held); only the grants are
-            // missing, and an owner can add the memberships by hand. Keep the sign-up.
+            // Accepted for v1: a finalize failure (fewer grants) or a failed credential insert
+            // after the user row leaves the account in place; an owner can fix it by hand.
             ctx?.context.logger.error("Failed to apply invite grants after sign-up", error);
           }
         },
@@ -105,11 +112,42 @@ function inviteOnlySignUp(database: Database) {
     const claim = await inviteClaim.get();
     if (claim && claim.userId === null) {
       // Claimed, but no user was created with it: give the code back (best effort).
-      await releaseInvite(database, claim.inviteId);
+      try {
+        await releaseInvite(database, claim.inviteId);
+      } catch (error) {
+        // Keep the original response; the invite just stays claimed.
+        ctx.context.logger.error("Failed to release the invite claim after sign-up", error);
+      }
     }
   });
 
-  return { databaseHooks, hooks: { after } };
+  /**
+   * Read-only pre-check before better-auth's own "email already exists" check, so a
+   * request without a usable invite gets the same 403 whether or not the email is
+   * registered (no account enumeration). The atomic claim in `user.create.before`
+   * remains the real guard.
+   */
+  const before = createAuthMiddleware(async (ctx) => {
+    if (ctx.path !== SIGN_UP_PATH) {
+      return;
+    }
+    const code = readInviteCode(ctx.body);
+    if (code === undefined) {
+      if (await hasNoUsers(database)) {
+        return;
+      }
+      throw new APIError("FORBIDDEN", { message: INVITE_REQUIRED });
+    }
+    const open = await findOpenInvite(database, code);
+    if (!open) {
+      throw new APIError("FORBIDDEN", { message: INVITE_UNUSABLE });
+    }
+    if (!inviteAllowsEmail(open, readEmail(ctx.body))) {
+      throw new APIError("FORBIDDEN", { message: EMAIL_MISMATCH });
+    }
+  });
+
+  return { databaseHooks, hooks: { before, after } };
 }
 
 export function createAuth(
