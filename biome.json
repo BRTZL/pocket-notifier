@@ -286,6 +286,16 @@
           }
         }
       }
+    },
+    {
+      "includes": ["packages/api/test/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noNodejsModules": "off"
+          }
+        }
+      }
     }
   ]
 }
