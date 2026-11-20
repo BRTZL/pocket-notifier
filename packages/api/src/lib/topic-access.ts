@@ -1,6 +1,7 @@
 import type { TopicRole } from "@notifier/contract/topic";
 import type { Database } from "@notifier/db";
 import { topicMember } from "@notifier/db/schema/notifier";
+import { ORPCError } from "@orpc/server";
 import { and, eq } from "drizzle-orm";
 
 import { appError } from "./errors";
@@ -42,4 +43,24 @@ export async function requireOwner(
     throw appError("FORBIDDEN", "Only a topic owner can do this");
   }
   return membership;
+}
+
+/**
+ * Like `requireMember`, but reports a missing membership as `NOT_FOUND` with `message`,
+ * for resources inside a topic (a message must look missing to non-members).
+ */
+export async function requireMemberOf(
+  db: Database,
+  topicId: string,
+  userId: string,
+  message: string,
+): Promise<Membership> {
+  try {
+    return await requireMember(db, topicId, userId);
+  } catch (error) {
+    if (error instanceof ORPCError && error.code === "NOT_FOUND") {
+      throw appError("NOT_FOUND", message);
+    }
+    throw error;
+  }
 }

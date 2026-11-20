@@ -16,7 +16,7 @@ import {
   toPublishOutput,
   unreadOnly,
 } from "../lib/messages";
-import { requireMember } from "../lib/topic-access";
+import { requireMember, requireMemberOf } from "../lib/topic-access";
 
 const list = authed.messages.list.handler(async ({ context, input }) => {
   const { db } = context;
@@ -115,9 +115,7 @@ const remove = authed.messages.delete.handler(async ({ context, input }) => {
   if (!found) {
     throw appError("NOT_FOUND", "Message not found");
   }
-  const membership = await requireMember(db, found.topicId, userId).catch(() => {
-    throw appError("NOT_FOUND", "Message not found");
-  });
+  const membership = await requireMemberOf(db, found.topicId, userId, "Message not found");
   if (membership.role !== "owner") {
     throw appError("FORBIDDEN", "Only a topic owner can delete messages");
   }

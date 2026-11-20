@@ -7,7 +7,7 @@ import { appError, badRequest, isUniqueViolation } from "../lib/errors";
 import { findMessage, toMessage } from "../lib/messages";
 import { listResponses } from "../lib/responses";
 import { toMessageResponse } from "../lib/serialize";
-import { requireMember } from "../lib/topic-access";
+import { requireMemberOf } from "../lib/topic-access";
 
 const ALREADY_RESPONDED = "You have already responded to this action";
 
@@ -17,9 +17,7 @@ async function memberMessage(db: Database, messageId: string, userId: string) {
   if (!found) {
     throw appError("NOT_FOUND", "Message not found");
   }
-  const membership = await requireMember(db, found.message.topicId, userId).catch(() => {
-    throw appError("NOT_FOUND", "Message not found");
-  });
+  const membership = await requireMemberOf(db, found.message.topicId, userId, "Message not found");
   return { ...found, role: membership.role };
 }
 
