@@ -6,7 +6,7 @@
     "build": "tsc -b ../../packages/api && next build",
     "check-types": "tsc -b ../../packages/api && tsc --noEmit",
     "start": "next start",
-    "dev:bare": "next dev --port 3001",
+    "dev:bare": "next dev --port 3301",
     "build:cloudflare": "opennextjs-cloudflare build",
     "env:generate": "varlock codegen"
   },

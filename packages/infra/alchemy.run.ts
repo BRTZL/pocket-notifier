@@ -20,7 +20,7 @@ export const server = Cloudflare.Worker("server", {
     BETTER_AUTH_URL: Cloudflare.Worker.URL,
   },
   dev: {
-    port: 3000,
+    port: 3300,
   },
 });
 
@@ -51,7 +51,7 @@ export default Alchemy.Stack(
       },
       dev: {
         command: "pnpm run dev:bare",
-        url: "http://localhost:3001",
+        url: "http://localhost:3301",
       },
     });
 

@@ -6,7 +6,9 @@
     "build": "tsc -b ../../packages/api && tsdown",
     "check-types": "tsc -b ../../packages/api && tsc --noEmit",
     "compile": "bun build --compile --no-compile-autoload-dotenv --minify --sourcemap --bytecode ./src/index.ts --outfile server",
-    "env:generate": "varlock codegen"
+    "env:generate": "varlock codegen",
+    "db:migrate:local": "node scripts/local-migrations.mjs && wrangler d1 migrations apply DB --local",
+    "dev:local": "pnpm run db:migrate:local && wrangler dev"
   },
   "dependencies": {
     "@notifier/api": "workspace:*",
@@ -27,6 +29,7 @@
     "@notifier/infra": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "^0.23.7",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "wrangler": "4.165.0"
   }
 }

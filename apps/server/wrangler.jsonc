@@ -1,0 +1,22 @@
+// Local development only: runs the server Worker with a local D1 database and no
+// Cloudflare account. Deploys go through packages/infra/alchemy.run.ts.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "notifier-server-local",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "notifier-local",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      // Flattened copy of packages/db/src/migrations, written by scripts/local-migrations.mjs
+      "migrations_dir": ".wrangler/migrations",
+    },
+  ],
+  "dev": {
+    "ip": "0.0.0.0",
+    "port": 3300,
+  },
+}

@@ -47,9 +47,9 @@ Then, run the development server:
 pnpm run dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
+Open [http://localhost:3301](http://localhost:3301) in your browser to see the web application.
 From `apps/native`, run the `ios` script for iOS or the `android` script for Android to build and launch the app. See [Expo development builds](https://docs.expo.dev/develop/development-builds/introduction/) for device setup.
-The API is running at [http://localhost:3000](http://localhost:3000).
+The API is running at [http://localhost:3300](http://localhost:3300).
 
 ## UI Customization
 
