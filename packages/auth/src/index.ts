@@ -76,17 +76,26 @@ function inviteOnlySignUp(database: Database) {
       return;
     }
     const code = readInviteCode(ctx.body);
-    let accepted: boolean;
-    if (code === undefined) {
-      // Bootstrap: allowed only if this is still the one and only user.
-      const users = await ctx.context.internalAdapter.countTotalUsers();
-      accepted = users === 1;
-    } else {
-      const open = await findOpenInvite(database, code);
-      accepted = open !== null && (await consumeInvite(database, open.id, userId));
+    let accepted = false;
+    let failure: unknown;
+    try {
+      if (code === undefined) {
+        // Bootstrap: allowed only if this is still the one and only user.
+        const users = await ctx.context.internalAdapter.countTotalUsers();
+        accepted = users === 1;
+      } else {
+        const open = await findOpenInvite(database, code);
+        accepted = open !== null && (await consumeInvite(database, open.id, userId));
+      }
+    } catch (error) {
+      failure = error;
     }
     if (!accepted) {
-      // Lost a race (code used concurrently, or two first sign-ups): undo the account.
+      // Lost a race (code used concurrently, or two first sign-ups) or the claim failed:
+      // undo the account (sessions and accounts cascade) so it cannot be used.
+      if (failure !== undefined) {
+        ctx.context.logger.error("Failed to consume the invite after sign-up", failure);
+      }
       await ctx.context.internalAdapter.deleteUser(userId);
       throw new APIError("FORBIDDEN", {
         message:

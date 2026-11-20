@@ -176,6 +176,29 @@ describe("invite-only sign-up", () => {
     expect(await userCount()).toBe(1);
   });
 
+  it("removes the account when consuming the invite throws", async () => {
+    const owner = await bootstrapOwner();
+    const { code } = await clientFor(testDb.db, owner).invites.create({});
+    const spy = vi
+      .spyOn(testDb.db, "batch")
+      .mockRejectedValueOnce(new Error("D1_ERROR: simulated failure"));
+    const body = { name: "boom", email: "boom@example.com", password: PASSWORD, inviteCode: code };
+    try {
+      await expect(auth.api.signUpEmail({ body })).rejects.toMatchObject(forbidden);
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await testDb.db.$count(user, eq(user.email, "boom@example.com"))).toBe(0);
+    await expect(
+      auth.api.signInEmail({ body: { email: "boom@example.com", password: PASSWORD } }),
+    ).rejects.toMatchObject({ statusCode: 401 });
+    // The invite is still open, so the person can retry.
+    await expect(clientFor(testDb.db, null).invites.preview({ code })).resolves.toMatchObject({
+      invitedBy: owner.name,
+    });
+  });
+
   it("grants nothing to a second consumer of the same invite", async () => {
     const owner = await bootstrapOwner();
     const ownerClient = clientFor(testDb.db, owner);
