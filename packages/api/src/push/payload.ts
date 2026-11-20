@@ -124,10 +124,14 @@ export function toPushData(message: Message): MessageData {
       continue;
     }
     if (key === "body") {
-      const body = cutText(value, PUSH_BODY_MAX, (candidate) => fits("body", candidate));
+      // The 1,000-character cap is not a budget overflow: filling goes on after it.
+      const capped = cutText(value, PUSH_BODY_MAX, () => true);
+      const body = cutText(capped, PUSH_BODY_MAX, (candidate) => fits("body", candidate));
       data.body = body;
       if (body.length < value.length) {
         cut = true;
+      }
+      if (body.length < capped.length) {
         break;
       }
       continue;

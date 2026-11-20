@@ -104,6 +104,16 @@ describe("toPushData", () => {
     expect(PushMessageData.safeParse(data).success).toBe(true);
   });
 
+  it("keeps filling after a body cut at PUSH_BODY_MAX when there is budget left", () => {
+    const data = toPushData(message({ body: "x".repeat(1500) }));
+    expect(data.body).toBe("x".repeat(PUSH_BODY_MAX));
+    expect(data.actions).not.toBe("");
+    expect(data.tags).toBe("ci,failure");
+    expect(data.senderName).toBe("GitHub Actions");
+    expect(data.conversationIcon).toBe("https://example.com/ci.png");
+    expect(data.truncated).toBe("1");
+  });
+
   it("keeps a body of exactly PUSH_BODY_MAX whole", () => {
     const data = toPushData(message({ body: "b".repeat(PUSH_BODY_MAX) }));
     expect(data.body).toHaveLength(PUSH_BODY_MAX);
