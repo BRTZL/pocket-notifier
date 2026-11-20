@@ -198,6 +198,19 @@
       }
     },
     {
+      "includes": ["apps/server/src/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noHeadElement": "off"
+          },
+          "suspicious": {
+            "noUnknownAttribute": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["apps/native/babel.config.js", "apps/native/babel-plugins/**"],
       "linter": {
         "rules": {

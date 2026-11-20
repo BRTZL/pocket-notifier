@@ -9,6 +9,7 @@ import { authed, os } from "../base";
 import { appError } from "../lib/errors";
 import { toInvite } from "../lib/serialize";
 import { DAY_MS } from "../lib/token-scope";
+import { requireNotPersonal } from "../lib/topic-access";
 
 const CODE_LENGTH = 24;
 
@@ -44,6 +45,7 @@ const create = authed.invites.create.handler(async ({ context, input }) => {
       if (role !== "owner") {
         throw appError("FORBIDDEN", "Only a topic owner can invite people to it");
       }
+      await requireNotPersonal(db, topicId);
     }
   }
 

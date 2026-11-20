@@ -19,19 +19,67 @@ function createdAt() {
   return integer("created_at", { mode: "timestamp_ms" }).default(nowMs).notNull();
 }
 
-export const topic = sqliteTable("topic", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  displayName: text("display_name"),
-  description: text("description"),
-  defaultPriority: integer("default_priority").default(DEFAULT_PRIORITY).notNull(),
-  retentionDays: integer("retention_days").default(RETENTION_DAYS.default).notNull(),
-  createdAt: createdAt(),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-    .default(nowMs)
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-});
+export const topic = sqliteTable(
+  "topic",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull().unique(),
+    displayName: text("display_name"),
+    description: text("description"),
+    defaultPriority: integer("default_priority").default(DEFAULT_PRIORITY).notNull(),
+    retentionDays: integer("retention_days").default(RETENTION_DAYS.default).notNull(),
+    /**
+     * Set on a user's personal "General" project, which takes notifications sent without
+     * a project. At most one per user (the unique index). Uniqueness is an index, not a
+     * column constraint, so adding the column stays an `ALTER TABLE` instead of a table
+     * rebuild (dropping `topic` on D1 would cascade-delete its messages).
+     */
+    personalUserId: text("personal_user_id").references(() => user.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(nowMs)
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [uniqueIndex("topic_personalUserId_uidx").on(table.personalUserId)],
+);
+
+/**
+ * A feature (workstream) inside a project, e.g. "improving performance" in "rezme". In
+ * the app a feature is a conversation: messages sent to it carry
+ * `conversation = { id: slug, title: name }`.
+ */
+export const feature = sqliteTable(
+  "feature",
+  {
+    id: text("id").primaryKey(),
+    topicId: text("topic_id")
+      .notNull()
+      .references(() => topic.id, { onDelete: "cascade" }),
+    /** Unique per topic: lowercase `[a-z0-9][a-z0-9-]{0,62}`; the conversation id. */
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    status: text("status", { enum: ["active", "done", "archived"] })
+      .default("active")
+      .notNull(),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(nowMs)
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+    lastMessageAt: integer("last_message_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("feature_topicId_slug_uidx").on(table.topicId, table.slug),
+    check("feature_status_check", sql`${table.status} in ('active', 'done', 'archived')`),
+    check(
+      "feature_slug_check",
+      sql`length(${table.slug}) between 1 and 63 and ${table.slug} not glob '*[^a-z0-9-]*' and substr(${table.slug}, 1, 1) <> '-'`,
+    ),
+  ],
+);
 
 export const topicMember = sqliteTable(
   "topic_member",
@@ -218,6 +266,7 @@ export const notifierRelations = defineRelationsPart(
   {
     user,
     topic,
+    feature,
     topicMember,
     subscription,
     accessToken,
@@ -239,6 +288,10 @@ export const notifierRelations = defineRelationsPart(
       members: r.many.topicMember({ from: r.topic.id, to: r.topicMember.topicId }),
       subscriptions: r.many.subscription({ from: r.topic.id, to: r.subscription.topicId }),
       messages: r.many.message({ from: r.topic.id, to: r.message.topicId }),
+      features: r.many.feature({ from: r.topic.id, to: r.feature.topicId }),
+    },
+    feature: {
+      topic: r.one.topic({ from: r.feature.topicId, to: r.topic.id, optional: false }),
     },
     topicMember: {
       topic: r.one.topic({ from: r.topicMember.topicId, to: r.topic.id, optional: false }),

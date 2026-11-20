@@ -1,4 +1,4 @@
 {
   "title": "API",
-  "pages": ["overview", "publish", "messages", "errors", "app-api", "push-payload"]
+  "pages": ["overview", "mcp", "publish", "messages", "errors", "app-api", "push-payload"]
 }

@@ -10,7 +10,8 @@ import { type EvlogVariables, evlog } from "evlog/hono";
 import { Hono, type Context as HonoContext } from "hono";
 import { cors } from "hono/cors";
 
-import { isPublicApiPath } from "./boundary";
+import { isPublicApiPath, isPublicPath } from "./boundary";
+import { type OAuthPageDeps, registerOAuthPages } from "./oauth/routes";
 
 export type AppDeps = {
   /** Origin of the web app; the only origin allowed credentialed CORS. */
@@ -22,10 +23,18 @@ export type AppDeps = {
   /** Post-request side effects (push fan-out) for one request. */
   createDispatch: (c: HonoContext<EvlogVariables>, db: Database) => Promise<Dispatch>;
   createContext: (c: HonoContext<EvlogVariables>) => Promise<ApiContext>;
+  /** The OAuth sign-in and consent pages for MCP clients. */
+  oauthPages: OAuthPageDeps;
+  /** Serves `/mcp`: verifies the OAuth bearer token, then runs the MCP server. */
+  mcp: (c: HonoContext<EvlogVariables>) => Promise<Response>;
 };
 
 const METHODS = ["GET", "POST", "OPTIONS"];
 const HEADERS = ["Content-Type", "Authorization"];
+/** MCP clients (also browser-based ones) send and read these on `/mcp`. */
+const PUBLIC_METHODS = ["GET", "POST", "DELETE", "OPTIONS"];
+const PUBLIC_HEADERS = [...HEADERS, "Mcp-Protocol-Version", "Mcp-Session-Id", "Last-Event-ID"];
+const PUBLIC_EXPOSED = ["WWW-Authenticate", "Mcp-Session-Id", "Mcp-Protocol-Version"];
 
 /** The server's Hono app. Dependencies are injected so the routing can be tested. */
 export function createApp(deps: AppDeps) {
@@ -33,24 +42,35 @@ export function createApp(deps: AppDeps) {
 
   app.use(evlog());
   app.use("*", async (c, next) => {
-    // The public API ignores cookies, so it never looks up a session, even to log it.
-    if (!isPublicApiPath(c.req.path)) {
+    // Public paths ignore cookies, so they never look up a session, even to log it.
+    if (!isPublicPath(c.req.path)) {
       await deps.identifyUser(c.get("log"), c.req.raw.headers, c.req.path);
     }
     await next();
   });
 
   // Public: bearer tokens only, so any origin may call it and nothing is credentialed.
-  const publicCors = cors({ origin: "*", allowMethods: METHODS, allowHeaders: HEADERS });
+  const publicCors = cors({
+    origin: "*",
+    allowMethods: PUBLIC_METHODS,
+    allowHeaders: PUBLIC_HEADERS,
+    exposeHeaders: PUBLIC_EXPOSED,
+  });
   const appCors = cors({
     origin: deps.appOrigin,
     allowMethods: METHODS,
     allowHeaders: HEADERS,
     credentials: true,
   });
-  app.use("*", (c, next) => (isPublicApiPath(c.req.path) ? publicCors(c, next) : appCors(c, next)));
+  app.use("*", (c, next) => (isPublicPath(c.req.path) ? publicCors(c, next) : appCors(c, next)));
 
   app.on(["POST", "GET"], "/api/auth/*", (c) => deps.authHandler(c.req.raw));
+  // OAuth discovery for MCP clients: authorization-server metadata at
+  // /.well-known/oauth-authorization-server/api/auth (RFC 8414 path insertion) and
+  // protected-resource metadata at /.well-known/oauth-protected-resource/mcp (RFC 9728).
+  app.get("/.well-known/*", (c) => deps.authHandler(c.req.raw));
+  registerOAuthPages(app, deps.oauthPages);
+  app.on(["GET", "POST", "DELETE"], "/mcp", (c) => deps.mcp(c));
 
   const publicHandler = createPublicHandler();
   app.use("*", async (c, next) => {

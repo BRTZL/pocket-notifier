@@ -5,7 +5,7 @@ import { and, eq, ne, notExists, or, type SQL, sql } from "drizzle-orm";
 import { authed } from "../base";
 import { appError, isUniqueViolation } from "../lib/errors";
 import { toTopicMember } from "../lib/serialize";
-import { requireMember, requireOwner } from "../lib/topic-access";
+import { requireMember, requireNotPersonal, requireOwner } from "../lib/topic-access";
 
 const LAST_OWNER_MESSAGE =
   "A topic needs at least one owner. Make someone else an owner first, or delete the topic.";
@@ -56,6 +56,7 @@ const list = authed.members.list.handler(async ({ context, input }) => {
 const add = authed.members.add.handler(async ({ context, input, errors }) => {
   const { db } = context;
   await requireOwner(db, input.topicId, context.session.user.id);
+  await requireNotPersonal(db, input.topicId);
 
   // better-auth stores emails in lowercase.
   const target = await db.query.user.findFirst({ where: { email: input.email.toLowerCase() } });
