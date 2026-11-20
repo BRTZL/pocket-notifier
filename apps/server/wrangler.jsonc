@@ -15,6 +15,11 @@
       "migrations_dir": ".wrangler/migrations",
     },
   ],
+  // Hourly retention cleanup (the `scheduled` export in src/index.ts). Trigger it locally
+  // with `wrangler dev --test-scheduled` and `curl http://localhost:3300/__scheduled`.
+  "triggers": {
+    "crons": ["0 * * * *"],
+  },
   "dev": {
     "ip": "0.0.0.0",
     "port": 3300,

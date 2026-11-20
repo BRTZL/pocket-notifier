@@ -37,6 +37,8 @@ export const server = Cloudflare.Worker("server", {
     // Optional: when unset the binding is left out and the server runs with push disabled.
     FCM_SERVICE_ACCOUNT: optionalSecret("FCM_SERVICE_ACCOUNT"),
   },
+  // Hourly retention cleanup: the server exports a `scheduled` handler next to `fetch`.
+  crons: ["0 * * * *"],
   dev: {
     port: 3300,
   },
