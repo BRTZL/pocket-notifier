@@ -36,12 +36,12 @@
     "@cloudflare/workers-types": "catalog:",
     "@notifier/config": "workspace:*",
     "@tailwindcss/postcss": "catalog:",
-    "@tanstack/react-query-devtools": "^5.107.1",
+    "@tanstack/react-query-devtools": "^5.108.0",
     "@types/node": "catalog:",
     "@types/react": "^19.3.0",
     "@types/react-dom": "catalog:",
     "tailwindcss": "catalog:",
-    "typescript": "^6.0.3",
-    "wrangler": "^4.161.0"
+    "typescript": "^7.0.2",
+    "wrangler": "^4.165.0"
   }
 }

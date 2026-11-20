@@ -20,7 +20,7 @@
   "devDependencies": {
     "@notifier/config": "workspace:*",
     "drizzle-kit": "1.0.0-rc.5",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "varlock": "catalog:"
   }
 }
