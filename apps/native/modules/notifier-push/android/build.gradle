@@ -1,0 +1,26 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.bartuozel.pocketnotifier'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.notifierpush"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  implementation platform("com.google.firebase:firebase-bom:35.1.0")
+  implementation "com.google.firebase:firebase-messaging"
+  implementation "androidx.core:core-ktx:1.16.0"
+  implementation "androidx.security:security-crypto:1.1.0"
+  // React Native ships OkHttp 4.9.2; matching it keeps one copy in the app.
+  implementation "com.squareup.okhttp3:okhttp:4.9.2"
+
+  testImplementation "junit:junit:4.13.2"
+}
