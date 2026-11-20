@@ -1,6 +1,6 @@
 import type { ConversationSummary } from "@notifier/contract/conversation";
 import { router } from "expo-router";
-import { Button, Menu, SearchField, Spinner, useThemeColor } from "heroui-native";
+import { Button, Menu, SearchField, Spinner } from "heroui-native";
 import { useState } from "react";
 import { FlatList, View } from "react-native";
 import { ConversationRow } from "@/components/conversation-row";
@@ -63,7 +63,6 @@ function InboxMenu({ newestMessageId }: { newestMessageId: string | null }) {
 export default function InboxScreen() {
   const { query, conversations } = useConversations();
   const [search, setSearch] = useState("");
-  const [accent] = useThemeColor(["accent"]);
   const [isManualRefresh, setIsManualRefresh] = useState(false);
   useRefreshOnFocus(query.refetch);
   const visible = conversations.filter((conversation) => matches(conversation, search));

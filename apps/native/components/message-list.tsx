@@ -1,5 +1,5 @@
 import type { InboxMessage } from "@notifier/contract/message";
-import { Separator, Spinner, useThemeColor } from "heroui-native";
+import { Separator, Spinner } from "heroui-native";
 import { type ReactElement, useState } from "react";
 import { FlatList, View } from "react-native";
 import { MessageRow } from "@/components/message-row";
@@ -39,7 +39,6 @@ export function MessageList({
   // must not stay on screen.
   const isUnavailable = isAccessError(query.error);
   const messages = isUnavailable ? [] : loaded;
-  const [accent] = useThemeColor(["accent"]);
   const [isManualRefresh, setIsManualRefresh] = useState(false);
   useRefreshOnFocus(query.refetch);
 

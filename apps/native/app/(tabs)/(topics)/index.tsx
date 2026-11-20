@@ -1,7 +1,7 @@
 import type { MyTopic } from "@notifier/contract/topic";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { Button, cn, PressableFeedback, Typography, useThemeColor } from "heroui-native";
+import { Button, cn, PressableFeedback, Typography } from "heroui-native";
 import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { ChatAvatar } from "@/components/chat-avatar";
@@ -70,7 +70,6 @@ function TopicRow({ topic }: { topic: MyTopic }) {
 
 export default function TopicsScreen() {
   const topics = useQuery(orpc.topics.list.queryOptions());
-  const [accent] = useThemeColor(["accent"]);
   const [isManualRefresh, setIsManualRefresh] = useState(false);
   useRefreshOnFocus(topics.refetch);
 
