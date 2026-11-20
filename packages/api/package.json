@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
     "@notifier/auth": "workspace:*",
     "@notifier/contract": "workspace:*",
     "@notifier/db": "workspace:*",
@@ -21,6 +22,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
     "@notifier/config": "workspace:*",
     "miniflare": "5.20261118.0-beta",
     "typescript": "^7.0.2",
