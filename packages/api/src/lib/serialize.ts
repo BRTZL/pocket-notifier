@@ -1,7 +1,8 @@
 import type { UserSummary } from "@notifier/contract/common";
+import type { Invite } from "@notifier/contract/invite";
 import type { AccessToken, TokenScope } from "@notifier/contract/token";
 import type { MyTopic, TopicMember, TopicRole } from "@notifier/contract/topic";
-import type { accessToken, topic } from "@notifier/db/schema/notifier";
+import type { accessToken, invite, topic } from "@notifier/db/schema/notifier";
 
 type UserRow = {
   id: string;
@@ -74,6 +75,23 @@ export function toAccessToken(
     scope,
     expiresAt: row.expiresAt?.toISOString() ?? null,
     lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export function toInvite(
+  row: typeof invite.$inferSelect & { creator: UserRow; acceptor: UserRow | null },
+  grants: Invite["grants"],
+): Invite {
+  return {
+    id: row.id,
+    email: row.email,
+    grants,
+    createdBy: toUserSummary(row.creator),
+    expiresAt: row.expiresAt.toISOString(),
+    acceptedAt: row.acceptedAt?.toISOString() ?? null,
+    acceptedBy: row.acceptor ? toUserSummary(row.acceptor) : null,
+    revokedAt: row.revokedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }

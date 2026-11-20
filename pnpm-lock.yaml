@@ -521,6 +521,9 @@ importers:
       '@better-auth/expo':
         specifier: 'catalog:'
         version: 1.7.26(3e6d9e1402d2e892e7532edb589cadb9)
+      '@notifier/contract':
+        specifier: workspace:*
+        version: link:../contract
       '@notifier/db':
         specifier: workspace:*
         version: link:../db

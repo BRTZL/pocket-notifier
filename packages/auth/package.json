@@ -13,6 +13,7 @@
     "@better-auth/core": "1.7.26",
     "@better-auth/drizzle-adapter": "1.7.26",
     "@better-auth/expo": "catalog:",
+    "@notifier/contract": "workspace:*",
     "@notifier/db": "workspace:*",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",

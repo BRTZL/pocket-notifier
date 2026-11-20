@@ -5,6 +5,8 @@ import { createRouterClient } from "@orpc/server";
 
 import { appRouter } from "../src/router";
 
+export const TEST_APP_URL = "http://web.test";
+
 export type TestUser = { id: string; name: string; email: string };
 
 export async function seedUser(db: Database, id: string): Promise<TestUser> {
@@ -41,7 +43,7 @@ export function fakeSession(testUser: TestUser): Session {
 
 export function clientFor(db: Database, testUser: TestUser | null) {
   return createRouterClient(appRouter, {
-    context: { db, session: testUser ? fakeSession(testUser) : null },
+    context: { db, session: testUser ? fakeSession(testUser) : null, appUrl: TEST_APP_URL },
   });
 }
 
