@@ -165,13 +165,17 @@ describe("me and topics", () => {
     });
   });
 
-  it("resets retentionDays to 30 when update omits it (contract default)", async () => {
-    // Pins current behavior: `UpdateTopicInput.retentionDays` inherits `.default(30)`
-    // from `RetentionDays`, so an omitted value parses as 30.
+  it("keeps retentionDays when update omits it", async () => {
     const owner = clientFor(testDb.db, ada);
     const created = await owner.topics.create({ name: "pinned", retentionDays: 7 });
     const updated = await owner.topics.update({ id: created.id, displayName: "Pinned" });
-    expect(updated.retentionDays).toBe(30);
+    expect(updated.retentionDays).toBe(7);
+  });
+
+  it("uses 30 days when create omits retentionDays", async () => {
+    const owner = clientFor(testDb.db, ada);
+    const created = await owner.topics.create({ name: "default-retention" });
+    expect(created.retentionDays).toBe(30);
   });
 
   it("lets only owners delete a topic, and cascades", async () => {

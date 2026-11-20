@@ -17,12 +17,11 @@ export const TopicName = z
 
 export const RETENTION_DAYS = { default: 30, min: 1, max: 365 } as const;
 
-export const RetentionDays = z
-  .number()
-  .int()
-  .min(RETENTION_DAYS.min)
-  .max(RETENTION_DAYS.max)
-  .default(RETENTION_DAYS.default);
+/**
+ * Days to keep a topic's messages. No `.default()` here: update inputs must be able
+ * to tell "not given" apart from 30. Creation falls back to `RETENTION_DAYS.default`.
+ */
+export const RetentionDays = z.number().int().min(RETENTION_DAYS.min).max(RETENTION_DAYS.max);
 
 /**
  * - `owner`: manages the topic and its members, publishes, subscribes.
