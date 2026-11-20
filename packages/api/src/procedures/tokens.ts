@@ -1,6 +1,6 @@
 import { TOKEN_PREFIX } from "@notifier/contract/token";
 import { newId } from "@notifier/db/ids";
-import { accessToken, topic, topicMember } from "@notifier/db/schema/notifier";
+import { accessToken, project, projectMember } from "@notifier/db/schema/notifier";
 import { randomBase62, sha256Hex } from "@notifier/db/secrets";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
@@ -33,20 +33,20 @@ const create = authed.tokens.create.handler(async ({ context, input }) => {
   const userId = context.session.user.id;
   const scope = normalizeTokenScope(input.scope);
 
-  if (scope.kind === "topics") {
+  if (scope.kind === "projects") {
     const rows = await db
-      .select({ name: topic.name, role: topicMember.role })
-      .from(topic)
+      .select({ name: project.name, role: projectMember.role })
+      .from(project)
       .innerJoin(
-        topicMember,
-        and(eq(topicMember.topicId, topic.id), eq(topicMember.userId, userId)),
+        projectMember,
+        and(eq(projectMember.projectId, project.id), eq(projectMember.userId, userId)),
       )
-      .where(inArray(topic.name, scope.topics));
+      .where(inArray(project.name, scope.projects));
     const roles = new Map(rows.map((found) => [found.name, found.role]));
-    for (const name of scope.topics) {
+    for (const name of scope.projects) {
       const role = roles.get(name);
       if (!role) {
-        throw appError("NOT_FOUND", `Topic not found: ${name}`);
+        throw appError("NOT_FOUND", `Project not found: ${name}`);
       }
       if (role === "subscriber") {
         throw appError("FORBIDDEN", `Only owners and publishers can create tokens for ${name}`);

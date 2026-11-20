@@ -11,8 +11,8 @@ import {
   PublishOutput,
   UploadAttachmentOutput,
 } from "./message";
+import { ProjectName } from "./project";
 import { MessageResponse } from "./response";
-import { TopicName } from "./topic";
 
 /**
  * Public HTTP API for scripts, CI and servers. Authenticated with an access
@@ -29,7 +29,7 @@ export const publicContract = {
     publish: base
       .route({
         method: "POST",
-        path: "/v1/topics/{topic}/messages",
+        path: "/v1/projects/{project}/messages",
         successStatus: 201,
         summary: "Publish a message",
         tags: ["Messages"],
@@ -41,12 +41,12 @@ export const publicContract = {
     list: base
       .route({
         method: "GET",
-        path: "/v1/topics/{topic}/messages",
-        summary: "List a topic's messages, newest first",
+        path: "/v1/projects/{project}/messages",
+        summary: "List a project's messages, newest first",
         tags: ["Messages"],
       })
       .errors({ NOT_FOUND: ERRORS.NOT_FOUND })
-      .input(PageInput.extend({ topic: TopicName, since: Timestamp.optional() }))
+      .input(PageInput.extend({ project: ProjectName, since: Timestamp.optional() }))
       .output(pageOf(Message)),
 
     get: base
@@ -76,13 +76,13 @@ export const publicContract = {
     upload: base
       .route({
         method: "POST",
-        path: "/v1/topics/{topic}/attachments",
+        path: "/v1/projects/{project}/attachments",
         successStatus: 201,
         summary: "Upload a file to attach to the next message (multipart/form-data)",
         tags: ["Attachments"],
       })
       .errors({ NOT_FOUND: ERRORS.NOT_FOUND, PAYLOAD_TOO_LARGE: ERRORS.PAYLOAD_TOO_LARGE })
-      .input(z.object({ topic: TopicName, file: z.file().max(ATTACHMENT_MAX_BYTES) }))
+      .input(z.object({ project: ProjectName, file: z.file().max(ATTACHMENT_MAX_BYTES) }))
       .output(UploadAttachmentOutput),
   },
 };

@@ -36,8 +36,8 @@ export function useConversationSummary(conversation: ConversationRef) {
 }
 
 /** Per conversation, so a mark already in flight is found and not sent twice. */
-function markReadKey({ topicId, key }: ConversationRef) {
-  return [...orpc.messages.markRead.mutationKey(), "conversation", topicId, key];
+function markReadKey({ projectId, key }: ConversationRef) {
+  return [...orpc.messages.markRead.mutationKey(), "conversation", projectId, key];
 }
 
 /**
@@ -50,8 +50,8 @@ function markReadKey({ topicId, key }: ConversationRef) {
 export function useMarkConversationRead(conversation: ConversationRef, canMark: boolean) {
   const queryClient = useQueryClient();
   const invalidate = useInvalidateReadState();
-  const { topicId, key } = conversation;
-  const mutationKey = markReadKey({ topicId, key });
+  const { projectId, key } = conversation;
+  const mutationKey = markReadKey({ projectId, key });
   const { mutate } = useMutation({
     ...orpc.messages.markRead.mutationOptions({ onSuccess: () => invalidate() }),
     mutationKey,
@@ -75,6 +75,6 @@ export function useMarkConversationRead(conversation: ConversationRef, canMark: 
     if (queryClient.isMutating({ mutationKey }) > 0) {
       return;
     }
-    mutate({ conversation: { topicId, key } });
-  }, [canMark, isFocused, mutate, queryClient, mutationKey, topicId, key]);
+    mutate({ conversation: { projectId, key } });
+  }, [canMark, isFocused, mutate, queryClient, mutationKey, projectId, key]);
 }

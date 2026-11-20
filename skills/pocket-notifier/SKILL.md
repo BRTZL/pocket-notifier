@@ -82,4 +82,4 @@ Tool errors say what to do next, for example `Project 'x' not found. Call list_p
 
 ## Without MCP
 
-Scripts and agents without MCP can use the REST API: `POST <server>/v1/topics/<topic>/messages` with `Authorization: Bearer <access token>` (for example the `agent-notify` script). See the docs page "Coding agents".
+Scripts and agents without MCP can use the REST API: `POST <server>/v1/projects/<project>/messages` with `Authorization: Bearer <access token>` (for example the `agent-notify` script). See the docs page "Coding agents".

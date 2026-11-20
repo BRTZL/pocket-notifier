@@ -1,6 +1,6 @@
 import type { Message } from "@notifier/contract/message";
 import type { Database } from "@notifier/db";
-import { device, subscription, topicMember } from "@notifier/db/schema/notifier";
+import { device, projectMember, subscription } from "@notifier/db/schema/notifier";
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import type { Dispatch } from "../dispatch";
@@ -48,27 +48,27 @@ type Recipient = { id: string; userId: string; pushToken: string };
 const recipientColumns = { id: device.id, userId: device.userId, pushToken: device.pushToken };
 
 /**
- * Devices that get a push for a message in `topicId`: devices of users who are members
- * of the topic and subscribed to it without muting, most recently seen first. The
+ * Devices that get a push for a message in `projectId`: devices of users who are members
+ * of the project and subscribed to it without muting, most recently seen first. The
  * publisher is included: agents publish with the user's own token, and the user wants
  * the push.
  *
  * Android only: iOS is not in v1, and an iOS device token is an APNs token that FCM
  * would reject, which would get the device deleted as dead.
  */
-export function messageRecipients(db: Database, topicId: string): Promise<Recipient[]> {
+export function messageRecipients(db: Database, projectId: string): Promise<Recipient[]> {
   return db
     .select(recipientColumns)
     .from(device)
     .innerJoin(
-      topicMember,
-      and(eq(topicMember.userId, device.userId), eq(topicMember.topicId, topicId)),
+      projectMember,
+      and(eq(projectMember.userId, device.userId), eq(projectMember.projectId, projectId)),
     )
     .innerJoin(
       subscription,
       and(
         eq(subscription.userId, device.userId),
-        eq(subscription.topicId, topicId),
+        eq(subscription.projectId, projectId),
         eq(subscription.muted, false),
       ),
     )
@@ -215,8 +215,8 @@ export function createPushDispatch(options: PushDispatchOptions): Dispatch {
         return;
       }
       runInBackground("push.message", async (taskLog) => {
-        taskLog.set({ push: { kind: "message", messageId: message.id, topic: message.topic } });
-        const recipients = await messageRecipients(db, message.topicId);
+        taskLog.set({ push: { kind: "message", messageId: message.id, project: message.project } });
+        const recipients = await messageRecipients(db, message.projectId);
         if (recipients.length === 0) {
           taskLog.set({ push: { recipients: 0 } });
           return;

@@ -3,14 +3,14 @@ import { Image } from "react-native";
 import error from "@/assets/images/mascot/error.png";
 import inboxEmpty from "@/assets/images/mascot/inbox-empty.png";
 import invite from "@/assets/images/mascot/invite.png";
+import projectsEmpty from "@/assets/images/mascot/projects-empty.png";
 import thinking from "@/assets/images/mascot/thinking.png";
-import topicsEmpty from "@/assets/images/mascot/topics-empty.png";
 import wave from "@/assets/images/mascot/wave.png";
 
 const POSES = {
   wave,
   "inbox-empty": inboxEmpty,
-  "topics-empty": topicsEmpty,
+  "projects-empty": projectsEmpty,
   error,
   invite,
   thinking,

@@ -1,15 +1,15 @@
 import type { UserSummary } from "@notifier/contract/common";
 import type { Device } from "@notifier/contract/device";
 import type { Invite } from "@notifier/contract/invite";
+import type { MyProject, ProjectMember, ProjectRole } from "@notifier/contract/project";
 import type { MessageResponse } from "@notifier/contract/response";
 import type { AccessToken, TokenScope } from "@notifier/contract/token";
-import type { MyTopic, TopicMember, TopicRole } from "@notifier/contract/topic";
 import type {
   accessToken,
   device,
   invite,
   messageResponse,
-  topic,
+  project,
 } from "@notifier/db/schema/notifier";
 
 type UserRow = {
@@ -32,16 +32,16 @@ export function toUserSummary(row: UserRow): UserSummary {
   return { id: row.id, name: row.name, email: row.email, image: absoluteUrlOrNull(row.image) };
 }
 
-export type TopicStats = {
+export type ProjectStats = {
   unreadCount: number;
   lastMessageAt: Date | null;
 };
 
-export function toMyTopic(
-  row: typeof topic.$inferSelect,
-  membership: { role: TopicRole; subscribed: boolean; muted: boolean },
-  stats: TopicStats,
-): MyTopic {
+export function toMyProject(
+  row: typeof project.$inferSelect,
+  membership: { role: ProjectRole; subscribed: boolean; muted: boolean },
+  stats: ProjectStats,
+): MyProject {
   return {
     id: row.id,
     name: row.name,
@@ -55,19 +55,19 @@ export function toMyTopic(
     muted: membership.muted,
     unreadCount: stats.unreadCount,
     lastMessageAt: stats.lastMessageAt?.toISOString() ?? null,
-    // Only its owner is ever a member of a personal topic.
+    // Only its owner is ever a member of a personal project.
     personal: row.personalUserId !== null,
   };
 }
 
-export function toTopicMember(row: {
-  topicId: string;
-  role: TopicRole;
+export function toProjectMember(row: {
+  projectId: string;
+  role: ProjectRole;
   addedAt: Date;
   user: UserRow;
-}): TopicMember {
+}): ProjectMember {
   return {
-    topicId: row.topicId,
+    projectId: row.projectId,
     user: toUserSummary(row.user),
     role: row.role,
     addedAt: row.addedAt.toISOString(),

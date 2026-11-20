@@ -36,10 +36,10 @@ function decodeSegment(segment: string): string {
  * `c:org/repo`) stays one param: a string href would be split at its decoded `/`.
  */
 const LINK_ROUTES = [
-  "/conversation/[topicId]/[key]",
-  "/topic/[topicId]",
-  "/topic/[topicId]/settings",
-  "/topic/[topicId]/message/[id]",
+  "/conversation/[projectId]/[key]",
+  "/project/[projectId]",
+  "/project/[projectId]/settings",
+  "/project/[projectId]/message/[id]",
 ] as const;
 
 export type ReplayTarget =

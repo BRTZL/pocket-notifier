@@ -1,40 +1,40 @@
-import type { MyTopic } from "@notifier/contract/topic";
+import type { MyProject } from "@notifier/contract/project";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Card, Spinner, useToast } from "heroui-native";
 
-import { TopicFields } from "@/components/topic-fields";
-import { useTopicForm } from "@/hooks/use-topic-form";
+import { ProjectFields } from "@/components/project-fields";
+import { useProjectForm } from "@/hooks/use-project-form";
 import { errorMessage } from "@/lib/errors";
 import { fieldErrors } from "@/lib/form";
-import { type TopicFormField, UpdateTopicForm } from "@/lib/topic-form";
+import { type ProjectFormField, UpdateProjectForm } from "@/lib/project-form";
 import { orpc } from "@/utils/orpc";
 
 /** Owner-only: display name, description, default priority and retention. */
-export function TopicEditForm({ topic }: { topic: MyTopic }) {
+export function ProjectEditForm({ project }: { project: MyProject }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { values, errors, setErrors, setField } = useTopicForm({
-    name: topic.name,
-    displayName: topic.displayName ?? "",
-    description: topic.description ?? "",
-    defaultPriority: topic.defaultPriority,
-    retentionDays: String(topic.retentionDays),
+  const { values, errors, setErrors, setField } = useProjectForm({
+    name: project.name,
+    displayName: project.displayName ?? "",
+    description: project.description ?? "",
+    defaultPriority: project.defaultPriority,
+    retentionDays: String(project.retentionDays),
   });
   const update = useMutation(
-    orpc.topics.update.mutationOptions({
+    orpc.projects.update.mutationOptions({
       onSuccess: async () => {
         // Refetch rather than write the response over the cache: it may be older than a
         // subscription change that finished meanwhile.
         await Promise.all([
           queryClient.invalidateQueries({
-            queryKey: orpc.topics.get.queryKey({ input: { id: topic.id } }),
+            queryKey: orpc.projects.get.queryKey({ input: { id: project.id } }),
           }),
-          queryClient.invalidateQueries({ queryKey: orpc.topics.list.key() }),
+          queryClient.invalidateQueries({ queryKey: orpc.projects.list.key() }),
         ]);
-        toast.show({ variant: "success", label: "Topic saved" });
+        toast.show({ variant: "success", label: "Project saved" });
       },
       onError: (error) => {
-        toast.show({ variant: "danger", label: errorMessage(error, "Could not save the topic") });
+        toast.show({ variant: "danger", label: errorMessage(error, "Could not save the project") });
       },
     }),
   );
@@ -43,19 +43,19 @@ export function TopicEditForm({ topic }: { topic: MyTopic }) {
     if (update.isPending) {
       return;
     }
-    const parsed = UpdateTopicForm.safeParse(values);
+    const parsed = UpdateProjectForm.safeParse(values);
     if (!parsed.success) {
-      setErrors(fieldErrors<TopicFormField>(parsed.error));
+      setErrors(fieldErrors<ProjectFormField>(parsed.error));
       return;
     }
-    update.mutate({ id: topic.id, ...parsed.data });
+    update.mutate({ id: project.id, ...parsed.data });
   }
 
   return (
     <Card>
       <Card.Body className="gap-4">
-        <Card.Title>Topic details</Card.Title>
-        <TopicFields
+        <Card.Title>Project details</Card.Title>
+        <ProjectFields
           values={values}
           errors={errors}
           onChange={setField}

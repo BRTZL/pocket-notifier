@@ -28,7 +28,7 @@ data class SentReply(val text: String, val at: Long)
 data class PushMessage(
   val raw: Map<String, String>,
   val id: String,
-  val topic: String,
+  val project: String,
   val title: String,
   val body: String,
   val priority: Int,
@@ -70,11 +70,11 @@ object PushPayload {
 
   fun parseMessage(data: Map<String, String>): PushMessage? {
     val id = data["id"]?.takeIf { it.isNotEmpty() } ?: return null
-    val topic = data["topic"]?.takeIf { it.isNotEmpty() } ?: return null
+    val project = data["project"]?.takeIf { it.isNotEmpty() } ?: return null
     return PushMessage(
       raw = data,
       id = id,
-      topic = topic,
+      project = project,
       title = data["title"] ?: "",
       body = data["body"] ?: "",
       priority = data["priority"]?.toIntOrNull()?.coerceIn(1, 5) ?: 3,

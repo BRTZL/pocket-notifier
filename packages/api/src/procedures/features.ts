@@ -1,5 +1,6 @@
 import { authed } from "../base";
 import { appError } from "../lib/errors";
+import { requireMember } from "../lib/project-access";
 import {
   createFeature,
   findFeatureAccess,
@@ -7,30 +8,29 @@ import {
   toFeature,
   updateFeatureStatus,
 } from "../lib/projects";
-import { requireMember } from "../lib/topic-access";
 
 async function projectAccess(
   db: Parameters<typeof requireMember>[0],
-  topicId: string,
+  projectId: string,
   userId: string,
 ) {
-  const membership = await requireMember(db, topicId, userId);
-  const found = await db.query.topic.findFirst({ where: { id: topicId } });
+  const membership = await requireMember(db, projectId, userId);
+  const found = await db.query.project.findFirst({ where: { id: projectId } });
   if (!found) {
-    throw appError("NOT_FOUND", "Topic not found");
+    throw appError("NOT_FOUND", "Project not found");
   }
-  return { topic: found, role: membership.role };
+  return { project: found, role: membership.role };
 }
 
 const list = authed.features.list.handler(async ({ context, input }) => {
-  await requireMember(context.db, input.topicId, context.session.user.id);
-  const rows = await listFeatures(context.db, input.topicId, input.status);
+  await requireMember(context.db, input.projectId, context.session.user.id);
+  const rows = await listFeatures(context.db, input.projectId, input.status);
   return rows.map(toFeature);
 });
 
 const create = authed.features.create.handler(async ({ context, input }) => {
   const userId = context.session.user.id;
-  const access = await projectAccess(context.db, input.topicId, userId);
+  const access = await projectAccess(context.db, input.projectId, userId);
   const { feature } = await createFeature(context.db, {
     access,
     userId,

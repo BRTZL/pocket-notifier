@@ -30,22 +30,23 @@ describe("app messages", () => {
     bob = await seedUser(testDb.db, "bob");
     cid = await seedUser(testDb.db, "cid");
     const owner = clientFor(testDb.db, ada);
-    ({ id: teamId } = await owner.topics.create({ name: "team" }));
-    ({ id: opsId } = await owner.topics.create({ name: "ops" }));
-    await owner.members.add({ topicId: teamId, email: bob.email, role: "publisher" });
-    await owner.members.add({ topicId: opsId, email: bob.email, role: "subscriber" });
+    ({ id: teamId } = await owner.projects.create({ name: "team" }));
+    ({ id: opsId } = await owner.projects.create({ name: "ops" }));
+    await owner.members.add({ projectId: teamId, email: bob.email, role: "publisher" });
+    await owner.members.add({ projectId: opsId, email: bob.email, role: "subscriber" });
   });
 
   afterEach(async () => {
     await testDb.dispose();
   });
 
-  /** Publishes `count` messages to `topic` as Ada, each in its own millisecond. Oldest first. */
-  async function publishMany(topic: string, count: number) {
+  /** Publishes `count` messages to `project` as Ada, each in its own millisecond. Oldest first. */
+  async function publishMany(project: string, count: number) {
     const ids: string[] = [];
     for (let index = 0; index < count; index += 1) {
       ids.push(
-        (await clientFor(testDb.db, ada).messages.publish({ topic, body: `${topic}-${index}` })).id,
+        (await clientFor(testDb.db, ada).messages.publish({ project, body: `${project}-${index}` }))
+          .id,
       );
       await nextMillisecond();
     }
@@ -53,7 +54,7 @@ describe("app messages", () => {
   }
 
   describe("list and get", () => {
-    it("is an inbox over every topic the caller is a member of, newest first", async () => {
+    it("is an inbox over every project the caller is a member of, newest first", async () => {
       const team = await publishMany("team", 2);
       const ops = await publishMany("ops", 2);
       const bobClient = clientFor(testDb.db, bob);
@@ -69,13 +70,13 @@ describe("app messages", () => {
       expect(rest.items.map((item) => item.id)).toEqual([team[0]]);
       expect(rest.nextCursor).toBeNull();
 
-      const onlyOps = await bobClient.messages.list({ topicId: opsId });
-      expect(onlyOps.items.map((item) => item.topic)).toEqual(["ops", "ops"]);
+      const onlyOps = await bobClient.messages.list({ projectId: opsId });
+      expect(onlyOps.items.map((item) => item.project)).toEqual(["ops", "ops"]);
 
-      // Cid is in no topic.
+      // Cid is in no project.
       expect((await clientFor(testDb.db, cid).messages.list({})).items).toEqual([]);
       await expect(
-        clientFor(testDb.db, cid).messages.list({ topicId: opsId }),
+        clientFor(testDb.db, cid).messages.list({ projectId: opsId }),
       ).rejects.toMatchObject(definedError("NOT_FOUND"));
     });
 
@@ -99,7 +100,7 @@ describe("app messages", () => {
       expect(await bobClient.messages.get({ id: second ?? "" })).toMatchObject({
         id: second,
         read: true,
-        topic: "team",
+        project: "team",
         publishedBy: { id: ada.id },
       });
       // Read state is per user.
@@ -119,11 +120,11 @@ describe("app messages", () => {
         { type: "reply" as const, key: "ok", label: "OK" },
         { type: "reply" as const, key: "note", label: "Note", input: true },
       ];
-      const { id: ask } = await adaClient.messages.publish({ topic: "team", actions });
+      const { id: ask } = await adaClient.messages.publish({ project: "team", actions });
       await nextMillisecond();
-      const { id: other } = await adaClient.messages.publish({ topic: "team", actions });
+      const { id: other } = await adaClient.messages.publish({ project: "team", actions });
       await nextMillisecond();
-      const { id: quiet } = await adaClient.messages.publish({ topic: "team", body: "no reply" });
+      const { id: quiet } = await adaClient.messages.publish({ project: "team", body: "no reply" });
 
       await bobClient.responses.create({ messageId: ask, actionKey: "ok" });
       await nextMillisecond();
@@ -169,7 +170,7 @@ describe("app messages", () => {
     it("marks ids the caller can see and counts only new rows", async () => {
       const [teamMsg] = await publishMany("team", 1);
       const owner = clientFor(testDb.db, ada);
-      const { id: privateId } = await owner.topics.create({ name: "private" });
+      const { id: privateId } = await owner.projects.create({ name: "private" });
       const [privateMsg] = await publishMany("private", 1);
       expect(privateId).toEqual(expect.any(String));
 
@@ -191,13 +192,13 @@ describe("app messages", () => {
       });
     });
 
-    it("marks everything up to a message, optionally in one topic", async () => {
+    it("marks everything up to a message, optionally in one project", async () => {
       const team = await publishMany("team", 3);
       const ops = await publishMany("ops", 2);
       const later = await publishMany("team", 1);
       const bobClient = clientFor(testDb.db, bob);
 
-      expect(await bobClient.messages.markRead({ upTo: ops[1] ?? "", topicId: teamId })).toEqual({
+      expect(await bobClient.messages.markRead({ upTo: ops[1] ?? "", projectId: teamId })).toEqual({
         updated: 3,
       });
       expect(await bobClient.messages.markRead({ upTo: ops[0] ?? "" })).toEqual({ updated: 1 });
@@ -211,10 +212,10 @@ describe("app messages", () => {
   });
 
   describe("publish", () => {
-    it("sets expiresAt from the topic's retention", async () => {
+    it("sets expiresAt from the project's retention", async () => {
       const owner = clientFor(testDb.db, ada);
-      await owner.topics.create({ name: "short", retentionDays: 7 });
-      const out = await owner.messages.publish({ topic: "short" });
+      await owner.projects.create({ name: "short", retentionDays: 7 });
+      const out = await owner.messages.publish({ project: "short" });
       expect(Date.parse(out.expiresAt) - Date.parse(out.createdAt)).toBe(7 * 86_400_000);
       expect((await owner.messages.get({ id: out.id })).expiresAt).toBe(out.expiresAt);
     });
@@ -222,8 +223,8 @@ describe("app messages", () => {
     it("lets owners and publishers publish, and dispatches the stored message", async () => {
       const messagePublished = vi.fn<Dispatch["messagePublished"]>();
       const bobClient = clientFor(testDb.db, bob, { ...noopDispatch, messagePublished });
-      const out = await bobClient.messages.publish({ topic: "team", title: "test" });
-      expect(out).toMatchObject({ topic: "team" });
+      const out = await bobClient.messages.publish({ project: "team", title: "test" });
+      expect(out).toMatchObject({ project: "team" });
       const stored = await bobClient.messages.get({ id: out.id });
       expect(stored).toMatchObject({ priority: 3, publishedBy: { id: bob.id } });
       const { read: _read, myResponses: _myResponses, ...published } = stored;
@@ -238,17 +239,17 @@ describe("app messages", () => {
       const messagePublished = vi.fn<Dispatch["messagePublished"]>();
       await expect(
         clientFor(testDb.db, bob, { ...noopDispatch, messagePublished }).messages.publish({
-          topic: "ops",
+          project: "ops",
         }),
       ).rejects.toMatchObject(definedError("FORBIDDEN"));
       await expect(
         clientFor(testDb.db, cid, { ...noopDispatch, messagePublished }).messages.publish({
-          topic: "team",
+          project: "team",
         }),
       ).rejects.toMatchObject(definedError("NOT_FOUND"));
       await expect(
         clientFor(testDb.db, ada, { ...noopDispatch, messagePublished }).messages.publish({
-          topic: "missing",
+          project: "missing",
         }),
       ).rejects.toMatchObject(definedError("NOT_FOUND"));
       expect(messagePublished).not.toHaveBeenCalled();
@@ -257,7 +258,7 @@ describe("app messages", () => {
     it("applies the shared publish rules", async () => {
       await expect(
         clientFor(testDb.db, ada).messages.publish({
-          topic: "team",
+          project: "team",
           attachmentId: "att_01jd8x7q3n1p5s8u0w2y4a6c8e",
         }),
       ).rejects.toMatchObject(codeError("BAD_REQUEST"));

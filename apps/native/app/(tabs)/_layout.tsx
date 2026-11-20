@@ -33,9 +33,9 @@ function Tabs() {
         <NativeTabs.Trigger.Icon sf="bubble.left.and.bubble.right.fill" md="forum" />
         <NativeTabs.Trigger.Label>Inbox</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="(topics)">
+      <NativeTabs.Trigger name="(projects)">
         <NativeTabs.Trigger.Icon sf="number" md="tag" />
-        <NativeTabs.Trigger.Label>Topics</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Projects</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="(settings)">
         <NativeTabs.Trigger.Icon sf="gearshape.fill" md="settings" />

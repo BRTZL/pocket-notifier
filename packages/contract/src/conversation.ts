@@ -2,23 +2,23 @@ import { z } from "zod";
 
 import { idSchema, PageInput, Timestamp } from "./common";
 import { Priority } from "./priority";
-import { TopicId, TopicName } from "./topic";
+import { ProjectId, ProjectName } from "./project";
 
 /**
- * Conversations group a topic's messages for the chat-style inbox. Each is scoped to
- * one topic: the same conversation id in two topics is two conversations.
+ * Conversations group a project's messages for the chat-style inbox. Each is scoped to
+ * one project: the same conversation id in two projects is two conversations.
  *
  * - `c:<conversation.id>`: messages published with that `conversation`.
- * - `t:<topic id>`: the topic's messages without a conversation.
+ * - `p:<project id>`: the project's messages without a conversation.
  */
 export const ConversationKey = z
   .string()
-  .regex(/^(?:c:.{1,64}|t:top_[0-9a-z]{26})$/u, "Expected a conversation key");
+  .regex(/^(?:c:.{1,64}|p:prj_[0-9a-z]{26})$/u, "Expected a conversation key");
 
 export const ConversationRef = z
-  .object({ topicId: TopicId, key: ConversationKey })
-  .refine((ref) => !ref.key.startsWith("t:") || ref.key === `t:${ref.topicId}`, {
-    message: "A topic conversation key must name its own topic",
+  .object({ projectId: ProjectId, key: ConversationKey })
+  .refine((ref) => !ref.key.startsWith("p:") || ref.key === `p:${ref.projectId}`, {
+    message: "A project conversation key must name its own project",
     path: ["key"],
   });
 export type ConversationRef = z.infer<typeof ConversationRef>;
@@ -43,13 +43,13 @@ export type OpenAsk = z.infer<typeof OpenAsk>;
 
 /** A row of the conversation inbox, described by its latest non-expired message. */
 export const ConversationSummary = z.object({
-  topicId: TopicId,
-  topic: TopicName,
+  projectId: ProjectId,
+  project: ProjectName,
   key: ConversationKey,
-  /** `conversation.title`, else `conversation.id`, else the topic's display name or name. */
+  /** `conversation.title`, else `conversation.id`, else the project's display name or name. */
   title: z.string().min(1),
   iconUrl: z.url().nullable(),
-  kind: z.enum(["conversation", "topic"]),
+  kind: z.enum(["conversation", "project"]),
   lastMessage: z.object({
     id: idSchema("message"),
     title: z.string().nullable(),
@@ -61,7 +61,7 @@ export const ConversationSummary = z.object({
     createdAt: Timestamp,
   }),
   unreadCount: z.number().int().min(0),
-  /** The caller's subscription to the topic is muted. */
+  /** The caller's subscription to the project is muted. */
   muted: z.boolean(),
   openAsk: OpenAsk.nullable(),
 });

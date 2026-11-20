@@ -15,8 +15,8 @@ import {
   message,
   messageRead,
   messageResponse,
-  topic,
-  topicMember,
+  project,
+  projectMember,
 } from "@notifier/db/schema/notifier";
 import { and, asc, desc, eq, gt, isNull, lt, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -27,7 +27,7 @@ import { toUserSummary } from "./serialize";
 import { DAY_MS } from "./token-scope";
 
 export type MessageRow = typeof message.$inferSelect;
-type TopicRow = typeof topic.$inferSelect;
+type ProjectRow = typeof project.$inferSelect;
 type UserRow = Parameters<typeof toUserSummary>[0];
 type PublishFields = z.output<typeof PublishInput>;
 
@@ -50,30 +50,30 @@ function normalizeActions(actions: PublishFields["actions"]): Message["actions"]
 }
 
 /**
- * Stores a message in `topic` and returns the stored row. Access checks are the
- * caller's job; this applies the topic's defaults and the shared publish rules.
+ * Stores a message in `project` and returns the stored row. Access checks are the
+ * caller's job; this applies the project's defaults and the shared publish rules.
  */
 export async function publishMessage(
   db: Database,
   args: {
-    topic: TopicRow;
+    project: ProjectRow;
     publisher: { userId: string; tokenId: string | null };
     input: PublishFields;
   },
 ): Promise<MessageRow> {
-  const { topic: target, publisher, input } = args;
+  const { project: target, publisher, input } = args;
   if (input.attachmentId !== undefined) {
     throw badRequest("Attachments are not supported yet");
   }
   const actions = normalizeActions(input.actions);
 
   const now = new Date();
-  const conversationKey = input.conversation ? `c:${input.conversation.id}` : `t:${target.id}`;
+  const conversationKey = input.conversation ? `c:${input.conversation.id}` : `p:${target.id}`;
   const [row] = await db
     .insert(message)
     .values({
       id: newId("message"),
-      topicId: target.id,
+      projectId: target.id,
       title: input.title ?? null,
       body: input.body,
       priority: input.priority ?? target.defaultPriority,
@@ -121,11 +121,15 @@ export function parseStored<T extends z.ZodType>(
  * The contract `Message` for a stored row, parsed with the contract schema, so a
  * corrupt row fails loudly (a 500) instead of reaching a client or the push hook.
  */
-export function toMessage(row: MessageRow, topicName: string, publisher: UserRow | null): Message {
+export function toMessage(
+  row: MessageRow,
+  projectName: string,
+  publisher: UserRow | null,
+): Message {
   const assembled = {
     id: row.id,
-    topicId: row.topicId,
-    topic: topicName,
+    projectId: row.projectId,
+    project: projectName,
     title: row.title,
     body: row.body,
     priority: row.priority,
@@ -153,10 +157,10 @@ export function toMessage(row: MessageRow, topicName: string, publisher: UserRow
   return parsed.data;
 }
 
-export function toPublishOutput(row: MessageRow, topicName: string) {
+export function toPublishOutput(row: MessageRow, projectName: string) {
   return {
     id: row.id,
-    topic: topicName,
+    project: projectName,
     createdAt: row.createdAt.toISOString(),
     expiresAt: row.expiresAt.toISOString(),
   };
@@ -221,23 +225,23 @@ export function toPage<Row, Item>(
   };
 }
 
-/** Columns for a message with its topic name and publisher. */
-const messageColumns = { message, topicName: topic.name, publisher: user };
+/** Columns for a message with its project name and publisher. */
+const messageColumns = { message, projectName: project.name, publisher: user };
 
-/** One topic's non-expired messages, newest first: `limit + 1` rows from before `cursor`. */
-export async function listTopicMessages(
+/** One project's non-expired messages, newest first: `limit + 1` rows from before `cursor`. */
+export async function listProjectMessages(
   db: Database,
-  args: { topicId: string; cursor?: string; since?: string; limit: number },
+  args: { projectId: string; cursor?: string; since?: string; limit: number },
 ) {
   const cursor = parseCursor(MessageId, args.cursor);
   const rows = await db
     .select(messageColumns)
     .from(message)
-    .innerJoin(topic, eq(topic.id, message.topicId))
+    .innerJoin(project, eq(project.id, message.projectId))
     .leftJoin(user, eq(user.id, message.publishedBy))
     .where(
       and(
-        eq(message.topicId, args.topicId),
+        eq(message.projectId, args.projectId),
         notExpired(),
         cursor ? lt(message.id, cursor) : undefined,
         args.since ? gt(message.createdAt, new Date(args.since)) : undefined,
@@ -249,16 +253,16 @@ export async function listTopicMessages(
     rows,
     args.limit,
     (row) => row.message.id,
-    (row) => toMessage(row.message, row.topicName, row.publisher),
+    (row) => toMessage(row.message, row.projectName, row.publisher),
   );
 }
 
-/** A non-expired message with its topic name and publisher, or `undefined`. */
+/** A non-expired message with its project name and publisher, or `undefined`. */
 export async function findMessage(db: Database, id: string) {
   const [row] = await db
     .select(messageColumns)
     .from(message)
-    .innerJoin(topic, eq(topic.id, message.topicId))
+    .innerJoin(project, eq(project.id, message.projectId))
     .leftJoin(user, eq(user.id, message.publishedBy))
     .where(and(eq(message.id, id), notExpired()))
     .limit(1);
@@ -266,17 +270,17 @@ export async function findMessage(db: Database, id: string) {
 }
 
 /**
- * Messages in the user's inbox (topics they are a member of), newest first, with
- * their read state. `extra` narrows it further, e.g. to one topic or one id.
+ * Messages in the user's inbox (projects they are a member of), newest first, with
+ * their read state. `extra` narrows it further, e.g. to one project or one id.
  */
 export function selectInbox(db: Database, userId: string, extra: (SQL | undefined)[]) {
   return db
     .select({ ...messageColumns, readAt: messageRead.readAt })
     .from(message)
-    .innerJoin(topic, eq(topic.id, message.topicId))
+    .innerJoin(project, eq(project.id, message.projectId))
     .innerJoin(
-      topicMember,
-      and(eq(topicMember.topicId, message.topicId), eq(topicMember.userId, userId)),
+      projectMember,
+      and(eq(projectMember.projectId, message.projectId), eq(projectMember.userId, userId)),
     )
     .leftJoin(user, eq(user.id, message.publishedBy))
     .leftJoin(
@@ -289,7 +293,7 @@ export function selectInbox(db: Database, userId: string, extra: (SQL | undefine
 
 type InboxRow = {
   message: MessageRow;
-  topicName: string;
+  projectName: string;
   publisher: UserRow | null;
   readAt: Date | null;
 };
@@ -349,7 +353,7 @@ export async function toInboxMessages(
     rows.map((row) => row.message.id),
   );
   return rows.map((row) => ({
-    ...toMessage(row.message, row.topicName, row.publisher),
+    ...toMessage(row.message, row.projectName, row.publisher),
     read: row.readAt !== null,
     myResponses: responses.get(row.message.id) ?? [],
   }));

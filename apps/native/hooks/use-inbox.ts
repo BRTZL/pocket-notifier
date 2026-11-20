@@ -9,13 +9,13 @@ import { orpc } from "@/utils/orpc";
 const PAGE_SIZE = 30;
 
 /**
- * The combined inbox (or one topic's messages with `topicId`), newest first, loaded page
+ * The combined inbox (or one project's messages with `projectId`), newest first, loaded page
  * by page with `nextCursor`.
  */
-export function useInbox({ unreadOnly, topicId }: { unreadOnly: boolean; topicId?: string }) {
+export function useInbox({ unreadOnly, projectId }: { unreadOnly: boolean; projectId?: string }) {
   const query = useInfiniteQuery(
     orpc.messages.list.infiniteOptions({
-      input: (cursor: string | undefined) => ({ cursor, limit: PAGE_SIZE, unreadOnly, topicId }),
+      input: (cursor: string | undefined) => ({ cursor, limit: PAGE_SIZE, unreadOnly, projectId }),
       initialPageParam: undefined,
       getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     }),
@@ -24,13 +24,13 @@ export function useInbox({ unreadOnly, topicId }: { unreadOnly: boolean; topicId
   return { query, messages };
 }
 
-/** Refetches the inbox lists and topic unread counts after something was read or answered. */
+/** Refetches the inbox lists and project unread counts after something was read or answered. */
 export function useInvalidateInbox() {
   const queryClient = useQueryClient();
   return async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: orpc.messages.list.key() }),
-      queryClient.invalidateQueries({ queryKey: orpc.topics.key() }),
+      queryClient.invalidateQueries({ queryKey: orpc.projects.key() }),
     ]);
   };
 }

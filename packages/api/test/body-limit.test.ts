@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { limitBody, PUBLIC_BODY_MAX_BYTES } from "../src/public/body-limit";
 
-const URL = "http://api.test/v1/topics/x/messages";
+const URL = "http://api.test/v1/projects/x/messages";
 
 describe("limitBody", () => {
   it("passes bodies up to the cap through unchanged", async () => {

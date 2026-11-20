@@ -36,27 +36,27 @@ const InviteForm = z.object({
 });
 type Field = keyof z.infer<typeof InviteForm>;
 
-/** Prefill from "add member" when the email had no account: lock it and grant that topic. */
-function initialGrants(topicId?: string, role?: string): Grants {
-  if (!topicId) {
+/** Prefill from "add member" when the email had no account: lock it and grant that project. */
+function initialGrants(projectId?: string, role?: string): Grants {
+  if (!projectId) {
     return {};
   }
-  return { [topicId]: role === "publisher" ? "publisher" : ("subscriber" as GrantableRole) };
+  return { [projectId]: role === "publisher" ? "publisher" : ("subscriber" as GrantableRole) };
 }
 
 export default function NewInviteScreen() {
-  const params = useLocalSearchParams<{ email?: string; topicId?: string; role?: string }>();
+  const params = useLocalSearchParams<{ email?: string; projectId?: string; role?: string }>();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const topics = useQuery(orpc.topics.list.queryOptions());
+  const projects = useQuery(orpc.projects.list.queryOptions());
   const [email, setEmail] = useState(params.email ?? "");
   const [expiry, setExpiry] = useState("7");
-  const [grants, setGrants] = useState<Grants>(() => initialGrants(params.topicId, params.role));
+  const [grants, setGrants] = useState<Grants>(() => initialGrants(params.projectId, params.role));
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   // The invite code and link are secrets: they live only in this state for the dialog,
   // never in the mutation cache, and are cleared when the dialog closes.
   const [created, setCreated] = useState<{ url: string; code: string } | null>(null);
-  /** Selected grants for topics the user no longer owns, shown before anything is sent. */
+  /** Selected grants for projects the user no longer owns, shown before anything is sent. */
   const [dropped, setDropped] = useState<string[]>([]);
   const submitLock = useRef(false);
   const create = useMutation({
@@ -73,7 +73,7 @@ export default function NewInviteScreen() {
       toast.show({ variant: "danger", label: errorMessage(error, "Could not create the invite") });
     },
   });
-  const ownedTopics = topics.data?.filter((topic) => topic.role === "owner") ?? [];
+  const ownedProjects = projects.data?.filter((project) => project.role === "owner") ?? [];
 
   async function submit() {
     // Synchronous lock: a double tap must not create two invites.
@@ -92,20 +92,25 @@ export default function NewInviteScreen() {
     }
     setErrors({});
     // Ownership may have changed since the screen opened: check against fresh data.
-    const fresh = await topics.refetch();
+    const fresh = await projects.refetch();
     if (fresh.isError || !fresh.data) {
       toast.show({
         variant: "danger",
-        label: errorMessage(fresh.error, "Could not load your topics"),
+        label: errorMessage(fresh.error, "Could not load your projects"),
       });
       release();
       return;
     }
-    const owned = new Set(fresh.data.filter((topic) => topic.role === "owner").map((t) => t.id));
-    const stale = Object.keys(grants).filter((topicId) => !owned.has(topicId));
+    const owned = new Set(
+      fresh.data.filter((project) => project.role === "owner").map((t) => t.id),
+    );
+    const stale = Object.keys(grants).filter((projectId) => !owned.has(projectId));
     if (stale.length > 0) {
       setDropped(
-        stale.map((topicId) => fresh.data.find((topic) => topic.id === topicId)?.name ?? "a topic"),
+        stale.map(
+          (projectId) =>
+            fresh.data.find((project) => project.id === projectId)?.name ?? "a project",
+        ),
       );
       release();
       return;
@@ -114,27 +119,27 @@ export default function NewInviteScreen() {
       {
         email: parsed.data.email,
         expiresInDays: parsed.data.expiresInDays ?? 7,
-        grants: Object.entries(grants).map(([topicId, role]) => ({ topicId, role })),
+        grants: Object.entries(grants).map(([projectId, role]) => ({ projectId, role })),
       },
       { onSettled: release },
     );
   }
 
-  /** Re-selection after a warning: drop the grants for topics that are no longer owned. */
+  /** Re-selection after a warning: drop the grants for projects that are no longer owned. */
   function removeDropped() {
-    const owned = new Set(ownedTopics.map((topic) => topic.id));
+    const owned = new Set(ownedProjects.map((project) => project.id));
     setGrants(Object.fromEntries(Object.entries(grants).filter(([id]) => owned.has(id))));
     setDropped([]);
   }
 
   function renderGrants() {
-    if (topics.isError) {
-      return <ErrorState inline error={topics.error} onRetry={() => void topics.refetch()} />;
+    if (projects.isError) {
+      return <ErrorState inline error={projects.error} onRetry={() => void projects.refetch()} />;
     }
-    if (topics.isPending) {
+    if (projects.isPending) {
       return <Spinner />;
     }
-    return <GrantPicker topics={ownedTopics} grants={grants} onChange={setGrants} />;
+    return <GrantPicker projects={ownedProjects} grants={grants} onChange={setGrants} />;
   }
 
   return (
@@ -161,7 +166,7 @@ export default function NewInviteScreen() {
       </TextField>
 
       <View className="gap-2">
-        <Label>Topics to join</Label>
+        <Label>Projects to join</Label>
         {renderGrants()}
       </View>
 
@@ -186,7 +191,7 @@ export default function NewInviteScreen() {
               <Alert.Title>You no longer own {dropped.join(", ")}</Alert.Title>
               <Alert.Description>
                 The invite can't include {dropped.length === 1 ? "it" : "them"}. Remove{" "}
-                {dropped.length === 1 ? "it" : "them"} and check the topics again before creating.
+                {dropped.length === 1 ? "it" : "them"} and check the projects again before creating.
               </Alert.Description>
             </Alert.Content>
           </Alert>
@@ -196,7 +201,7 @@ export default function NewInviteScreen() {
         </View>
       ) : null}
 
-      <Button onPress={() => void submit()} isDisabled={create.isPending || !topics.isSuccess}>
+      <Button onPress={() => void submit()} isDisabled={create.isPending || !projects.isSuccess}>
         {create.isPending ? (
           <Spinner size="sm" color="default" />
         ) : (

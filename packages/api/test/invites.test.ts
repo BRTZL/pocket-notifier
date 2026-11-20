@@ -19,8 +19,8 @@ describe("invites", () => {
     ada = await seedUser(testDb.db, "ada");
     bob = await seedUser(testDb.db, "bob");
     const owner = clientFor(testDb.db, ada);
-    ({ id: teamId } = await owner.topics.create({ name: "team" }));
-    ({ id: opsId } = await owner.topics.create({ name: "ops" }));
+    ({ id: teamId } = await owner.projects.create({ name: "team" }));
+    ({ id: opsId } = await owner.projects.create({ name: "ops" }));
   });
 
   afterEach(async () => {
@@ -31,14 +31,14 @@ describe("invites", () => {
     const client = clientFor(testDb.db, ada);
     const created = await client.invites.create({
       email: "New@Example.com",
-      grants: [{ topicId: teamId, role: "publisher" }],
+      grants: [{ projectId: teamId, role: "publisher" }],
       expiresInDays: 3,
     });
     expect(InviteCode.safeParse(created.code).success).toBe(true);
     expect(created.url).toBe(`${TEST_APP_URL}/invite/${created.code}`);
     expect(created.invite).toMatchObject({
       email: "new@example.com",
-      grants: [{ topicId: teamId, role: "publisher" }],
+      grants: [{ projectId: teamId, role: "publisher" }],
       createdBy: { id: ada.id, name: ada.name },
       acceptedAt: null,
       acceptedBy: null,
@@ -56,24 +56,24 @@ describe("invites", () => {
     expect(Math.round((Date.parse(defaults.invite.expiresAt) - Date.now()) / 86_400_000)).toBe(7);
   });
 
-  it("only grants topics the caller owns", async () => {
+  it("only grants projects the caller owns", async () => {
     const owner = clientFor(testDb.db, ada);
-    await owner.members.add({ topicId: teamId, email: bob.email, role: "publisher" });
+    await owner.members.add({ projectId: teamId, email: bob.email, role: "publisher" });
     const bobClient = clientFor(testDb.db, bob);
     await expect(
-      bobClient.invites.create({ grants: [{ topicId: teamId, role: "subscriber" }] }),
+      bobClient.invites.create({ grants: [{ projectId: teamId, role: "subscriber" }] }),
     ).rejects.toMatchObject(definedError("FORBIDDEN"));
     await expect(
-      bobClient.invites.create({ grants: [{ topicId: opsId, role: "subscriber" }] }),
+      bobClient.invites.create({ grants: [{ projectId: opsId, role: "subscriber" }] }),
     ).rejects.toMatchObject(definedError("NOT_FOUND"));
   });
 
-  it("rejects grants that list the same topic twice", async () => {
+  it("rejects grants that list the same project twice", async () => {
     await expect(
       clientFor(testDb.db, ada).invites.create({
         grants: [
-          { topicId: teamId, role: "subscriber" },
-          { topicId: teamId, role: "publisher" },
+          { projectId: teamId, role: "subscriber" },
+          { projectId: teamId, role: "publisher" },
         ],
       }),
     ).rejects.toMatchObject({
@@ -122,17 +122,17 @@ describe("invites", () => {
     const created = await owner.invites.create({
       email: "new@example.com",
       grants: [
-        { topicId: teamId, role: "subscriber" },
-        { topicId: opsId, role: "publisher" },
+        { projectId: teamId, role: "subscriber" },
+        { projectId: opsId, role: "publisher" },
       ],
     });
-    await owner.topics.delete({ id: opsId });
+    await owner.projects.delete({ id: opsId });
 
     const anonymous = clientFor(testDb.db, null);
     await expect(anonymous.invites.preview({ code: created.code })).resolves.toEqual({
       invitedBy: ada.name,
       email: "new@example.com",
-      topics: ["team"],
+      projects: ["team"],
       expiresAt: created.invite.expiresAt,
     });
 

@@ -1,6 +1,6 @@
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import type { Message } from "@notifier/contract/message";
-import { message, topic } from "@notifier/db/schema/notifier";
+import { message, project } from "@notifier/db/schema/notifier";
 import { oauthClient } from "@notifier/db/schema/oauth";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -145,7 +145,11 @@ describe("MCP server", () => {
     expect(text(noFeature)).toContain("Feature 'ghost' not found");
 
     await seedUser(testDb.db, "bob");
-    await clientFor(testDb.db, { id: "bob", name: "Bob", email: "bob@example.com" }).topics.create({
+    await clientFor(testDb.db, {
+      id: "bob",
+      name: "Bob",
+      email: "bob@example.com",
+    }).projects.create({
       name: "taken",
     });
     const taken = await call("create_project", { name: "taken" });
@@ -178,7 +182,7 @@ describe("MCP server", () => {
 
     expect(published).toHaveLength(1);
     expect(published[0]).toMatchObject({
-      topic: "rezme",
+      project: "rezme",
       title: "Dark mode done",
       body: "All screens pass. Review PR #12.\n\nMerge now?",
       conversation: { id: "dark-mode", title: "Dark mode" },
@@ -195,9 +199,9 @@ describe("MCP server", () => {
     const sent = await call("send_notification", { title: "Hello" });
     expect(sent.structuredContent).toMatchObject({ isGeneral: true, feature: null });
     const [stored] = await testDb.db
-      .select({ topicId: message.topicId, personal: topic.personalUserId })
+      .select({ projectId: message.projectId, personal: project.personalUserId })
       .from(message)
-      .innerJoin(topic, eq(topic.id, message.topicId));
+      .innerJoin(project, eq(project.id, message.projectId));
     expect(stored?.personal).toBe(ada.id);
   });
 

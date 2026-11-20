@@ -35,16 +35,16 @@ function statusLine(invite: Invite, status: InviteStatus): string {
 
 function InviteCard({
   invite,
-  topicNames,
+  projectNames,
   onRevoke,
 }: {
   invite: Invite;
-  topicNames: Map<string, string>;
+  projectNames: Map<string, string>;
   onRevoke: () => void;
 }) {
   const status = inviteStatus(invite);
   const grants = invite.grants
-    .map((grant) => `${topicNames.get(grant.topicId) ?? "a topic"} (${grant.role})`)
+    .map((grant) => `${projectNames.get(grant.projectId) ?? "a project"} (${grant.role})`)
     .join(", ");
   return (
     <Card>
@@ -57,7 +57,7 @@ function InviteCard({
             <Chip.Label>{status}</Chip.Label>
           </Chip>
         </View>
-        <Typography type="body-sm">{grants || "No topics"}</Typography>
+        <Typography type="body-sm">{grants || "No projects"}</Typography>
         <Typography type="body-xs" color="muted">
           Created {shortDate(invite.createdAt)} · {statusLine(invite, status)}
         </Typography>
@@ -75,10 +75,10 @@ export default function InvitesScreen() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const invites = useQuery(orpc.invites.list.queryOptions());
-  const topics = useQuery(orpc.topics.list.queryOptions());
+  const projects = useQuery(orpc.projects.list.queryOptions());
   const [revoking, setRevoking] = useState<Invite | null>(null);
   useRefreshOnFocus(invites.refetch);
-  const topicNames = new Map((topics.data ?? []).map((topic) => [topic.id, topic.name]));
+  const projectNames = new Map((projects.data ?? []).map((project) => [project.id, project.name]));
   const revoke = useMutation(
     orpc.invites.revoke.mutationOptions({
       onSuccess: async () => {
@@ -106,7 +106,7 @@ export default function InvitesScreen() {
     if (invites.data.length === 0) {
       return (
         <EmptyState title="No invites yet" pose="invite">
-          Invite someone to give them an account on this server, optionally with topics.
+          Invite someone to give them an account on this server, optionally with projects.
         </EmptyState>
       );
     }
@@ -114,7 +114,7 @@ export default function InvitesScreen() {
       <InviteCard
         key={invite.id}
         invite={invite}
-        topicNames={topicNames}
+        projectNames={projectNames}
         onRevoke={() => setRevoking(invite)}
       />
     ));

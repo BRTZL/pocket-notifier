@@ -2,51 +2,51 @@ import { router } from "expo-router";
 import { Typography } from "heroui-native";
 import { View } from "react-native";
 import { MessageList } from "@/components/message-list";
+import { InvalidProjectLink, ProjectUnavailable } from "@/components/project-unavailable";
 import { EmptyState, ErrorState, LoadingState } from "@/components/query-state";
 import { HeaderIconButton, StackHeader } from "@/components/screen-header";
-import { InvalidTopicLink, TopicUnavailable } from "@/components/topic-unavailable";
-import { topicTitle, useTopic, useTopicIdParam } from "@/hooks/use-topic";
-import { topicGlyph } from "@/lib/chat-avatar";
+import { projectTitle, useProject, useProjectIdParam } from "@/hooks/use-project";
+import { projectGlyph } from "@/lib/chat-avatar";
 import { isAccessError } from "@/lib/errors";
 
-function TopicScreenContent({ topicId }: { topicId: string }) {
-  const topic = useTopic(topicId);
+function ProjectScreenContent({ projectId }: { projectId: string }) {
+  const project = useProject(projectId);
 
-  if (topic.isPending || isAccessError(topic.error) || (topic.isError && !topic.data)) {
+  if (project.isPending || isAccessError(project.error) || (project.isError && !project.data)) {
     return (
       <View className="bg-background flex-1">
-        <StackHeader title="Topic" />
-        {topic.isPending ? (
+        <StackHeader title="Project" />
+        {project.isPending ? (
           <LoadingState />
-        ) : isAccessError(topic.error) ? (
-          <TopicUnavailable />
+        ) : isAccessError(project.error) ? (
+          <ProjectUnavailable />
         ) : (
-          <ErrorState error={topic.error} onRetry={() => void topic.refetch()} />
+          <ErrorState error={project.error} onRetry={() => void project.refetch()} />
         )}
       </View>
     );
   }
 
-  const { name, description } = topic.data;
-  const title = topicTitle(topic.data);
+  const { name, description } = project.data;
+  const title = projectTitle(project.data);
   return (
     <View className="bg-background flex-1">
       <StackHeader
         title={title}
         subtitle={title === name ? null : name}
-        avatar={{ kind: "glyph", name: title, glyph: topicGlyph(name) }}
+        avatar={{ kind: "glyph", name: title, glyph: projectGlyph(name) }}
         right={
           <HeaderIconButton
             icon="tune"
-            label="Topic settings"
+            label="Project settings"
             onPress={() =>
-              router.push({ pathname: "/topic/[topicId]/settings", params: { topicId } })
+              router.push({ pathname: "/project/[projectId]/settings", params: { projectId } })
             }
           />
         }
       />
       <MessageList
-        topicId={topicId}
+        projectId={projectId}
         header={
           description ? (
             <Typography type="body-sm" color="muted" className="px-4 pt-2 pb-3">
@@ -54,7 +54,7 @@ function TopicScreenContent({ topicId }: { topicId: string }) {
             </Typography>
           ) : undefined
         }
-        unavailable={<TopicUnavailable />}
+        unavailable={<ProjectUnavailable />}
         empty={
           <EmptyState title="No messages yet" pose="inbox-empty">
             Messages published to {name} show up here.
@@ -62,8 +62,8 @@ function TopicScreenContent({ topicId }: { topicId: string }) {
         }
         onOpenMessage={(message) =>
           router.push({
-            pathname: "/topic/[topicId]/message/[id]",
-            params: { topicId, id: message.id },
+            pathname: "/project/[projectId]/message/[id]",
+            params: { projectId, id: message.id },
           })
         }
       />
@@ -71,15 +71,15 @@ function TopicScreenContent({ topicId }: { topicId: string }) {
   );
 }
 
-export default function TopicScreen() {
-  const topicId = useTopicIdParam();
-  if (!topicId) {
+export default function ProjectScreen() {
+  const projectId = useProjectIdParam();
+  if (!projectId) {
     return (
       <View className="bg-background flex-1">
-        <StackHeader title="Topic" />
-        <InvalidTopicLink />
+        <StackHeader title="Project" />
+        <InvalidProjectLink />
       </View>
     );
   }
-  return <TopicScreenContent topicId={topicId} />;
+  return <ProjectScreenContent projectId={projectId} />;
 }

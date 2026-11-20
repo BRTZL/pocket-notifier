@@ -4,7 +4,7 @@ import { Conversation, Sender } from "./avatar";
 import { idSchema, PageInput, Timestamp, UserSummary } from "./common";
 import { ConversationRef } from "./conversation";
 import { Priority } from "./priority";
-import { TopicId, TopicName } from "./topic";
+import { ProjectId, ProjectName } from "./project";
 
 export const MessageId = idSchema("message");
 export const AttachmentId = idSchema("attachment");
@@ -102,16 +102,16 @@ export const Attachment = z.object({
 export type Attachment = z.infer<typeof Attachment>;
 
 export const PublishInput = z.object({
-  topic: TopicName,
+  project: ProjectName,
   title: z.string().min(1).max(MESSAGE_LIMITS.titleLength).optional(),
   body: z.string().max(MESSAGE_LIMITS.bodyLength).default(""),
-  /** Falls back to the topic's `defaultPriority`. */
+  /** Falls back to the project's `defaultPriority`. */
   priority: Priority.optional(),
   tags: z.array(Tag).max(MESSAGE_LIMITS.tags).default([]),
   /** Opened when the notification is tapped. */
   clickUrl: OpenableUrl.optional(),
   actions: z.array(Action).max(MESSAGE_LIMITS.actions).default([]),
-  /** From a previous attachment upload to the same topic. */
+  /** From a previous attachment upload to the same project. */
   attachmentId: AttachmentId.optional(),
   /** What the message is about, e.g. a project. Groups notifications as a conversation. */
   conversation: Conversation.optional(),
@@ -122,15 +122,15 @@ export type PublishInput = z.input<typeof PublishInput>;
 
 export const PublishOutput = z.object({
   id: MessageId,
-  topic: TopicName,
+  project: ProjectName,
   createdAt: Timestamp,
   expiresAt: Timestamp,
 });
 
 export const Message = z.object({
   id: MessageId,
-  topicId: TopicId,
-  topic: TopicName,
+  projectId: ProjectId,
+  project: ProjectName,
   title: z.string().nullable(),
   body: z.string(),
   priority: Priority,
@@ -168,7 +168,7 @@ export const InboxMessage = Message.extend({
 export type InboxMessage = z.infer<typeof InboxMessage>;
 
 export const ListMessagesInput = PageInput.extend({
-  topicId: TopicId.optional(),
+  projectId: ProjectId.optional(),
   unreadOnly: z.boolean().default(false),
   /** Only this conversation's messages. Still newest first; the app reverses a thread. */
   conversation: ConversationRef.optional(),
@@ -176,8 +176,8 @@ export const ListMessagesInput = PageInput.extend({
 
 export const MarkReadInput = z.union([
   z.object({ ids: z.array(MessageId).min(1).max(100) }),
-  /** Marks everything up to and including this message, optionally within one topic. */
-  z.object({ upTo: MessageId, topicId: TopicId.optional() }),
+  /** Marks everything up to and including this message, optionally within one project. */
+  z.object({ upTo: MessageId, projectId: ProjectId.optional() }),
   /** Marks every message of one conversation. */
   z.object({ conversation: ConversationRef }),
 ]);

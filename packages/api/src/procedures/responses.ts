@@ -5,19 +5,24 @@ import { messageResponse } from "@notifier/db/schema/notifier";
 import { authed } from "../base";
 import { appError, badRequest } from "../lib/errors";
 import { findMessage, toMessage } from "../lib/messages";
+import { requireMemberOf } from "../lib/project-access";
 import { listResponses } from "../lib/responses";
 import { toMessageResponse } from "../lib/serialize";
-import { requireMemberOf } from "../lib/topic-access";
 
 const ALREADY_RESPONDED = "You have already responded to this action";
 
-/** A non-expired message in one of the caller's topics, with the caller's role there. */
+/** A non-expired message in one of the caller's projects, with the caller's role there. */
 async function memberMessage(db: Database, messageId: string, userId: string) {
   const found = await findMessage(db, messageId);
   if (!found) {
     throw appError("NOT_FOUND", "Message not found");
   }
-  const membership = await requireMemberOf(db, found.message.topicId, userId, "Message not found");
+  const membership = await requireMemberOf(
+    db,
+    found.message.projectId,
+    userId,
+    "Message not found",
+  );
   return { ...found, role: membership.role };
 }
 
@@ -26,7 +31,7 @@ const create = authed.responses.create.handler(async ({ context, input, errors }
   const caller = context.session.user;
   const found = await memberMessage(db, input.messageId, caller.id);
 
-  const { actions } = toMessage(found.message, found.topicName, found.publisher);
+  const { actions } = toMessage(found.message, found.projectName, found.publisher);
   const action = actions.find((candidate) => candidate.key === input.actionKey);
   if (!action) {
     throw badRequest(`The message has no action "${input.actionKey}"`);

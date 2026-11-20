@@ -2,9 +2,9 @@ import type { AccessToken } from "@notifier/contract/token";
 
 import { relativeTime, shortDate } from "@/lib/format";
 
-/** "All topics you publish to" or the topic names. */
+/** "All projects you publish to" or the project names. */
 export function scopeSummary(scope: AccessToken["scope"]): string {
-  return scope.kind === "all" ? "All your topics" : scope.topics.join(", ");
+  return scope.kind === "all" ? "All your projects" : scope.projects.join(", ");
 }
 
 /** Expiry and last use on one line, e.g. "Expires 12/20/2026 · used 3h ago". */

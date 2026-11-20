@@ -1,6 +1,6 @@
 import type { ConversationRef } from "@notifier/contract/conversation";
 import { MessageId } from "@notifier/contract/message";
-import { message, messageRead, topic, topicMember } from "@notifier/db/schema/notifier";
+import { message, messageRead, project, projectMember } from "@notifier/db/schema/notifier";
 import { and, eq, lt, lte, type SQL, sql } from "drizzle-orm";
 
 import { authed } from "../base";
@@ -18,26 +18,26 @@ import {
   toPublishOutput,
   unreadOnly,
 } from "../lib/messages";
-import { requireMember, requireMemberOf } from "../lib/topic-access";
+import { requireMember, requireMemberOf } from "../lib/project-access";
 
-/** Messages of one conversation; matches `message_topicId_conversationKey_id_idx`. */
+/** Messages of one conversation; matches `message_projectId_conversationKey_id_idx`. */
 function inConversation(ref: ConversationRef) {
-  return and(eq(message.topicId, ref.topicId), eq(message.conversationKey, ref.key));
+  return and(eq(message.projectId, ref.projectId), eq(message.conversationKey, ref.key));
 }
 
 const list = authed.messages.list.handler(async ({ context, input }) => {
   const { db } = context;
   const userId = context.session.user.id;
-  if (input.topicId) {
-    await requireMember(db, input.topicId, userId);
+  if (input.projectId) {
+    await requireMember(db, input.projectId, userId);
   }
   const { conversation } = input;
-  if (conversation && conversation.topicId !== input.topicId) {
-    await requireMember(db, conversation.topicId, userId);
+  if (conversation && conversation.projectId !== input.projectId) {
+    await requireMember(db, conversation.projectId, userId);
   }
   const cursor = parseCursor(MessageId, input.cursor);
   const rows = await selectInbox(db, userId, [
-    input.topicId ? eq(message.topicId, input.topicId) : undefined,
+    input.projectId ? eq(message.projectId, input.projectId) : undefined,
     conversation ? inConversation(conversation) : undefined,
     input.unreadOnly ? unreadOnly() : undefined,
     cursor ? lt(message.id, cursor) : undefined,
@@ -75,7 +75,7 @@ const markRead = authed.messages.markRead.handler(async ({ context, input }) => 
   } else if ("upTo" in input) {
     filter = and(
       lte(message.id, input.upTo),
-      input.topicId ? eq(message.topicId, input.topicId) : undefined,
+      input.projectId ? eq(message.projectId, input.projectId) : undefined,
     );
   } else {
     filter = inConversation(input.conversation);
@@ -91,10 +91,10 @@ const markRead = authed.messages.markRead.handler(async ({ context, input }) => 
           readAt: sql<number>`${Date.now()}`.as("read_at"),
         })
         .from(message)
-        // Only messages the caller can see: non-expired, in a topic they are a member of.
+        // Only messages the caller can see: non-expired, in a project they are a member of.
         .innerJoin(
-          topicMember,
-          and(eq(topicMember.topicId, message.topicId), eq(topicMember.userId, userId)),
+          projectMember,
+          and(eq(projectMember.projectId, message.projectId), eq(projectMember.userId, userId)),
         )
         .where(and(notExpired(), filter)),
     )
@@ -113,43 +113,43 @@ const publish = authed.messages.publish.handler(async ({ context, input }) => {
   const { db } = context;
   const caller = context.session.user;
   const [found] = await db
-    .select({ topic, role: topicMember.role })
-    .from(topic)
+    .select({ project, role: projectMember.role })
+    .from(project)
     .innerJoin(
-      topicMember,
-      and(eq(topicMember.topicId, topic.id), eq(topicMember.userId, caller.id)),
+      projectMember,
+      and(eq(projectMember.projectId, project.id), eq(projectMember.userId, caller.id)),
     )
-    .where(eq(topic.name, input.topic))
+    .where(eq(project.name, input.project))
     .limit(1);
   if (!found) {
-    throw appError("NOT_FOUND", "Topic not found");
+    throw appError("NOT_FOUND", "Project not found");
   }
   if (found.role === "subscriber") {
-    throw appError("FORBIDDEN", "Only owners and publishers can publish to this topic");
+    throw appError("FORBIDDEN", "Only owners and publishers can publish to this project");
   }
   const row = await publishMessage(db, {
-    topic: found.topic,
+    project: found.project,
     publisher: { userId: caller.id, tokenId: null },
     input,
   });
-  announcePublished(context.dispatch, toMessage(row, found.topic.name, caller));
-  return toPublishOutput(row, found.topic.name);
+  announcePublished(context.dispatch, toMessage(row, found.project.name, caller));
+  return toPublishOutput(row, found.project.name);
 });
 
 const remove = authed.messages.delete.handler(async ({ context, input }) => {
   const { db } = context;
   const userId = context.session.user.id;
   const [found] = await db
-    .select({ topicId: message.topicId })
+    .select({ projectId: message.projectId })
     .from(message)
     .where(and(eq(message.id, input.id), notExpired()))
     .limit(1);
   if (!found) {
     throw appError("NOT_FOUND", "Message not found");
   }
-  const membership = await requireMemberOf(db, found.topicId, userId, "Message not found");
+  const membership = await requireMemberOf(db, found.projectId, userId, "Message not found");
   if (membership.role !== "owner") {
-    throw appError("FORBIDDEN", "Only a topic owner can delete messages");
+    throw appError("FORBIDDEN", "Only a project owner can delete messages");
   }
   await db.delete(message).where(eq(message.id, input.id));
   return { ok: true as const };

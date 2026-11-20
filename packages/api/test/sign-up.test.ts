@@ -1,7 +1,7 @@
 import { createAuth } from "@notifier/auth";
 import { claimInvite, finalizeInvite } from "@notifier/auth/invites";
 import { account, user } from "@notifier/db/schema/auth";
-import { invite, subscription, topicMember } from "@notifier/db/schema/notifier";
+import { invite, projectMember, subscription } from "@notifier/db/schema/notifier";
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -78,27 +78,27 @@ describe("invite-only sign-up", () => {
   it("applies an invite's grants and consumes it once", async () => {
     const owner = await bootstrapOwner();
     const ownerClient = clientFor(testDb.db, owner);
-    const team = await ownerClient.topics.create({ name: "team" });
-    const gone = await ownerClient.topics.create({ name: "gone" });
+    const team = await ownerClient.projects.create({ name: "team" });
+    const gone = await ownerClient.projects.create({ name: "gone" });
     const created = await ownerClient.invites.create({
       grants: [
-        { topicId: team.id, role: "publisher" },
-        { topicId: gone.id, role: "subscriber" },
+        { projectId: team.id, role: "publisher" },
+        { projectId: gone.id, role: "subscriber" },
       ],
     });
-    await ownerClient.topics.delete({ id: gone.id });
+    await ownerClient.projects.delete({ id: gone.id });
 
     const { user: newUser } = await signUp("new@example.com", created.code);
     const memberships = await testDb.db
-      .select({ topicId: topicMember.topicId, role: topicMember.role })
-      .from(topicMember)
-      .where(eq(topicMember.userId, newUser.id));
-    expect(memberships).toEqual([{ topicId: team.id, role: "publisher" }]);
+      .select({ projectId: projectMember.projectId, role: projectMember.role })
+      .from(projectMember)
+      .where(eq(projectMember.userId, newUser.id));
+    expect(memberships).toEqual([{ projectId: team.id, role: "publisher" }]);
     const subscriptions = await testDb.db
-      .select({ topicId: subscription.topicId, muted: subscription.muted })
+      .select({ projectId: subscription.projectId, muted: subscription.muted })
       .from(subscription)
       .where(eq(subscription.userId, newUser.id));
-    expect(subscriptions).toEqual([{ topicId: team.id, muted: false }]);
+    expect(subscriptions).toEqual([{ projectId: team.id, muted: false }]);
 
     const [stored] = await testDb.db.select().from(invite).where(eq(invite.id, created.invite.id));
     expect(stored?.acceptedBy).toBe(newUser.id);
@@ -108,7 +108,7 @@ describe("invite-only sign-up", () => {
       name: newUser.name,
       email: newUser.email,
     });
-    const listed = await newClient.topics.list();
+    const listed = await newClient.projects.list();
     expect(listed.filter((t) => !t.personal).map((t) => [t.name, t.role])).toEqual([
       ["team", "publisher"],
     ]);
@@ -301,46 +301,46 @@ describe("invite-only sign-up", () => {
     expect(await userCount()).toBe(1);
   });
 
-  it("only applies grants for topics the inviter still owns", async () => {
+  it("only applies grants for projects the inviter still owns", async () => {
     const owner = await bootstrapOwner();
     const helper = await seedUser(testDb.db, "helper");
     const ownerClient = clientFor(testDb.db, owner);
-    const team = await ownerClient.topics.create({ name: "team" });
-    const ops = await ownerClient.topics.create({ name: "ops" });
+    const team = await ownerClient.projects.create({ name: "team" });
+    const ops = await ownerClient.projects.create({ name: "ops" });
     const created = await ownerClient.invites.create({
       grants: [
-        { topicId: team.id, role: "publisher" },
-        { topicId: ops.id, role: "subscriber" },
+        { projectId: team.id, role: "publisher" },
+        { projectId: ops.id, role: "subscriber" },
       ],
     });
     // The inviter stops owning `team` before the invite is accepted.
-    await ownerClient.members.add({ topicId: team.id, email: helper.email, role: "publisher" });
-    await ownerClient.members.update({ topicId: team.id, userId: helper.id, role: "owner" });
+    await ownerClient.members.add({ projectId: team.id, email: helper.email, role: "publisher" });
+    await ownerClient.members.update({ projectId: team.id, userId: helper.id, role: "owner" });
     await clientFor(testDb.db, helper).members.update({
-      topicId: team.id,
+      projectId: team.id,
       userId: owner.id,
       role: "subscriber",
     });
 
     await expect(
       clientFor(testDb.db, null).invites.preview({ code: created.code }),
-    ).resolves.toMatchObject({ topics: ["ops"] });
+    ).resolves.toMatchObject({ projects: ["ops"] });
 
     const { user: newUser } = await signUp("new@example.com", created.code);
     const memberships = await testDb.db
-      .select({ topicId: topicMember.topicId, role: topicMember.role })
-      .from(topicMember)
-      .where(eq(topicMember.userId, newUser.id));
-    expect(memberships).toEqual([{ topicId: ops.id, role: "subscriber" }]);
+      .select({ projectId: projectMember.projectId, role: projectMember.role })
+      .from(projectMember)
+      .where(eq(projectMember.userId, newUser.id));
+    expect(memberships).toEqual([{ projectId: ops.id, role: "subscriber" }]);
     expect(await testDb.db.$count(subscription, eq(subscription.userId, newUser.id))).toBe(1);
   });
 
   it("claims an invite once and links it to one user only", async () => {
     const owner = await bootstrapOwner();
     const ownerClient = clientFor(testDb.db, owner);
-    const team = await ownerClient.topics.create({ name: "team" });
+    const team = await ownerClient.projects.create({ name: "team" });
     const { invite: created } = await ownerClient.invites.create({
-      grants: [{ topicId: team.id, role: "subscriber" }],
+      grants: [{ projectId: team.id, role: "subscriber" }],
     });
     const first = await seedUser(testDb.db, "first");
     const second = await seedUser(testDb.db, "second");
@@ -350,9 +350,9 @@ describe("invite-only sign-up", () => {
     await expect(finalizeInvite(testDb.db, created.id, first.id)).resolves.toBe(true);
     await expect(finalizeInvite(testDb.db, created.id, second.id)).resolves.toBe(false);
     const members = await testDb.db
-      .select({ userId: topicMember.userId })
-      .from(topicMember)
-      .where(eq(topicMember.topicId, team.id));
+      .select({ userId: projectMember.userId })
+      .from(projectMember)
+      .where(eq(projectMember.projectId, team.id));
     expect(new Set(members.map((m) => m.userId))).toEqual(new Set([first.id, owner.id]));
     expect(await testDb.db.$count(subscription, eq(subscription.userId, second.id))).toBe(0);
   });

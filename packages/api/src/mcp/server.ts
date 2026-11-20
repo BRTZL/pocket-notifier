@@ -13,7 +13,7 @@ import {
 } from "@notifier/contract/feature";
 import { MESSAGE_LIMITS, OpenableUrl, Tag } from "@notifier/contract/message";
 import { Priority } from "@notifier/contract/priority";
-import { TopicName } from "@notifier/contract/topic";
+import { ProjectName } from "@notifier/contract/project";
 import type { Database } from "@notifier/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -140,7 +140,7 @@ function registerProjectTools(server: McpServer, caller: McpCaller) {
       description:
         'Create a project for a product or repo, owned by the user. Idempotent: if you already own or publish to a project with this name it is returned unchanged. If the name belongs to someone else you get an error and should pick another name (e.g. add a suffix like "rezme-app").',
       inputSchema: z.object({
-        name: TopicName.describe(
+        name: ProjectName.describe(
           'Lowercase name: letters, digits, "-" or "_", e.g. the repo name "rezme". Unique across the server.',
         ),
         displayName: z
@@ -200,15 +200,15 @@ function registerFeatureTools(server: McpServer, caller: McpCaller) {
         const access = await projectOrFail(caller, project);
         const rows = await listFeatures(
           caller.db,
-          access.topic.id,
+          access.project.id,
           status === "all" ? undefined : status,
         );
         const features = rows.map(toFeature);
         const text =
           features.length === 0
-            ? `No ${status === "all" ? "" : `${status} `}features in ${access.topic.name}.`
-            : `Features in ${access.topic.name}:\n${features.map(featureLine).join("\n")}`;
-        return ok(text, { project: access.topic.name, features: features.map(featureView) });
+            ? `No ${status === "all" ? "" : `${status} `}features in ${access.project.name}.`
+            : `Features in ${access.project.name}:\n${features.map(featureLine).join("\n")}`;
+        return ok(text, { project: access.project.name, features: features.map(featureView) });
       }),
   );
 
@@ -242,8 +242,8 @@ function registerFeatureTools(server: McpServer, caller: McpCaller) {
         });
         const view = toFeature(result.feature);
         return ok(
-          `${result.created ? "Created" : "Using existing"} feature ${view.slug} "${view.name}" in ${access.topic.name}.`,
-          { created: result.created, project: access.topic.name, feature: featureView(view) },
+          `${result.created ? "Created" : "Using existing"} feature ${view.slug} "${view.name}" in ${access.project.name}.`,
+          { created: result.created, project: access.project.name, feature: featureView(view) },
         );
       }),
   );
@@ -264,15 +264,15 @@ function registerFeatureTools(server: McpServer, caller: McpCaller) {
     ({ project, feature: ref, status }) =>
       run(async () => {
         const access = await projectOrFail(caller, project);
-        const found = await findFeature(caller.db, access.topic.id, ref);
+        const found = await findFeature(caller.db, access.project.id, ref);
         if (!found) {
           return fail(
-            `Feature '${ref}' not found in project '${access.topic.name}'. Call list_features with status "all".`,
+            `Feature '${ref}' not found in project '${access.project.name}'. Call list_features with status "all".`,
           );
         }
         const view = toFeature(await updateFeatureStatus(caller.db, access, found.id, status));
         return ok(`Feature ${view.slug} is now ${view.status}.`, {
-          project: access.topic.name,
+          project: access.project.name,
           feature: featureView(view),
         });
       }),
@@ -369,7 +369,7 @@ function registerSendTool(server: McpServer, caller: McpCaller) {
             sender: caller.sender,
           },
         });
-        const project = target.access.topic.name;
+        const project = target.access.project.name;
         const feature = target.feature
           ? { slug: target.feature.slug, name: target.feature.name, created: target.featureCreated }
           : null;
@@ -379,7 +379,7 @@ function registerSendTool(server: McpServer, caller: McpCaller) {
           {
             messageId: message.id,
             project,
-            isGeneral: target.access.topic.personalUserId !== null,
+            isGeneral: target.access.project.personalUserId !== null,
             feature,
             deliveredTo,
           },

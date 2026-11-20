@@ -1,15 +1,15 @@
 import { findOpenInvite, parseGrants } from "@notifier/auth/invites";
 import { newId } from "@notifier/db/ids";
-import { invite, topic, topicMember } from "@notifier/db/schema/notifier";
+import { invite, project, projectMember } from "@notifier/db/schema/notifier";
 import { randomBase62, sha256Hex } from "@notifier/db/secrets";
 import { ORPCError } from "@orpc/server";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { authed, os } from "../base";
 import { appError } from "../lib/errors";
+import { requireNotPersonal } from "../lib/project-access";
 import { toInvite } from "../lib/serialize";
 import { DAY_MS } from "../lib/token-scope";
-import { requireNotPersonal } from "../lib/topic-access";
 
 const CODE_LENGTH = 24;
 
@@ -25,27 +25,27 @@ const list = authed.invites.list.handler(async ({ context }) => {
 const create = authed.invites.create.handler(async ({ context, input }) => {
   const { db } = context;
   const userId = context.session.user.id;
-  const topicIds = input.grants.map((grant) => grant.topicId);
-  if (new Set(topicIds).size !== topicIds.length) {
+  const projectIds = input.grants.map((grant) => grant.projectId);
+  if (new Set(projectIds).size !== projectIds.length) {
     throw new ORPCError("BAD_REQUEST", {
-      message: "Each topic can appear only once in an invite's grants",
+      message: "Each project can appear only once in an invite's grants",
     });
   }
-  if (topicIds.length > 0) {
+  if (projectIds.length > 0) {
     const memberships = await db
-      .select({ topicId: topicMember.topicId, role: topicMember.role })
-      .from(topicMember)
-      .where(and(eq(topicMember.userId, userId), inArray(topicMember.topicId, topicIds)));
-    const roles = new Map(memberships.map((found) => [found.topicId, found.role]));
-    for (const topicId of topicIds) {
-      const role = roles.get(topicId);
+      .select({ projectId: projectMember.projectId, role: projectMember.role })
+      .from(projectMember)
+      .where(and(eq(projectMember.userId, userId), inArray(projectMember.projectId, projectIds)));
+    const roles = new Map(memberships.map((found) => [found.projectId, found.role]));
+    for (const projectId of projectIds) {
+      const role = roles.get(projectId);
       if (!role) {
-        throw appError("NOT_FOUND", "Topic not found");
+        throw appError("NOT_FOUND", "Project not found");
       }
       if (role !== "owner") {
-        throw appError("FORBIDDEN", "Only a topic owner can invite people to it");
+        throw appError("FORBIDDEN", "Only a project owner can invite people to it");
       }
-      await requireNotPersonal(db, topicId);
+      await requireNotPersonal(db, projectId);
     }
   }
 
@@ -99,28 +99,28 @@ const preview = os.invites.preview.handler(async ({ context, input }) => {
   if (!(open && creator)) {
     throw appError("NOT_FOUND", "Invite not found");
   }
-  const topicIds = parseGrants(open.grantsJson).map((grant) => grant.topicId);
-  const topics =
-    topicIds.length === 0
+  const projectIds = parseGrants(open.grantsJson).map((grant) => grant.projectId);
+  const projects =
+    projectIds.length === 0
       ? []
-      : // Same rule as accepting: only topics that exist and the inviter still owns.
+      : // Same rule as accepting: only projects that exist and the inviter still owns.
         await db
-          .select({ name: topic.name })
-          .from(topic)
+          .select({ name: project.name })
+          .from(project)
           .innerJoin(
-            topicMember,
+            projectMember,
             and(
-              eq(topicMember.topicId, topic.id),
-              eq(topicMember.userId, open.createdBy),
-              eq(topicMember.role, "owner"),
+              eq(projectMember.projectId, project.id),
+              eq(projectMember.userId, open.createdBy),
+              eq(projectMember.role, "owner"),
             ),
           )
-          .where(inArray(topic.id, topicIds))
-          .orderBy(topic.name);
+          .where(inArray(project.id, projectIds))
+          .orderBy(project.name);
   return {
     invitedBy: creator.name,
     email: open.email,
-    topics: topics.map((row) => row.name),
+    projects: projects.map((row) => row.name),
     expiresAt: open.expiresAt.toISOString(),
   };
 });

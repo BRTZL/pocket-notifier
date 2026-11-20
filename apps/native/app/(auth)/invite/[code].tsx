@@ -32,7 +32,7 @@ function InvalidInvite() {
 }
 
 function InviteHeadline({ preview }: { preview: z.infer<typeof InvitePreview> }) {
-  const { invitedBy, topics, email } = preview;
+  const { invitedBy, projects, email } = preview;
   return (
     <View className="gap-2 px-1">
       <Typography
@@ -44,11 +44,11 @@ function InviteHeadline({ preview }: { preview: z.infer<typeof InvitePreview> })
       <Typography className="text-muted text-[16px] leading-[22px]">
         {email ? `This invite is for ${email}.` : "Create your account to join."}
       </Typography>
-      {topics.length > 0 ? (
+      {projects.length > 0 ? (
         <View className="mt-1 flex-row flex-wrap gap-2">
-          {topics.map((topic) => (
-            <Chip key={topic} size="sm" variant="soft" color="accent">
-              <Chip.Label>{topic}</Chip.Label>
+          {projects.map((project) => (
+            <Chip key={project} size="sm" variant="soft" color="accent">
+              <Chip.Label>{project}</Chip.Label>
             </Chip>
           ))}
         </View>

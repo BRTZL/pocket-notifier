@@ -1,12 +1,11 @@
 import { z } from "zod";
 
 import { idSchema, Timestamp } from "./common";
-import { TopicId } from "./topic";
+import { ProjectId } from "./project";
 
 /**
- * Projects and features. A project is a topic (agents and the app say "project", the API
- * keeps "topic"). A feature is a named workstream inside a project, e.g. "Improving
- * performance" in `rezme`. In the app a feature is a conversation: messages sent to it
+ * Features. A feature is a named workstream inside a project, e.g. "Improving performance"
+ * in `rezme`. In the app a feature is a conversation: messages sent to it
  * carry `conversation = { id: slug, title: name }`, so its key is `c:<slug>`.
  */
 export const FeatureId = idSchema("feature");
@@ -43,12 +42,12 @@ export type FeatureStatus = z.infer<typeof FeatureStatus>;
 
 export const Feature = z.object({
   id: FeatureId,
-  topicId: TopicId,
+  projectId: ProjectId,
   slug: FeatureSlug,
   name: z.string().min(1).max(FEATURE_LIMITS.nameLength),
   description: z.string().max(FEATURE_LIMITS.descriptionLength).nullable(),
   status: FeatureStatus,
-  /** The feature's conversation key in its topic, `c:<slug>`. */
+  /** The feature's conversation key in its project, `c:<slug>`. */
   conversationKey: z.string(),
   createdAt: Timestamp,
   updatedAt: Timestamp,
@@ -57,13 +56,13 @@ export const Feature = z.object({
 export type Feature = z.infer<typeof Feature>;
 
 export const ListFeaturesInput = z.object({
-  topicId: TopicId,
+  projectId: ProjectId,
   /** Only features with this status. Omitted: every status. */
   status: FeatureStatus.optional(),
 });
 
 export const CreateFeatureInput = z.object({
-  topicId: TopicId,
+  projectId: ProjectId,
   name: FeatureName,
   /** Derived from `name` when omitted. An existing slug returns that feature unchanged. */
   slug: FeatureSlug.optional(),

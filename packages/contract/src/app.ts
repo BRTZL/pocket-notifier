@@ -27,18 +27,18 @@ import {
   PublishInput,
   PublishOutput,
 } from "./message";
-import { CreateResponseInput, MessageResponse } from "./response";
-import { AccessToken, CreateTokenInput, CreateTokenOutput, TokenId } from "./token";
 import {
   AddMemberInput,
-  CreateTopicInput,
-  MyTopic,
+  CreateProjectInput,
+  MyProject,
+  ProjectId,
+  ProjectMember,
   SubscriptionInput,
-  TopicId,
-  TopicMember,
   UpdateMemberInput,
-  UpdateTopicInput,
-} from "./topic";
+  UpdateProjectInput,
+} from "./project";
+import { CreateResponseInput, MessageResponse } from "./response";
+import { AccessToken, CreateTokenInput, CreateTokenOutput, TokenId } from "./token";
 
 /**
  * App API for the web dashboard and the mobile app, over oRPC at `/rpc`.
@@ -59,13 +59,16 @@ export const appContract = {
     get: authed.output(UserSummary),
   },
 
-  topics: {
-    list: authed.output(z.array(MyTopic)),
-    get: authed.input(ById(TopicId)).output(MyTopic),
-    create: authed.errors({ CONFLICT: ERRORS.CONFLICT }).input(CreateTopicInput).output(MyTopic),
-    update: authed.input(UpdateTopicInput).output(MyTopic),
-    delete: authed.input(ById(TopicId)).output(Ok),
-    setSubscription: authed.input(SubscriptionInput).output(MyTopic),
+  projects: {
+    list: authed.output(z.array(MyProject)),
+    get: authed.input(ById(ProjectId)).output(MyProject),
+    create: authed
+      .errors({ CONFLICT: ERRORS.CONFLICT })
+      .input(CreateProjectInput)
+      .output(MyProject),
+    update: authed.input(UpdateProjectInput).output(MyProject),
+    delete: authed.input(ById(ProjectId)).output(Ok),
+    setSubscription: authed.input(SubscriptionInput).output(MyProject),
   },
 
   features: {
@@ -78,15 +81,15 @@ export const appContract = {
   },
 
   members: {
-    list: authed.input(z.object({ topicId: TopicId })).output(z.array(TopicMember)),
-    add: authed.errors({ CONFLICT: ERRORS.CONFLICT }).input(AddMemberInput).output(TopicMember),
-    update: authed.input(UpdateMemberInput).output(TopicMember),
-    remove: authed.input(z.object({ topicId: TopicId, userId: z.string().min(1) })).output(Ok),
+    list: authed.input(z.object({ projectId: ProjectId })).output(z.array(ProjectMember)),
+    add: authed.errors({ CONFLICT: ERRORS.CONFLICT }).input(AddMemberInput).output(ProjectMember),
+    update: authed.input(UpdateMemberInput).output(ProjectMember),
+    remove: authed.input(z.object({ projectId: ProjectId, userId: z.string().min(1) })).output(Ok),
   },
 
   conversations: {
     /**
-     * The chat-style inbox: one row per conversation in the caller's topics, ordered by
+     * The chat-style inbox: one row per conversation in the caller's projects, ordered by
      * last message, newest first.
      */
     list: authed.input(ListConversationsInput).output(pageOf(ConversationSummary)),
@@ -96,7 +99,7 @@ export const appContract = {
 
   messages: {
     /**
-     * The combined inbox, or one topic when `topicId` is set, or one conversation when
+     * The combined inbox, or one project when `projectId` is set, or one conversation when
      * `conversation` is set. Newest first.
      */
     list: authed.input(ListMessagesInput).output(pageOf(InboxMessage)),

@@ -9,14 +9,14 @@ import { invitesRouter } from "./procedures/invites";
 import { meRouter } from "./procedures/me";
 import { membersRouter } from "./procedures/members";
 import { messagesRouter } from "./procedures/messages";
+import { projectsRouter } from "./procedures/projects";
 import { responsesRouter } from "./procedures/responses";
 import { tokensRouter } from "./procedures/tokens";
-import { topicsRouter } from "./procedures/topics";
 
 /** Implements all of `appContract`; the `satisfies` check fails if a procedure is missing. */
 export const appRouter = {
   me: meRouter,
-  topics: topicsRouter,
+  projects: projectsRouter,
   features: featuresRouter,
   members: membersRouter,
   conversations: conversationsRouter,

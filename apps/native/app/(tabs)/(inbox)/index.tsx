@@ -12,14 +12,14 @@ import { useConversations, useMarkAllRead } from "@/hooks/use-conversations";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { errorMessage } from "@/lib/errors";
 
-/** Case-insensitive match on the name, topic, sender and last message. */
+/** Case-insensitive match on the name, project, sender and last message. */
 function matches(conversation: ConversationSummary, search: string): boolean {
   const needle = search.trim().toLowerCase();
   if (needle.length === 0) {
     return true;
   }
   const { title, body, senderName } = conversation.lastMessage;
-  return [conversation.title, conversation.topic, title, body, senderName].some((field) =>
+  return [conversation.title, conversation.project, title, body, senderName].some((field) =>
     field?.toLowerCase().includes(needle),
   );
 }
@@ -90,7 +90,8 @@ export default function InboxScreen() {
     }
     return (
       <EmptyState title="All caught up" pose="inbox-empty">
-        When an agent or script publishes to your topics, its project shows up here as a chat.
+        When an agent or script sends a notification, its project or feature shows up here as a
+        chat.
       </EmptyState>
     );
   }
@@ -137,14 +138,14 @@ export default function InboxScreen() {
         contentContainerClassName="grow pt-1 pb-4"
         keyboardShouldPersistTaps="handled"
         data={visible}
-        keyExtractor={(conversation) => `${conversation.topicId}/${conversation.key}`}
+        keyExtractor={(conversation) => `${conversation.projectId}/${conversation.key}`}
         renderItem={({ item }) => (
           <ConversationRow
             conversation={item}
             onPress={() =>
               router.push({
-                pathname: "/conversation/[topicId]/[key]",
-                params: { topicId: item.topicId, key: item.key, title: item.title },
+                pathname: "/conversation/[projectId]/[key]",
+                params: { projectId: item.projectId, key: item.key, title: item.title },
               })
             }
           />

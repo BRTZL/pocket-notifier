@@ -23,7 +23,7 @@ import { type ChatAvatarSubject, conversationAvatar } from "@/lib/chat-avatar";
 import { errorMessage, isAccessError } from "@/lib/errors";
 import { buildThread, type ThreadItem } from "@/lib/thread";
 
-type Params = { topicId?: string; key?: string; title?: string };
+type Params = { projectId?: string; key?: string; title?: string };
 
 /**
  * Header content: the conversation's summary once loaded (title, avatar, last sender),
@@ -38,9 +38,9 @@ function describeThread(
   if (!summary) {
     return { title: fallbackTitle ?? "Conversation", subtitle: "", avatar: null, linkUrl: null };
   }
-  const { title, topic, lastMessage } = summary;
-  // A topic feed is titled after its topic: repeating the name adds nothing.
-  const subtitle = [lastMessage.senderName, topic]
+  const { title, project, lastMessage } = summary;
+  // A project feed is titled after its project: repeating the name adds nothing.
+  const subtitle = [lastMessage.senderName, project]
     .filter((part) => part && part !== title)
     .join(" · ");
   return {
@@ -254,7 +254,7 @@ function ThreadUnavailable() {
     <View className="bg-background flex-1">
       <ThreadHeader title="Conversation" subtitle="" avatar={null} linkUrl={null} />
       <EmptyState title="Conversation not available" pose="error">
-        It expired, or you no longer have access to its topic.
+        It expired, or you no longer have access to its project.
       </EmptyState>
     </View>
   );
@@ -305,7 +305,7 @@ function Thread({
 
 export default function ConversationScreen() {
   const params = useLocalSearchParams<Params>();
-  const parsed = ConversationRef.safeParse({ topicId: params.topicId, key: params.key });
+  const parsed = ConversationRef.safeParse({ projectId: params.projectId, key: params.key });
   if (!parsed.success) {
     return (
       <View className="bg-background flex-1">
@@ -319,7 +319,7 @@ export default function ConversationScreen() {
   // Keyed, so moving between conversations never shows the previous one's state.
   return (
     <Thread
-      key={`${parsed.data.topicId}/${parsed.data.key}`}
+      key={`${parsed.data.projectId}/${parsed.data.key}`}
       conversation={parsed.data}
       title={params.title}
     />

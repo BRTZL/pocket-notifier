@@ -26,8 +26,8 @@ describe("runRetention", () => {
     ada = await seedUser(testDb.db, "ada");
     bob = await seedUser(testDb.db, "bob");
     const owner = clientFor(testDb.db, ada);
-    const { id: topicId } = await owner.topics.create({ name: "team" });
-    await owner.members.add({ topicId, email: bob.email, role: "subscriber" });
+    const { id: projectId } = await owner.projects.create({ name: "team" });
+    await owner.members.add({ projectId, email: bob.email, role: "subscriber" });
   });
 
   afterEach(async () => {
@@ -37,7 +37,7 @@ describe("runRetention", () => {
   /** Publishes a message and moves its `expiresAt` to `now + offsetMs`. */
   async function messageExpiringIn(offsetMs: number) {
     const { id } = await clientFor(testDb.db, ada).messages.publish({
-      topic: "team",
+      project: "team",
       actions: [{ type: "reply", label: "Ack" }],
     });
     await testDb.db

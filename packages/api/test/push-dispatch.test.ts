@@ -49,17 +49,20 @@ describe("push dispatch", () => {
       ["ada", "bob", "cid", "dan", "eve"].map((id) => seedUser(testDb.db, id)),
     )) as [TestUser, TestUser, TestUser, TestUser, TestUser];
     const owner = clientFor(testDb.db, ada);
-    ({ id: teamId } = await owner.topics.create({ name: "team" }));
-    await owner.members.add({ topicId: teamId, email: bob.email, role: "publisher" });
-    await owner.members.add({ topicId: teamId, email: cid.email, role: "subscriber" });
-    await owner.members.add({ topicId: teamId, email: dan.email, role: "subscriber" });
-    // Cid muted the topic; Dan unsubscribed; Eve is not a member.
-    await clientFor(testDb.db, cid).topics.setSubscription({
-      topicId: teamId,
+    ({ id: teamId } = await owner.projects.create({ name: "team" }));
+    await owner.members.add({ projectId: teamId, email: bob.email, role: "publisher" });
+    await owner.members.add({ projectId: teamId, email: cid.email, role: "subscriber" });
+    await owner.members.add({ projectId: teamId, email: dan.email, role: "subscriber" });
+    // Cid muted the project; Dan unsubscribed; Eve is not a member.
+    await clientFor(testDb.db, cid).projects.setSubscription({
+      projectId: teamId,
       subscribed: true,
       muted: true,
     });
-    await clientFor(testDb.db, dan).topics.setSubscription({ topicId: teamId, subscribed: false });
+    await clientFor(testDb.db, dan).projects.setSubscription({
+      projectId: teamId,
+      subscribed: false,
+    });
 
     for (const [user, token, platform] of [
       [ada, "ada-phone", "android"],
@@ -119,7 +122,7 @@ describe("push dispatch", () => {
       const sender = fakeSender();
       const { dispatch } = pushDispatch(sender);
       const out = await clientFor(testDb.db, ada, dispatch).messages.publish({
-        topic: "team",
+        project: "team",
         title: "deploy",
         body: "done",
         priority: 5,
@@ -139,7 +142,7 @@ describe("push dispatch", () => {
     it("uses NORMAL FCM priority for message priority 1-3", async () => {
       const sender = fakeSender();
       const { dispatch } = pushDispatch(sender);
-      await clientFor(testDb.db, bob, dispatch).messages.publish({ topic: "team", priority: 3 });
+      await clientFor(testDb.db, bob, dispatch).messages.publish({ project: "team", priority: 3 });
       await settle();
       expect(sender.send).toHaveBeenCalled();
       expect(sender.send.mock.calls.every(([, , options]) => options.priority === "NORMAL")).toBe(
@@ -150,7 +153,7 @@ describe("push dispatch", () => {
     it("deletes devices FCM reports as dead and keeps the rest", async () => {
       const sender = fakeSender({ "bob-phone": "dead", "ada-tablet": "failed" });
       const { dispatch, taskLogs } = pushDispatch(sender);
-      await clientFor(testDb.db, ada, dispatch).messages.publish({ topic: "team" });
+      await clientFor(testDb.db, ada, dispatch).messages.publish({ project: "team" });
       await settle();
       expect(await remainingTokens()).toEqual([
         "ada-phone",
@@ -174,13 +177,13 @@ describe("push dispatch", () => {
       expect(taskLogs[0]?.warn).toHaveBeenCalledTimes(1);
     });
 
-    it("does nothing when the topic has no recipients", async () => {
+    it("does nothing when the project has no recipients", async () => {
       const sender = fakeSender();
       const { dispatch } = pushDispatch(sender);
       const owner = clientFor(testDb.db, eve, dispatch);
-      await owner.topics.create({ name: "solo" });
+      await owner.projects.create({ name: "solo" });
       await testDb.db.delete(device);
-      await owner.messages.publish({ topic: "solo" });
+      await owner.messages.publish({ project: "solo" });
       await settle();
       expect(sender.send).not.toHaveBeenCalled();
     });
@@ -191,7 +194,7 @@ describe("push dispatch", () => {
       const ids: string[] = [];
       for (let index = 0; index < count; index += 1) {
         const out = await clientFor(testDb.db, bob).messages.publish({
-          topic: "team",
+          project: "team",
           body: `m${index}`,
           conversation: { id: index % 2 === 0 ? "even" : "odd" },
         });
@@ -212,10 +215,10 @@ describe("push dispatch", () => {
       await client.messages.markRead({ ids: [m0, m1] });
       expect(messagesRead).toHaveBeenCalledTimes(1);
 
-      await client.messages.markRead({ conversation: { topicId: teamId, key: "c:even" } });
+      await client.messages.markRead({ conversation: { projectId: teamId, key: "c:even" } });
       expect(messagesRead).toHaveBeenLastCalledWith(ada.id, [m2]);
 
-      await client.messages.markRead({ upTo: m3, topicId: teamId });
+      await client.messages.markRead({ upTo: m3, projectId: teamId });
       expect(messagesRead).toHaveBeenLastCalledWith(ada.id, [m3]);
       expect(messagesRead).toHaveBeenCalledTimes(3);
     });
@@ -261,7 +264,7 @@ describe("push dispatch", () => {
       await seenInOrder(["bob-phone", "ada-tablet", "ada-phone"]);
       const sender = fakeSender();
       const { dispatch, taskLogs } = pushDispatch(sender, { maxSends: 2 });
-      await clientFor(testDb.db, ada, dispatch).messages.publish({ topic: "team" });
+      await clientFor(testDb.db, ada, dispatch).messages.publish({ project: "team" });
       await settle();
       // Sends run in parallel, so only the set is fixed, not the call order.
       expect(sender.send.mock.calls.map(([token]) => token).sort()).toEqual([
@@ -280,7 +283,7 @@ describe("push dispatch", () => {
         sleep: async () => undefined,
       });
       const { dispatch, taskLogs } = pushDispatch(sender, { maxSends: 4, concurrency: 1 });
-      await clientFor(testDb.db, ada, dispatch).messages.publish({ topic: "team" });
+      await clientFor(testDb.db, ada, dispatch).messages.publish({ project: "team" });
       await settle();
       // 3 attempts for the first device, 1 for the second, none left for the third.
       expect(mock.sendRequests()).toHaveLength(4);
@@ -299,7 +302,7 @@ describe("push dispatch", () => {
         return { status: "sent" };
       });
       const { dispatch, taskLogs } = pushDispatch(sender, { concurrency: 1 });
-      await clientFor(testDb.db, ada, dispatch).messages.publish({ topic: "team" });
+      await clientFor(testDb.db, ada, dispatch).messages.publish({ project: "team" });
       await settle();
       expect(sender.send.mock.calls.map(([token]) => token)).toEqual(["ada-phone", "ada-tablet"]);
       expect(taskLogs[0]?.set).toHaveBeenLastCalledWith({
@@ -338,7 +341,7 @@ describe("push dispatch", () => {
       });
       const { dispatch, taskLogs } = pushDispatch(sender, { concurrency: 1 });
       await clientFor(testDb.db, ada, dispatch).messages.publish({
-        topic: "team",
+        project: "team",
         title: "SENTINEL_BODY title",
         body: "SENTINEL_BODY",
       });
@@ -368,7 +371,7 @@ describe("push dispatch", () => {
       const handler = createPublicHandler();
       const publish = () =>
         handler.handle(
-          new Request("http://api.test/v1/topics/team/messages", {
+          new Request("http://api.test/v1/projects/team/messages", {
             method: "POST",
             headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
             body: JSON.stringify({ body: "hello" }),
@@ -406,7 +409,7 @@ describe("push dispatch", () => {
         scope: { kind: "all" },
       });
       const response = await createPublicHandler().handle(
-        new Request("http://api.test/v1/topics/team/messages", {
+        new Request("http://api.test/v1/projects/team/messages", {
           method: "POST",
           headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
           body: JSON.stringify({ body: "hello" }),

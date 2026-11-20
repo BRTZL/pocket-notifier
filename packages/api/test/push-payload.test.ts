@@ -11,12 +11,13 @@ import { pushDataBytes, toDismissData, toPushData } from "../src/push/payload";
 
 const CREATED_AT = "2026-11-20T12:00:00.000Z";
 const ID = "msg_01jd8x5k2m9q7r4t6v8w0y3z5a";
+const PROJECT_ID = "prj_01jd8x5k2m9q7r4t6v8w0y3z5a";
 
 function message(overrides: Partial<Message> = {}): Message {
   return {
     id: ID,
-    topicId: "top_01jd8x5k2m9q7r4t6v8w0y3z5a",
-    topic: "ci",
+    projectId: PROJECT_ID,
+    project: "ci",
     title: "main build failed",
     body: "3 tests failed in auth.spec.ts",
     priority: 5,
@@ -48,7 +49,9 @@ describe("toPushData", () => {
       v: "1",
       kind: "message",
       id: ID,
-      topic: "ci",
+      project: "ci",
+      projectId: PROJECT_ID,
+      conversationKey: "c:ci",
       title: "main build failed",
       body: "3 tests failed in auth.spec.ts",
       priority: "5",
@@ -83,6 +86,9 @@ describe("toPushData", () => {
       }),
     );
     expect(data).toMatchObject({
+      // Without a conversation a tap opens the project-level thread.
+      projectId: PROJECT_ID,
+      conversationKey: `p:${PROJECT_ID}`,
       title: "",
       body: "",
       tags: "",
@@ -160,6 +166,25 @@ describe("toPushData", () => {
     expect(data.clickUrl).toBe("");
     expect(data.truncated).toBe("1");
     expect(pushDataBytes(data)).toBeLessThanOrEqual(FCM_MAX_PAYLOAD_BYTES);
+  });
+
+  it("always sends the thread a tap opens, even when the budget is used up", () => {
+    const conversationId = "c".repeat(64);
+    const data = toPushData(
+      message({
+        body: "\u0001".repeat(PUSH_BODY_MAX),
+        title: "\u0001".repeat(250),
+        conversation: { id: conversationId, title: "\u0001".repeat(64) },
+      }),
+    );
+    expect(data).toMatchObject({
+      project: "ci",
+      projectId: PROJECT_ID,
+      conversationKey: `c:${conversationId}`,
+      truncated: "1",
+    });
+    expect(pushDataBytes(data)).toBeLessThanOrEqual(FCM_MAX_PAYLOAD_BYTES);
+    expect(PushMessageData.safeParse(data).success).toBe(true);
   });
 
   it("measures JSON escaping, not just string length", () => {

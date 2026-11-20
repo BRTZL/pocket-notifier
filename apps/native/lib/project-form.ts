@@ -1,9 +1,9 @@
 import { DEFAULT_PRIORITY, Priority } from "@notifier/contract/priority";
-import { RETENTION_DAYS, TopicName } from "@notifier/contract/topic";
+import { ProjectName, RETENTION_DAYS } from "@notifier/contract/project";
 import { z } from "zod";
 
-/** The editable fields of a topic as typed into the form (all text, priority as a number). */
-export type TopicFormValues = {
+/** The editable fields of a project as typed into the form (all text, priority as a number). */
+export type ProjectFormValues = {
   name: string;
   displayName: string;
   description: string;
@@ -11,9 +11,9 @@ export type TopicFormValues = {
   retentionDays: string;
 };
 
-export type TopicFormField = keyof TopicFormValues;
+export type ProjectFormField = keyof ProjectFormValues;
 
-export const EMPTY_TOPIC_FORM: TopicFormValues = {
+export const EMPTY_PROJECT_FORM: ProjectFormValues = {
   name: "",
   displayName: "",
   description: "",
@@ -44,7 +44,7 @@ function optionalText(max: number) {
     .transform((value) => (value.length > 0 ? value : null));
 }
 
-const TopicSettingsInput = z.object({
+const ProjectSettingsInput = z.object({
   displayName: optionalText(80),
   description: optionalText(500),
   defaultPriority: Priority,
@@ -52,13 +52,13 @@ const TopicSettingsInput = z.object({
 });
 
 /** Settings an owner can change after creation. */
-export const UpdateTopicForm = TopicSettingsInput;
+export const UpdateProjectForm = ProjectSettingsInput;
 
-/** Creation adds the name, checked with the contract's `TopicName` rules. */
-export const CreateTopicForm = TopicSettingsInput.extend({
+/** Creation adds the name, checked with the contract's `ProjectName` rules. */
+export const CreateProjectForm = ProjectSettingsInput.extend({
   name: z
     .string()
     .min(1, "Name is required")
     .max(64, "Keep it under 64 characters")
-    .pipe(TopicName),
+    .pipe(ProjectName),
 });

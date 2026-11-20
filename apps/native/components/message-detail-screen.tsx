@@ -12,7 +12,7 @@ import { useOpenLink } from "@/hooks/use-open-link";
 import { isAccessError } from "@/lib/errors";
 import { fullTime, messageHeadline } from "@/lib/format";
 
-/** One message, opened from the inbox or from a topic; the route passes `id`. */
+/** One message, opened from the inbox or from a project; the route passes `id`. */
 export function MessageDetailScreen() {
   const { id = "" } = useLocalSearchParams<{ id: string }>();
   const query = useMessage(id);
@@ -25,7 +25,7 @@ export function MessageDetailScreen() {
   if (isAccessError(query.error)) {
     return (
       <EmptyState title="Message not available" pose="error">
-        It was deleted, expired, or you no longer have access to its topic.
+        It was deleted, expired, or you no longer have access to its project.
       </EmptyState>
     );
   }
@@ -50,11 +50,11 @@ export function MessageDetailScreen() {
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
     >
-      <Stack.Screen options={{ title: message.topic }} />
+      <Stack.Screen options={{ title: message.project }} />
 
       <View className="flex-row items-center gap-3">
         <SenderAvatar
-          topic={message.topic}
+          project={message.project}
           conversation={message.conversation}
           sender={message.sender}
           size="lg"
@@ -64,7 +64,7 @@ export function MessageDetailScreen() {
             {messageHeadline(message)}
           </Typography>
           <Typography type="body-sm" color="muted">
-            {message.topic} · {fullTime(message.createdAt)}
+            {message.project} · {fullTime(message.createdAt)}
           </Typography>
           <Typography type="body-xs" color="muted">
             Priority {message.priority} ({priorityName})

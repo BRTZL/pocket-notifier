@@ -13,7 +13,7 @@ export default function InboxLayout() {
     <Stack screenOptions={screenOptions}>
       <Stack.Screen name="index" options={{ title: "Inbox", headerShown: false }} />
       <Stack.Screen
-        name="conversation/[topicId]/[key]"
+        name="conversation/[projectId]/[key]"
         options={{ title: "Conversation", headerShown: false }}
       />
     </Stack>

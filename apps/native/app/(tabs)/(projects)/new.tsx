@@ -3,29 +3,32 @@ import { router } from "expo-router";
 import { Button, Spinner, useToast } from "heroui-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
-import { TopicFields } from "@/components/topic-fields";
-import { useTopicForm } from "@/hooks/use-topic-form";
+import { ProjectFields } from "@/components/project-fields";
+import { useProjectForm } from "@/hooks/use-project-form";
 import { errorMessage, hasErrorCode } from "@/lib/errors";
 import { fieldErrors } from "@/lib/form";
-import { CreateTopicForm, EMPTY_TOPIC_FORM, type TopicFormField } from "@/lib/topic-form";
+import { CreateProjectForm, EMPTY_PROJECT_FORM, type ProjectFormField } from "@/lib/project-form";
 import { orpc } from "@/utils/orpc";
 
-export default function NewTopicScreen() {
+export default function NewProjectScreen() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { values, errors, setErrors, setField } = useTopicForm(EMPTY_TOPIC_FORM);
+  const { values, errors, setErrors, setField } = useProjectForm(EMPTY_PROJECT_FORM);
   const create = useMutation(
-    orpc.topics.create.mutationOptions({
-      onSuccess: async (topic) => {
-        await queryClient.invalidateQueries({ queryKey: orpc.topics.key() });
-        router.replace({ pathname: "/topic/[topicId]", params: { topicId: topic.id } });
+    orpc.projects.create.mutationOptions({
+      onSuccess: async (project) => {
+        await queryClient.invalidateQueries({ queryKey: orpc.projects.key() });
+        router.replace({ pathname: "/project/[projectId]", params: { projectId: project.id } });
       },
       onError: (error) => {
         if (hasErrorCode(error, "CONFLICT")) {
           setErrors({ name: "Name already taken" });
           return;
         }
-        toast.show({ variant: "danger", label: errorMessage(error, "Could not create the topic") });
+        toast.show({
+          variant: "danger",
+          label: errorMessage(error, "Could not create the project"),
+        });
       },
     }),
   );
@@ -34,9 +37,9 @@ export default function NewTopicScreen() {
     if (create.isPending) {
       return;
     }
-    const parsed = CreateTopicForm.safeParse(values);
+    const parsed = CreateProjectForm.safeParse(values);
     if (!parsed.success) {
-      setErrors(fieldErrors<TopicFormField>(parsed.error));
+      setErrors(fieldErrors<ProjectFormField>(parsed.error));
       return;
     }
     const { name, displayName, description, defaultPriority, retentionDays } = parsed.data;
@@ -55,7 +58,7 @@ export default function NewTopicScreen() {
       contentContainerClassName="gap-6 p-4"
       keyboardShouldPersistTaps="handled"
     >
-      <TopicFields
+      <ProjectFields
         values={values}
         errors={errors}
         onChange={setField}
@@ -66,7 +69,7 @@ export default function NewTopicScreen() {
         {create.isPending ? (
           <Spinner size="sm" color="default" />
         ) : (
-          <Button.Label>Create topic</Button.Label>
+          <Button.Label>Create project</Button.Label>
         )}
       </Button>
     </KeyboardAwareScrollView>

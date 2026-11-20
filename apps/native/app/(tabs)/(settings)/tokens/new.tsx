@@ -1,4 +1,4 @@
-import type { MyTopic } from "@notifier/contract/topic";
+import type { MyProject } from "@notifier/contract/project";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import {
@@ -29,48 +29,48 @@ import { errorMessage } from "@/lib/errors";
 import { fieldErrors } from "@/lib/form";
 import { client, orpc } from "@/utils/orpc";
 
-type ScopeKind = "all" | "topics";
+type ScopeKind = "all" | "projects";
 type CreateTokenInput = Parameters<typeof client.tokens.create>[0];
 
 const TokenForm = z.object({
   name: z.string().trim().min(1, "Name the token").max(80, "Keep it under 80 characters"),
-  topics: z.array(z.string()),
-  scope: z.enum(["all", "topics"]),
+  projects: z.array(z.string()),
+  scope: z.enum(["all", "projects"]),
   expiresInDays: daysText({ min: 1, max: 365, optional: true }),
 });
 type Field = keyof z.infer<typeof TokenForm>;
 
-/** Topics a token may be scoped to: those the user owns or publishes to. */
-function publishableTopics(topics: MyTopic[]): MyTopic[] {
-  return topics.filter((topic) => topic.role !== "subscriber");
+/** Projects a token may be scoped to: those the user owns or publishes to. */
+function publishableProjects(projects: MyProject[]): MyProject[] {
+  return projects.filter((project) => project.role !== "subscriber");
 }
 
-function TopicPicker({
-  topics,
+function ProjectPicker({
+  projects,
   selected,
   onToggle,
 }: {
-  topics: MyTopic[];
+  projects: MyProject[];
   selected: string[];
   onToggle: (name: string, isSelected: boolean) => void;
 }) {
-  if (topics.length === 0) {
-    return <Typography color="muted">You don't own or publish to any topic yet.</Typography>;
+  if (projects.length === 0) {
+    return <Typography color="muted">You don't own or publish to any project yet.</Typography>;
   }
   return (
     <Card>
       <Card.Body className="gap-2">
-        {topics.map((topic, index) => (
-          <Fragment key={topic.id}>
+        {projects.map((project, index) => (
+          <Fragment key={project.id}>
             {index > 0 ? <Separator /> : null}
             <ControlField
-              isSelected={selected.includes(topic.name)}
-              onSelectedChange={(value) => onToggle(topic.name, value)}
+              isSelected={selected.includes(project.name)}
+              onSelectedChange={(value) => onToggle(project.name, value)}
             >
               <View className="flex-1">
-                <Label>{topic.displayName ?? topic.name}</Label>
+                <Label>{project.displayName ?? project.name}</Label>
                 <Description>
-                  {topic.name} · {topic.role}
+                  {project.name} · {project.role}
                 </Description>
               </View>
               <ControlField.Indicator variant="checkbox" />
@@ -85,7 +85,7 @@ function TopicPicker({
 export default function NewTokenScreen() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const topics = useQuery(orpc.topics.list.queryOptions());
+  const projects = useQuery(orpc.projects.list.queryOptions());
   const [name, setName] = useState("");
   const [scope, setScope] = useState<ScopeKind>("all");
   const [selected, setSelected] = useState<string[]>([]);
@@ -115,13 +115,13 @@ export default function NewTokenScreen() {
     if (submitLock.current) {
       return;
     }
-    const parsed = TokenForm.safeParse({ name, scope, topics: selected, expiresInDays: expiry });
+    const parsed = TokenForm.safeParse({ name, scope, projects: selected, expiresInDays: expiry });
     if (!parsed.success) {
       setErrors(fieldErrors<Field>(parsed.error));
       return;
     }
-    if (scope === "topics" && selected.length === 0) {
-      setErrors({ topics: "Pick at least one topic" });
+    if (scope === "projects" && selected.length === 0) {
+      setErrors({ projects: "Pick at least one project" });
       return;
     }
     setErrors({});
@@ -129,7 +129,7 @@ export default function NewTokenScreen() {
     create.mutate(
       {
         name: parsed.data.name,
-        scope: scope === "all" ? { kind: "all" } : { kind: "topics", topics: selected },
+        scope: scope === "all" ? { kind: "all" } : { kind: "projects", projects: selected },
         expiresInDays: parsed.data.expiresInDays,
       },
       {
@@ -140,20 +140,22 @@ export default function NewTokenScreen() {
     );
   }
 
-  function renderTopics() {
-    if (topics.isError) {
-      return <ErrorState inline error={topics.error} onRetry={() => void topics.refetch()} />;
+  function renderProjects() {
+    if (projects.isError) {
+      return <ErrorState inline error={projects.error} onRetry={() => void projects.refetch()} />;
     }
-    if (topics.isPending) {
+    if (projects.isPending) {
       return <Spinner />;
     }
     return (
-      <TopicPicker
-        topics={publishableTopics(topics.data)}
+      <ProjectPicker
+        projects={publishableProjects(projects.data)}
         selected={selected}
-        onToggle={(topicName, isSelected) =>
+        onToggle={(projectName, isSelected) =>
           setSelected((current) =>
-            isSelected ? [...current, topicName] : current.filter((entry) => entry !== topicName),
+            isSelected
+              ? [...current, projectName]
+              : current.filter((entry) => entry !== projectName),
           )
         }
       />
@@ -183,26 +185,26 @@ export default function NewTokenScreen() {
         <RadioGroup value={scope} onValueChange={(value) => setScope(value as ScopeKind)}>
           <RadioGroup.Item value="all">
             <View className="flex-1">
-              <Label>All my topics</Label>
-              <Description>Every topic you own or publish to, including future ones.</Description>
+              <Label>All my projects</Label>
+              <Description>Every project you own or publish to, including future ones.</Description>
             </View>
             <Radio />
           </RadioGroup.Item>
-          <RadioGroup.Item value="topics">
+          <RadioGroup.Item value="projects">
             <View className="flex-1">
-              <Label>Only selected topics</Label>
+              <Label>Only selected projects</Label>
             </View>
             <Radio />
           </RadioGroup.Item>
         </RadioGroup>
       </View>
 
-      {scope === "topics" ? (
+      {scope === "projects" ? (
         <View className="gap-2">
-          {renderTopics()}
-          {errors.topics ? (
+          {renderProjects()}
+          {errors.projects ? (
             <Typography type="body-sm" className="text-danger">
-              {errors.topics}
+              {errors.projects}
             </Typography>
           ) : null}
         </View>

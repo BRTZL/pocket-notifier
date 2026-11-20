@@ -1,7 +1,7 @@
 import { type TokenScope, TokenSecret } from "@notifier/contract/token";
 import type { Database } from "@notifier/db";
 import { user } from "@notifier/db/schema/auth";
-import { accessToken, topic, topicMember } from "@notifier/db/schema/notifier";
+import { accessToken, project, projectMember } from "@notifier/db/schema/notifier";
 import { sha256Hex } from "@notifier/db/secrets";
 import { and, eq, gt, isNull, or } from "drizzle-orm";
 
@@ -13,7 +13,7 @@ const BEARER = /^Bearer (?<secret>nt_[0-9A-Za-z]{40})$/iu;
 
 export type TokenRow = typeof accessToken.$inferSelect;
 export type TokenUser = typeof user.$inferSelect;
-export type TopicRow = typeof topic.$inferSelect;
+export type ProjectRow = typeof project.$inferSelect;
 
 /** A verified access token, its parsed scope and the user it acts for. */
 export type TokenAuth = {
@@ -87,40 +87,41 @@ type Action = "publish" | "read";
 async function tokenCan(
   db: Database,
   auth: TokenAuth,
-  topicName: string,
+  projectName: string,
   action: Action,
-): Promise<TopicRow> {
+): Promise<ProjectRow> {
   const [row] = await db
-    .select({ topic, role: topicMember.role })
-    .from(topic)
+    .select({ project, role: projectMember.role })
+    .from(project)
     .innerJoin(
-      topicMember,
-      and(eq(topicMember.topicId, topic.id), eq(topicMember.userId, auth.user.id)),
+      projectMember,
+      and(eq(projectMember.projectId, project.id), eq(projectMember.userId, auth.user.id)),
     )
-    .where(eq(topic.name, topicName))
+    .where(eq(project.name, projectName))
     .limit(1);
   if (!row) {
-    throw appError("NOT_FOUND", "Topic not found");
+    throw appError("NOT_FOUND", "Project not found");
   }
 
   const canPublish = row.role === "owner" || row.role === "publisher";
-  // `all` means every topic where the user is owner or publisher (see access.mdx).
-  const inScope = auth.scope.kind === "all" ? canPublish : auth.scope.topics.includes(topicName);
+  // `all` means every project where the user is owner or publisher (see access.mdx).
+  const inScope =
+    auth.scope.kind === "all" ? canPublish : auth.scope.projects.includes(projectName);
   if (!inScope) {
-    throw appError("FORBIDDEN", "This token's scope does not include the topic");
+    throw appError("FORBIDDEN", "This token's scope does not include the project");
   }
   if (action === "publish" && !canPublish) {
-    throw appError("FORBIDDEN", "Only owners and publishers can publish to this topic");
+    throw appError("FORBIDDEN", "Only owners and publishers can publish to this project");
   }
-  return row.topic;
+  return row.project;
 }
 
-/** The topic if the token may publish to it: in scope, and the user is owner or publisher. */
-export function tokenCanPublish(db: Database, auth: TokenAuth, topicName: string) {
-  return tokenCan(db, auth, topicName, "publish");
+/** The project if the token may publish to it: in scope, and the user is owner or publisher. */
+export function tokenCanPublish(db: Database, auth: TokenAuth, projectName: string) {
+  return tokenCan(db, auth, projectName, "publish");
 }
 
-/** The topic if the token may read it: in scope, and the user is a member. */
-export function tokenCanRead(db: Database, auth: TokenAuth, topicName: string) {
-  return tokenCan(db, auth, topicName, "read");
+/** The project if the token may read it: in scope, and the user is a member. */
+export function tokenCanRead(db: Database, auth: TokenAuth, projectName: string) {
+  return tokenCan(db, auth, projectName, "read");
 }

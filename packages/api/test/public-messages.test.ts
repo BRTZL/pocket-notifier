@@ -30,8 +30,8 @@ describe("public messages API", () => {
     ada = await seedUser(testDb.db, "ada");
     bob = await seedUser(testDb.db, "bob");
     const owner = clientFor(testDb.db, ada);
-    ({ id: teamId } = await owner.topics.create({ name: "team", defaultPriority: 4 }));
-    await owner.topics.create({ name: "ops" });
+    ({ id: teamId } = await owner.projects.create({ name: "team", defaultPriority: 4 }));
+    await owner.projects.create({ name: "ops" });
     ({ secret: adaSecret } = await owner.tokens.create({ name: "ci", scope: { kind: "all" } }));
   });
 
@@ -39,19 +39,19 @@ describe("public messages API", () => {
     await testDb.dispose();
   });
 
-  async function tokenFor(testUser: TestUser, topics?: string[]) {
+  async function tokenFor(testUser: TestUser, projects?: string[]) {
     const { secret } = await clientFor(testDb.db, testUser).tokens.create({
       name: "t",
-      scope: topics ? { kind: "topics", topics } : { kind: "all" },
+      scope: projects ? { kind: "projects", projects } : { kind: "all" },
     });
     return secret;
   }
 
   describe("publish", () => {
-    it("stores the message with topic defaults and keyed actions", async () => {
+    it("stores the message with project defaults and keyed actions", async () => {
       const api = publicClientFor(testDb.db, adaSecret);
       const out = await api.messages.publish({
-        topic: "team",
+        project: "team",
         title: "Deploy?",
         actions: [
           { type: "reply", key: "yes", label: "Deploy" },
@@ -60,15 +60,15 @@ describe("public messages API", () => {
         conversation: { id: "notifier" },
         sender: { id: "claude", name: "Claude" },
       });
-      expect(out.topic).toBe("team");
+      expect(out.project).toBe("team");
       // 30 days is the default retention.
       expect(Date.parse(out.expiresAt) - Date.parse(out.createdAt)).toBe(30 * 86_400_000);
 
       const stored = await api.messages.get({ id: out.id });
       expect(stored).toMatchObject({
         id: out.id,
-        topicId: teamId,
-        topic: "team",
+        projectId: teamId,
+        project: "team",
         title: "Deploy?",
         body: "",
         priority: 4,
@@ -90,9 +90,9 @@ describe("public messages API", () => {
       expect(row).toMatchObject({ priority: 4, publishedBy: ada.id, tokenId: expect.any(String) });
     });
 
-    it("uses an explicit priority over the topic default", async () => {
+    it("uses an explicit priority over the project default", async () => {
       const api = publicClientFor(testDb.db, adaSecret);
-      const out = await api.messages.publish({ topic: "team", body: "x", priority: 1 });
+      const out = await api.messages.publish({ project: "team", body: "x", priority: 1 });
       expect((await api.messages.get({ id: out.id })).priority).toBe(1);
     });
 
@@ -101,7 +101,7 @@ describe("public messages API", () => {
       const view = { type: "view" as const, label: "Open", url: "https://example.com" };
       await expect(
         api.messages.publish({
-          topic: "team",
+          project: "team",
           actions: [
             { ...view, key: "a" },
             { ...view, key: "a" },
@@ -109,7 +109,7 @@ describe("public messages API", () => {
         }),
       ).rejects.toMatchObject(codeError("BAD_REQUEST"));
       await expect(
-        api.messages.publish({ topic: "team", actions: [{ ...view, key: "1" }, view] }),
+        api.messages.publish({ project: "team", actions: [{ ...view, key: "1" }, view] }),
       ).rejects.toMatchObject(codeError("BAD_REQUEST"));
       expect(await testDb.db.$count(message)).toBe(0);
     });
@@ -117,18 +117,18 @@ describe("public messages API", () => {
     it("caps URL lengths", async () => {
       const api = publicClientFor(testDb.db, adaSecret);
       const long = `https://example.com/${"a".repeat(2048)}`;
-      await expect(api.messages.publish({ topic: "team", clickUrl: long })).rejects.toMatchObject(
+      await expect(api.messages.publish({ project: "team", clickUrl: long })).rejects.toMatchObject(
         codeError("BAD_REQUEST"),
       );
       await expect(
         api.messages.publish({
-          topic: "team",
+          project: "team",
           actions: [{ type: "view", label: "Open", url: long }],
         }),
       ).rejects.toMatchObject(codeError("BAD_REQUEST"));
       await expect(
         api.messages.publish({
-          topic: "team",
+          project: "team",
           actions: [{ type: "http", label: "Go", url: long }],
         }),
       ).rejects.toMatchObject(codeError("BAD_REQUEST"));
@@ -138,46 +138,49 @@ describe("public messages API", () => {
       const api = publicClientFor(testDb.db, adaSecret);
       for (const url of ["javascript:alert(1)", "intent://x#Intent;end", "file:///etc/hosts"]) {
         // biome-ignore lint/performance/noAwaitInLoops: each case must fail on its own.
-        await expect(api.messages.publish({ topic: "team", clickUrl: url })).rejects.toMatchObject(
-          codeError("BAD_REQUEST"),
-        );
         await expect(
-          api.messages.publish({ topic: "team", actions: [{ type: "view", label: "Open", url }] }),
+          api.messages.publish({ project: "team", clickUrl: url }),
+        ).rejects.toMatchObject(codeError("BAD_REQUEST"));
+        await expect(
+          api.messages.publish({
+            project: "team",
+            actions: [{ type: "view", label: "Open", url }],
+          }),
         ).rejects.toMatchObject(codeError("BAD_REQUEST"));
       }
       await expect(
         api.messages.publish({
-          topic: "team",
-          clickUrl: "notifier://topic/x",
+          project: "team",
+          clickUrl: "notifier://project/x",
           actions: [{ type: "view", label: "Open", url: "http://example.com" }],
         }),
-      ).resolves.toMatchObject({ topic: "team" });
+      ).resolves.toMatchObject({ project: "team" });
     });
 
     it("rejects attachments until they are supported", async () => {
       const api = publicClientFor(testDb.db, adaSecret);
       await expect(
-        api.messages.publish({ topic: "team", attachmentId: "att_01jd8x7q3n1p5s8u0w2y4a6c8e" }),
+        api.messages.publish({ project: "team", attachmentId: "att_01jd8x7q3n1p5s8u0w2y4a6c8e" }),
       ).rejects.toMatchObject({
         code: "BAD_REQUEST",
         message: "Attachments are not supported yet",
       });
     });
 
-    it("rejects unknown topics, out-of-scope topics and subscriber tokens", async () => {
+    it("rejects unknown projects, out-of-scope projects and subscriber tokens", async () => {
       const scoped = publicClientFor(testDb.db, await tokenFor(ada, ["team"]));
-      await expect(scoped.messages.publish({ topic: "missing" })).rejects.toMatchObject(
+      await expect(scoped.messages.publish({ project: "missing" })).rejects.toMatchObject(
         definedError("NOT_FOUND"),
       );
-      await expect(scoped.messages.publish({ topic: "ops" })).rejects.toMatchObject(
+      await expect(scoped.messages.publish({ project: "ops" })).rejects.toMatchObject(
         definedError("FORBIDDEN"),
       );
 
       const owner = clientFor(testDb.db, ada);
-      await owner.members.add({ topicId: teamId, email: bob.email, role: "publisher" });
+      await owner.members.add({ projectId: teamId, email: bob.email, role: "publisher" });
       const bobApi = publicClientFor(testDb.db, await tokenFor(bob, ["team"]));
-      await owner.members.update({ topicId: teamId, userId: bob.id, role: "subscriber" });
-      await expect(bobApi.messages.publish({ topic: "team" })).rejects.toMatchObject(
+      await owner.members.update({ projectId: teamId, userId: bob.id, role: "subscriber" });
+      await expect(bobApi.messages.publish({ project: "team" })).rejects.toMatchObject(
         definedError("FORBIDDEN"),
       );
     });
@@ -185,7 +188,7 @@ describe("public messages API", () => {
     it("hands the stored message to dispatch once", async () => {
       const messagePublished = vi.fn<Dispatch["messagePublished"]>();
       const api = publicClientFor(testDb.db, adaSecret, { ...noopDispatch, messagePublished });
-      const out = await api.messages.publish({ topic: "team", body: "hello", tags: ["ci"] });
+      const out = await api.messages.publish({ project: "team", body: "hello", tags: ["ci"] });
       expect(messagePublished).toHaveBeenCalledTimes(1);
       expect(messagePublished).toHaveBeenCalledWith(await api.messages.get({ id: out.id }));
     });
@@ -198,8 +201,8 @@ describe("public messages API", () => {
           throw new Error("push down");
         },
       });
-      await expect(api.messages.publish({ topic: "team" })).resolves.toMatchObject({
-        topic: "team",
+      await expect(api.messages.publish({ project: "team" })).resolves.toMatchObject({
+        project: "team",
       });
       spy.mockRestore();
     });
@@ -210,10 +213,10 @@ describe("public messages API", () => {
       const api = publicClientFor(testDb.db, adaSecret);
       const ids: string[] = [];
       for (let index = 0; index < 5; index += 1) {
-        ids.push((await api.messages.publish({ topic: "team", body: `m${index}` })).id);
+        ids.push((await api.messages.publish({ project: "team", body: `m${index}` })).id);
         await nextMillisecond();
       }
-      await api.messages.publish({ topic: "ops", body: "other topic" });
+      await api.messages.publish({ project: "ops", body: "other project" });
       const [, expiredId] = ids;
       await testDb.db
         .update(message)
@@ -221,11 +224,11 @@ describe("public messages API", () => {
         .where(eq(message.id, expiredId ?? ""));
       const visible = ids.filter((id) => id !== expiredId).reverse();
 
-      const first = await api.messages.list({ topic: "team", limit: 2 });
+      const first = await api.messages.list({ project: "team", limit: 2 });
       expect(first.items.map((item) => item.id)).toEqual(visible.slice(0, 2));
       expect(first.nextCursor).toEqual(expect.any(String));
       const second = await api.messages.list({
-        topic: "team",
+        project: "team",
         limit: 2,
         cursor: first.nextCursor ?? "",
       });
@@ -233,20 +236,20 @@ describe("public messages API", () => {
       expect(second.nextCursor).toBeNull();
 
       const third = (await api.messages.get({ id: ids[2] ?? "" })).createdAt;
-      const since = await api.messages.list({ topic: "team", since: third });
+      const since = await api.messages.list({ project: "team", since: third });
       expect(since.items.map((item) => item.body)).toEqual(["m4", "m3"]);
 
-      await expect(api.messages.list({ topic: "team", cursor: "nope" })).rejects.toMatchObject(
+      await expect(api.messages.list({ project: "team", cursor: "nope" })).rejects.toMatchObject(
         codeError("BAD_REQUEST"),
       );
     });
 
-    it("needs the topic in scope", async () => {
+    it("needs the project in scope", async () => {
       const scoped = publicClientFor(testDb.db, await tokenFor(ada, ["ops"]));
-      await expect(scoped.messages.list({ topic: "team" })).rejects.toMatchObject(
+      await expect(scoped.messages.list({ project: "team" })).rejects.toMatchObject(
         definedError("FORBIDDEN"),
       );
-      await expect(scoped.messages.list({ topic: "missing" })).rejects.toMatchObject(
+      await expect(scoped.messages.list({ project: "missing" })).rejects.toMatchObject(
         definedError("NOT_FOUND"),
       );
     });
@@ -256,7 +259,7 @@ describe("public messages API", () => {
     it("is NOT_FOUND for missing, expired, out-of-scope and non-member messages", async () => {
       const api = publicClientFor(testDb.db, adaSecret);
       const notFound = definedError("NOT_FOUND");
-      const { id } = await api.messages.publish({ topic: "team" });
+      const { id } = await api.messages.publish({ project: "team" });
 
       await expect(
         api.messages.get({ id: "msg_01jd8x5k2m9q7r4t6v8w0y3z5a" }),
@@ -278,12 +281,12 @@ describe("public messages API", () => {
     it("lists responses oldest first for owners and publishers only", async () => {
       const api = publicClientFor(testDb.db, adaSecret);
       const owner = clientFor(testDb.db, ada);
-      await owner.members.add({ topicId: teamId, email: bob.email, role: "publisher" });
+      await owner.members.add({ projectId: teamId, email: bob.email, role: "publisher" });
       // Tokens need a publishing role when created; Bob is demoted to subscriber after.
       const bobApi = publicClientFor(testDb.db, await tokenFor(bob, ["team"]));
-      await owner.members.update({ topicId: teamId, userId: bob.id, role: "subscriber" });
+      await owner.members.update({ projectId: teamId, userId: bob.id, role: "subscriber" });
       const { id } = await api.messages.publish({
-        topic: "team",
+        project: "team",
         actions: [
           { type: "reply", key: "yes", label: "Yes" },
           { type: "reply", key: "note", label: "Note", input: true },
@@ -308,12 +311,12 @@ describe("public messages API", () => {
         nextCursor: null,
       });
 
-      // Bob can read the topic but is a subscriber.
+      // Bob can read the project but is a subscriber.
       await expect(bobApi.messages.responses({ id })).rejects.toMatchObject(
         definedError("FORBIDDEN"),
       );
       // As a publisher, Bob's token can read them.
-      await owner.members.update({ topicId: teamId, userId: bob.id, role: "publisher" });
+      await owner.members.update({ projectId: teamId, userId: bob.id, role: "publisher" });
       await expect(bobApi.messages.responses({ id })).resolves.toMatchObject({
         items: [{ actionKey: "yes" }, { actionKey: "note" }],
       });
@@ -325,7 +328,7 @@ describe("public messages API", () => {
   });
 
   describe("over HTTP", () => {
-    it("serves POST /v1/topics/{topic}/messages with 201 and typed errors", async () => {
+    it("serves POST /v1/projects/{project}/messages with 201 and typed errors", async () => {
       const handler = createPublicHandler();
       const messagePublished = vi.fn<Dispatch["messagePublished"]>();
       const send = (request: Request) =>
@@ -338,7 +341,7 @@ describe("public messages API", () => {
         });
 
       const created = await send(
-        new Request("http://api.test/v1/topics/team/messages", {
+        new Request("http://api.test/v1/projects/team/messages", {
           method: "POST",
           headers: { Authorization: `Bearer ${adaSecret}`, "Content-Type": "application/json" },
           body: JSON.stringify({ body: "Nightly backup finished", tags: ["backup"] }),
@@ -346,12 +349,12 @@ describe("public messages API", () => {
       );
       expect(created.matched).toBe(true);
       expect(created.response?.status).toBe(201);
-      const body = (await created.response?.json()) as { id: string; topic: string };
-      expect(body).toMatchObject({ id: expect.stringMatching(MESSAGE_ID), topic: "team" });
+      const body = (await created.response?.json()) as { id: string; project: string };
+      expect(body).toMatchObject({ id: expect.stringMatching(MESSAGE_ID), project: "team" });
       expect(messagePublished).toHaveBeenCalledTimes(1);
 
       const listed = await send(
-        new Request("http://api.test/v1/topics/team/messages?limit=1", {
+        new Request("http://api.test/v1/projects/team/messages?limit=1", {
           headers: { Authorization: `Bearer ${adaSecret}` },
         }),
       );
@@ -362,12 +365,12 @@ describe("public messages API", () => {
       });
 
       const unauthorized = await send(
-        new Request("http://api.test/v1/topics/team/messages", { method: "POST", body: "{}" }),
+        new Request("http://api.test/v1/projects/team/messages", { method: "POST", body: "{}" }),
       );
       expect(unauthorized.response?.status).toBe(401);
 
       const unknown = await send(
-        new Request("http://api.test/v1/topics/nope/messages", {
+        new Request("http://api.test/v1/projects/nope/messages", {
           method: "POST",
           headers: { Authorization: `Bearer ${adaSecret}`, "Content-Type": "application/json" },
           body: "{}",
@@ -376,7 +379,7 @@ describe("public messages API", () => {
       expect(unknown.response?.status).toBe(404);
 
       const tooLarge = await send(
-        new Request("http://api.test/v1/topics/team/messages", {
+        new Request("http://api.test/v1/projects/team/messages", {
           method: "POST",
           headers: { Authorization: `Bearer ${adaSecret}`, "Content-Type": "application/json" },
           body: JSON.stringify({ body: "x".repeat(70_000) }),
@@ -387,7 +390,7 @@ describe("public messages API", () => {
       expect(messagePublished).toHaveBeenCalledTimes(1);
 
       const attachment = await send(
-        new Request("http://api.test/v1/topics/team/attachments", {
+        new Request("http://api.test/v1/projects/team/attachments", {
           method: "POST",
           headers: { Authorization: `Bearer ${adaSecret}` },
         }),

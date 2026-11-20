@@ -66,7 +66,7 @@ export default function TokensScreen() {
     if (tokens.data.length === 0) {
       return (
         <EmptyState title="No access tokens">
-          Create a token so a script, CI job or coding agent can publish to your topics.
+          Create a token so a script, CI job or coding agent can publish to your projects.
         </EmptyState>
       );
     }

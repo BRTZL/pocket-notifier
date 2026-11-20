@@ -43,25 +43,25 @@ function GeneratedAvatar({
 }
 
 export type SenderAvatarProps = {
-  /** Topic name; the large avatar when there is no conversation. */
-  topic: string;
+  /** Project name; the large avatar when there is no conversation. */
+  project: string;
   conversation: Conversation | null;
   sender: Sender | null;
   size?: "md" | "lg";
 };
 
 /**
- * The message avatar: the conversation (or the topic when there is none) as the large
+ * The message avatar: the conversation (or the project when there is none) as the large
  * circle, with the sender as a small badge in the corner when there is one.
  */
-export function SenderAvatar({ topic, conversation, sender, size = "md" }: SenderAvatarProps) {
+export function SenderAvatar({ project, conversation, sender, size = "md" }: SenderAvatarProps) {
   const main: AvatarSubject = conversation
     ? {
         id: conversation.id,
         name: conversation.title ?? conversation.id,
         iconUrl: conversation.iconUrl,
       }
-    : { id: topic, name: topic };
+    : { id: project, name: project };
   const badge: AvatarSubject | null = sender
     ? { id: sender.id, name: sender.name ?? sender.id, iconUrl: sender.iconUrl }
     : null;

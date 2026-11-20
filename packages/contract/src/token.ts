@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { idSchema, Timestamp } from "./common";
-import { TopicName } from "./topic";
+import { ProjectName } from "./project";
 
 export const TokenId = idSchema("token");
 
@@ -10,11 +10,11 @@ export const TOKEN_PREFIX = "nt_";
 
 export const TokenSecret = z.string().regex(/^nt_[0-9A-Za-z]{40}$/u, "Not a notifier token");
 
-/** Which topics a token may publish to and read from. */
+/** Which projects a token may publish to and read from. */
 export const TokenScope = z.discriminatedUnion("kind", [
-  /** Every topic where the token's user is `owner` or `publisher`, including future ones. */
+  /** Every project where the token's user is `owner` or `publisher`, including future ones. */
   z.object({ kind: z.literal("all") }),
-  z.object({ kind: z.literal("topics"), topics: z.array(TopicName).min(1).max(50) }),
+  z.object({ kind: z.literal("projects"), projects: z.array(ProjectName).min(1).max(50) }),
 ]);
 export type TokenScope = z.infer<typeof TokenScope>;
 

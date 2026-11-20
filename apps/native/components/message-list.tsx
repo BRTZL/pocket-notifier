@@ -10,10 +10,10 @@ import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { errorMessage, isAccessError } from "@/lib/errors";
 
 export type MessageListProps = {
-  /** One topic's messages; the combined inbox when omitted. */
-  topicId?: string;
+  /** One project's messages; the combined inbox when omitted. */
+  projectId?: string;
   unreadOnly?: boolean;
-  /** Rendered above the rows (filters, a topic header). */
+  /** Rendered above the rows (filters, a project header). */
   header?: ReactElement;
   /** Shown when the list loaded and is empty. */
   empty: ReactElement;
@@ -27,14 +27,14 @@ export type MessageListProps = {
  * the screen regains focus, and inline errors that keep rows already on screen.
  */
 export function MessageList({
-  topicId,
+  projectId,
   unreadOnly = false,
   header,
   empty,
   unavailable,
   onOpenMessage,
 }: MessageListProps) {
-  const { query, messages: loaded } = useInbox({ unreadOnly, topicId });
+  const { query, messages: loaded } = useInbox({ unreadOnly, projectId });
   // A refresh that answers "not found" or "forbidden" means access is gone: cached rows
   // must not stay on screen.
   const isUnavailable = isAccessError(query.error);

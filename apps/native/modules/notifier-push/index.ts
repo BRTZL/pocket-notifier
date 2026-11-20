@@ -10,7 +10,7 @@ import { type EventSubscription, NativeModule, requireOptionalNativeModule } fro
  * iOS and web) `isPushAvailable` is `false` and every call is a no-op.
  *
  * Known gaps in v1:
- * - The push has no topic id, so tapping opens the message's `clickUrl` when it is an
+ * - The push has no project id, so tapping opens the message's `clickUrl` when it is an
  *   http(s) or notifier link, else the inbox, never the conversation screen.
  * - A `truncated` push is shown as it arrived; the full message is not fetched.
  * - Avatars are always generated; `conversationIcon` and `senderIcon` URLs are not loaded.

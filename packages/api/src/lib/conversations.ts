@@ -12,9 +12,9 @@ import {
   message,
   messageRead,
   messageResponse,
+  project,
+  projectMember,
   subscription,
-  topic,
-  topicMember,
 } from "@notifier/db/schema/notifier";
 import { and, desc, eq, lt, sql } from "drizzle-orm";
 
@@ -26,18 +26,18 @@ const StoredConversation = Conversation.nullable();
 const StoredSender = Sender.nullable();
 
 /**
- * One row per conversation in the user's topics, newest last message first, from
+ * One row per conversation in the user's projects, newest last message first, from
  * before `cursor` (a last message id). `limit + 1` rows, for `toPage`.
  *
- * The inner query groups the user's non-expired messages by `(topic_id,
+ * The inner query groups the user's non-expired messages by `(project_id,
  * conversation_key)` and keeps the newest id (ids are ULIDs) and the unread count.
  * GROUP BY with `max(id)` rather than a window or a correlated subquery: the unread
  * count needs every non-expired message of the group anyway, so one pass does both.
  * The outer query joins that newest id back to its row for the preview, the
  * conversation JSON and the sender.
  *
- * Plan (`EXPLAIN QUERY PLAN` test): member topics by `topic_member_userId_idx`, their
- * messages by a `(topic_id, …)` index search, reads by primary key, then temp b-trees
+ * Plan (`EXPLAIN QUERY PLAN` test): member projects by `project_member_userId_idx`, their
+ * messages by a `(project_id, …)` index search, reads by primary key, then temp b-trees
  * to group and order the user's rows. No full scan of `message`. The cost grows with
  * the user's non-expired messages, which retention bounds.
  */
@@ -49,15 +49,15 @@ export function conversationsQuery(
   const { userId } = args;
   const groups = db
     .select({
-      topicId: message.topicId,
+      projectId: message.projectId,
       key: message.conversationKey,
       lastId: sql<string>`max(${message.id})`.as("last_id"),
       unreadCount: sql<number>`count(*) - count(${messageRead.messageId})`.as("unread_count"),
     })
     .from(message)
     .innerJoin(
-      topicMember,
-      and(eq(topicMember.topicId, message.topicId), eq(topicMember.userId, userId)),
+      projectMember,
+      and(eq(projectMember.projectId, message.projectId), eq(projectMember.userId, userId)),
     )
     .leftJoin(
       messageRead,
@@ -67,11 +67,11 @@ export function conversationsQuery(
       and(
         notExpired(),
         only
-          ? and(eq(message.topicId, only.topicId), eq(message.conversationKey, only.key))
+          ? and(eq(message.projectId, only.projectId), eq(message.conversationKey, only.key))
           : undefined,
       ),
     )
-    .groupBy(message.topicId, message.conversationKey)
+    .groupBy(message.projectId, message.conversationKey)
     .as("conversation");
 
   return db
@@ -79,16 +79,16 @@ export function conversationsQuery(
       message,
       key: groups.key,
       unreadCount: groups.unreadCount,
-      topicName: topic.name,
-      topicDisplayName: topic.displayName,
+      projectName: project.name,
+      projectDisplayName: project.displayName,
       muted: subscription.muted,
     })
     .from(groups)
     .innerJoin(message, eq(message.id, groups.lastId))
-    .innerJoin(topic, eq(topic.id, groups.topicId))
+    .innerJoin(project, eq(project.id, groups.projectId))
     .leftJoin(
       subscription,
-      and(eq(subscription.topicId, groups.topicId), eq(subscription.userId, userId)),
+      and(eq(subscription.projectId, groups.projectId), eq(subscription.userId, userId)),
     )
     .where(args.cursor ? lt(groups.lastId, args.cursor) : undefined)
     .orderBy(desc(groups.lastId))
@@ -124,39 +124,39 @@ type SummaryRow = {
   message: MessageRow;
   key: string;
   unreadCount: number;
-  topicName: string;
-  topicDisplayName: string | null;
+  projectName: string;
+  projectDisplayName: string | null;
   muted: boolean | null;
 };
 
-/** `topicId` and conversation key as one string, to match rows against a page. */
-function conversationId(topicId: string, key: string) {
-  return `${topicId}\u001f${key}`;
+/** `projectId` and conversation key as one string, to match rows against a page. */
+function conversationId(projectId: string, key: string) {
+  return `${projectId}\u001f${key}`;
 }
 
 /**
  * The open ask of each given conversation, in one query: candidate messages are the
  * non-expired ones of those conversations with a text reply action (`input: true`) the
  * caller has not answered. Newest message first, then its actions in order, so the
- * first candidate per conversation is its open ask. The topic filter keeps the search
- * on the `(topic_id, …)` indexes; the pair filter narrows it to the page.
+ * first candidate per conversation is its open ask. The project filter keeps the search
+ * on the `(project_id, …)` indexes; the pair filter narrows it to the page.
  */
 async function selectOpenAsks(
   db: Database,
   userId: string,
-  conversations: { topicId: string; key: string }[],
+  conversations: { projectId: string; key: string }[],
 ): Promise<Map<string, OpenAsk>> {
   const asks = new Map<string, OpenAsk>();
   if (conversations.length === 0) {
     return asks;
   }
-  const topicIds = [...new Set(conversations.map((row) => row.topicId))];
-  const pairs = conversations.map((row) => conversationId(row.topicId, row.key));
+  const projectIds = [...new Set(conversations.map((row) => row.projectId))];
+  const pairs = conversations.map((row) => conversationId(row.projectId, row.key));
   const action = sql`json_each(${message.actionsJson})`;
   const rows = await db
     .select({
       messageId: message.id,
-      topicId: message.topicId,
+      projectId: message.projectId,
       key: message.conversationKey,
       title: message.title,
       senderJson: message.senderJson,
@@ -167,8 +167,8 @@ async function selectOpenAsks(
     .where(
       and(
         notExpired(),
-        sql`${message.topicId} in (select value from json_each(${JSON.stringify(topicIds)}))`,
-        sql`${message.topicId} || char(31) || ${message.conversationKey} in (select value from json_each(${JSON.stringify(pairs)}))`,
+        sql`${message.projectId} in (select value from json_each(${JSON.stringify(projectIds)}))`,
+        sql`${message.projectId} || char(31) || ${message.conversationKey} in (select value from json_each(${JSON.stringify(pairs)}))`,
         sql`json_extract(action.value, '$.type') = 'reply'`,
         sql`json_extract(action.value, '$.input') = 1`,
         sql`not exists (select 1 from ${messageResponse} where ${messageResponse.messageId} = ${message.id} and ${messageResponse.userId} = ${userId} and ${messageResponse.actionKey} = json_extract(action.value, '$.key'))`,
@@ -176,7 +176,7 @@ async function selectOpenAsks(
     )
     .orderBy(desc(message.id), sql`action.id`);
   for (const row of rows) {
-    const id = conversationId(row.topicId, row.key);
+    const id = conversationId(row.projectId, row.key);
     if (asks.has(id)) {
       continue;
     }
@@ -199,15 +199,15 @@ function toConversationSummary(row: SummaryRow, openAsk: OpenAsk | null): Conver
     : null;
   const sender = parseStored(StoredSender, latest.senderJson, "sender_json", latest.id);
   const assembled = {
-    topicId: latest.topicId,
-    topic: row.topicName,
+    projectId: latest.projectId,
+    project: row.projectName,
     key: row.key,
     title:
       conversation?.title ??
       conversation?.id ??
-      (isConversation ? row.key.slice(2) : (row.topicDisplayName ?? row.topicName)),
+      (isConversation ? row.key.slice(2) : (row.projectDisplayName ?? row.projectName)),
     iconUrl: conversation?.iconUrl ?? null,
-    kind: isConversation ? "conversation" : "topic",
+    kind: isConversation ? "conversation" : "project",
     lastMessage: {
       id: latest.id,
       title: latest.title,
@@ -222,7 +222,7 @@ function toConversationSummary(row: SummaryRow, openAsk: OpenAsk | null): Conver
   };
   const parsed = ConversationSummarySchema.safeParse(assembled);
   if (!parsed.success) {
-    throw new Error(`conversation ${row.key} of ${latest.topicId} does not match its schema`, {
+    throw new Error(`conversation ${row.key} of ${latest.projectId} does not match its schema`, {
       cause: parsed.error,
     });
   }
@@ -234,10 +234,10 @@ async function toSummaries(db: Database, userId: string, rows: SummaryRow[]) {
   const asks = await selectOpenAsks(
     db,
     userId,
-    rows.map((row) => ({ topicId: row.message.topicId, key: row.key })),
+    rows.map((row) => ({ projectId: row.message.projectId, key: row.key })),
   );
   return rows.map((row) =>
-    toConversationSummary(row, asks.get(conversationId(row.message.topicId, row.key)) ?? null),
+    toConversationSummary(row, asks.get(conversationId(row.message.projectId, row.key)) ?? null),
   );
 }
 
@@ -259,7 +259,7 @@ export async function listConversations(
 
 /**
  * One conversation's summary for the user, or `undefined` when it has no non-expired
- * message in a topic they are a member of.
+ * message in a project they are a member of.
  */
 export async function getConversation(db: Database, userId: string, ref: ConversationRef) {
   const [row] = await conversationsQuery(db, { userId, limit: 1, only: ref });

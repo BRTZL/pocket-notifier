@@ -1,4 +1,4 @@
-import type { MyTopic } from "@notifier/contract/topic";
+import type { MyProject } from "@notifier/contract/project";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Button, Card, useToast } from "heroui-native";
@@ -10,32 +10,34 @@ import { errorMessage } from "@/lib/errors";
 import { orpc } from "@/utils/orpc";
 
 /**
- * "Leave topic" for everyone but owners, "Delete topic" for owners. Both end on the
- * topic list: the topic's own screens would only show "not available" afterwards.
+ * "Leave project" for everyone but owners, "Delete project" for owners. Both end on the
+ * project list: the project's own screens would only show "not available" afterwards.
  */
-export function TopicDangerZone({ topic }: { topic: MyTopic }) {
+export function ProjectDangerZone({ project }: { project: MyProject }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: session } = authClient.useSession();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const isOwner = topic.role === "owner";
+  const isOwner = project.role === "owner";
 
   async function leaveScreens(label: string) {
     setIsConfirmOpen(false);
-    // Back to the topic list (the stack's anchor), whatever opened the topic: a deep link
-    // may have put the topic screens on top of it.
-    router.dismissTo("/(tabs)/(topics)");
+    // Back to the project list (the stack's anchor), whatever opened the project: a deep link
+    // may have put the project screens on top of it.
+    router.dismissTo("/(tabs)/(projects)");
     toast.show({ variant: "success", label });
-    // The topic's own data must not linger: drop it, then refresh the lists that showed it.
-    queryClient.removeQueries({ queryKey: orpc.topics.get.queryKey({ input: { id: topic.id } }) });
+    // The project's own data must not linger: drop it, then refresh the lists that showed it.
     queryClient.removeQueries({
-      queryKey: orpc.members.list.key({ input: { topicId: topic.id } }),
+      queryKey: orpc.projects.get.queryKey({ input: { id: project.id } }),
     });
     queryClient.removeQueries({
-      queryKey: orpc.messages.list.key({ input: { topicId: topic.id } }),
+      queryKey: orpc.members.list.key({ input: { projectId: project.id } }),
+    });
+    queryClient.removeQueries({
+      queryKey: orpc.messages.list.key({ input: { projectId: project.id } }),
     });
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: orpc.topics.list.key() }),
+      queryClient.invalidateQueries({ queryKey: orpc.projects.list.key() }),
       queryClient.invalidateQueries({ queryKey: orpc.messages.list.key() }),
     ]);
   }
@@ -45,48 +47,48 @@ export function TopicDangerZone({ topic }: { topic: MyTopic }) {
   };
 
   const remove = useMutation(
-    orpc.topics.delete.mutationOptions({
-      onSuccess: () => leaveScreens(`Deleted ${topic.name}`),
-      onError: onError("Could not delete the topic"),
+    orpc.projects.delete.mutationOptions({
+      onSuccess: () => leaveScreens(`Deleted ${project.name}`),
+      onError: onError("Could not delete the project"),
     }),
   );
   const leave = useMutation(
     orpc.members.remove.mutationOptions({
-      onSuccess: () => leaveScreens(`Left ${topic.name}`),
-      onError: onError("Could not leave the topic"),
+      onSuccess: () => leaveScreens(`Left ${project.name}`),
+      onError: onError("Could not leave the project"),
     }),
   );
   const isPending = remove.isPending || leave.isPending;
 
   function confirm() {
     if (isOwner) {
-      remove.mutate({ id: topic.id });
+      remove.mutate({ id: project.id });
     } else if (session) {
-      leave.mutate({ topicId: topic.id, userId: session.user.id });
+      leave.mutate({ projectId: project.id, userId: session.user.id });
     }
   }
 
   return (
     <Card>
       <Card.Body className="gap-3">
-        <Card.Title>{isOwner ? "Delete topic" : "Leave topic"}</Card.Title>
+        <Card.Title>{isOwner ? "Delete project" : "Leave project"}</Card.Title>
         <Card.Description>
           {isOwner
-            ? "Deletes the topic and all of its messages for every member. This cannot be undone."
+            ? "Deletes the project and all of its messages for every member. This cannot be undone."
             : "You stop seeing its messages. An owner can add you again."}
         </Card.Description>
         <Button variant="danger-soft" onPress={() => setIsConfirmOpen(true)} isDisabled={isPending}>
-          <Button.Label>{isOwner ? "Delete topic" : "Leave topic"}</Button.Label>
+          <Button.Label>{isOwner ? "Delete project" : "Leave project"}</Button.Label>
         </Button>
       </Card.Body>
       <ConfirmDialog
         isOpen={isConfirmOpen}
         onOpenChange={setIsConfirmOpen}
-        title={isOwner ? `Delete ${topic.name}?` : `Leave ${topic.name}?`}
+        title={isOwner ? `Delete ${project.name}?` : `Leave ${project.name}?`}
         description={
           isOwner
-            ? "Every member loses the topic and its messages, and tokens can no longer publish to it."
-            : "The topic and its messages disappear from your inbox."
+            ? "Every member loses the project and its messages, and tokens can no longer publish to it."
+            : "The project and its messages disappear from your inbox."
         }
         confirmLabel={isOwner ? "Delete" : "Leave"}
         isPending={isPending}

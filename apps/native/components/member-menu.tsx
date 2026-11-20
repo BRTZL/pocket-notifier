@@ -1,4 +1,4 @@
-import type { TopicMember, TopicRole } from "@notifier/contract/topic";
+import type { ProjectMember, ProjectRole } from "@notifier/contract/project";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Menu, useToast } from "heroui-native";
 import { useState } from "react";
@@ -8,22 +8,22 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { errorMessage } from "@/lib/errors";
 import { orpc } from "@/utils/orpc";
 
-const ROLES: { role: TopicRole; description: string }[] = [
-  { role: "owner", description: "Manages the topic and its members" },
+const ROLES: { role: ProjectRole; description: string }[] = [
+  { role: "owner", description: "Manages the project and its members" },
   { role: "publisher", description: "Publishes and reads history" },
   { role: "subscriber", description: "Reads history and gets pushes" },
 ];
 
-function roleTitle(role: TopicRole, current: TopicRole): string {
+function roleTitle(role: ProjectRole, current: ProjectRole): string {
   return role === current ? `${role} (current)` : role;
 }
 
 /** Owner actions on another member: change the role or remove them. */
-export function MemberMenu({ member }: { member: TopicMember }) {
+export function MemberMenu({ member }: { member: ProjectMember }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const membersKey = orpc.members.list.queryKey({ input: { topicId: member.topicId } });
+  const membersKey = orpc.members.list.queryKey({ input: { projectId: member.projectId } });
   const onError = (fallback: string) => (error: unknown) => {
     toast.show({ variant: "danger", label: errorMessage(error, fallback) });
   };
@@ -73,7 +73,7 @@ export function MemberMenu({ member }: { member: TopicMember }) {
                 key={role}
                 isDisabled={role === member.role}
                 onPress={() =>
-                  update.mutate({ topicId: member.topicId, userId: member.user.id, role })
+                  update.mutate({ projectId: member.projectId, userId: member.user.id, role })
                 }
               >
                 <View className="flex-1">
@@ -83,7 +83,7 @@ export function MemberMenu({ member }: { member: TopicMember }) {
               </Menu.Item>
             ))}
             <Menu.Item variant="danger" onPress={() => setIsConfirmOpen(true)}>
-              <Menu.ItemTitle>Remove from topic</Menu.ItemTitle>
+              <Menu.ItemTitle>Remove from project</Menu.ItemTitle>
             </Menu.Item>
           </Menu.Content>
         </Menu.Portal>
@@ -92,10 +92,10 @@ export function MemberMenu({ member }: { member: TopicMember }) {
         isOpen={isConfirmOpen}
         onOpenChange={setIsConfirmOpen}
         title={`Remove ${member.user.name}?`}
-        description="They lose access to this topic's messages, and their tokens stop working for it."
+        description="They lose access to this project's messages, and their tokens stop working for it."
         confirmLabel="Remove"
         isPending={remove.isPending}
-        onConfirm={() => remove.mutate({ topicId: member.topicId, userId: member.user.id })}
+        onConfirm={() => remove.mutate({ projectId: member.projectId, userId: member.user.id })}
       />
     </>
   );

@@ -21,7 +21,7 @@ import { orpc } from "@/utils/orpc";
 const Email = z.string().trim().min(1, "Email is required").email("Enter a valid email address");
 
 /** Owner-only: adds an existing user by email; unknown emails get a way to the invite flow. */
-export function AddMemberForm({ topicId }: { topicId: string }) {
+export function AddMemberForm({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
@@ -33,7 +33,7 @@ export function AddMemberForm({ topicId }: { topicId: string }) {
       onSuccess: async (member) => {
         setEmail("");
         await queryClient.invalidateQueries({
-          queryKey: orpc.members.list.queryKey({ input: { topicId } }),
+          queryKey: orpc.members.list.queryKey({ input: { projectId } }),
         });
         toast.show({ variant: "success", label: `Added ${member.user.name} as ${member.role}` });
       },
@@ -43,7 +43,7 @@ export function AddMemberForm({ topicId }: { topicId: string }) {
           return;
         }
         if (hasErrorCode(failure, "CONFLICT")) {
-          setError("Already a member of this topic");
+          setError("Already a member of this project");
           return;
         }
         toast.show({ variant: "danger", label: errorMessage(failure, "Could not add the member") });
@@ -62,7 +62,7 @@ export function AddMemberForm({ topicId }: { topicId: string }) {
       return;
     }
     setError(null);
-    add.mutate({ topicId, email: parsed.data, role });
+    add.mutate({ projectId, email: parsed.data, role });
   }
 
   return (
@@ -108,7 +108,7 @@ export function AddMemberForm({ topicId }: { topicId: string }) {
             onPress={() =>
               router.push({
                 pathname: "/invites/new",
-                params: { email: unknownEmail, topicId, role },
+                params: { email: unknownEmail, projectId, role },
               })
             }
           >

@@ -44,7 +44,7 @@ export function MessageRow({ message, onPress }: { message: InboxMessage; onPres
     >
       <ListGroup.ItemPrefix>
         <SenderAvatar
-          topic={message.topic}
+          project={message.project}
           conversation={message.conversation}
           sender={message.sender}
         />

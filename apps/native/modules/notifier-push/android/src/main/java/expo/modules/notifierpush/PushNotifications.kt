@@ -21,7 +21,7 @@ import androidx.core.graphics.drawable.IconCompat
 /**
  * Builds and posts notifications for pushes. Every message is its own notification,
  * tagged with the message id (so `dismiss` can cancel it exactly), stacked under a group
- * summary per conversation, or per topic without one.
+ * summary per conversation, or per project without one.
  */
 object PushNotifications {
   /** Messages are told apart by tag; the id only separates them from group summaries. */
@@ -33,8 +33,8 @@ object PushNotifications {
   private val OPENABLE_SCHEMES = setOf("http", "https", "notifier")
 
   /** Same as `notificationGroupKey` in `packages/contract/src/push.ts`. */
-  fun groupKey(topic: String, conversationId: String): String =
-    if (conversationId.isNotEmpty()) "topic:$topic:conversation:$conversationId" else "topic:$topic"
+  fun groupKey(project: String, conversationId: String): String =
+    if (conversationId.isNotEmpty()) "project:$project:conversation:$conversationId" else "project:$project"
 
   private fun manager(context: Context) = NotificationManagerCompat.from(context)
 
@@ -49,7 +49,7 @@ object PushNotifications {
       return
     }
     Channels.ensure(context)
-    val groupKey = groupKey(message.topic, message.conversationId)
+    val groupKey = groupKey(message.project, message.conversationId)
     val channelId = Channels.id(message.priority)
     val avatarSize = context.resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_width)
       .coerceAtLeast(96)
@@ -58,9 +58,9 @@ object PushNotifications {
     val conversationAvatar = if (message.conversationId.isNotEmpty()) {
       Avatars.bitmap(message.conversationId, conversationName, avatarSize)
     } else {
-      Avatars.bitmap(message.topic, message.topic, avatarSize)
+      Avatars.bitmap(message.project, message.project, avatarSize)
     }
-    val title = conversationName.ifEmpty { message.topic }
+    val title = conversationName.ifEmpty { message.project }
 
     val builder = NotificationCompat.Builder(context, channelId)
       .setSmallIcon(R.drawable.notifier_push_small_icon)
@@ -79,8 +79,8 @@ object PushNotifications {
 
     val text = messageText(message)
     if (message.conversationId.isNotEmpty() || message.senderId.isNotEmpty() || message.replies.isNotEmpty()) {
-      val senderKey = message.senderId.ifEmpty { message.topic }
-      val senderName = message.senderName.ifEmpty { message.senderId }.ifEmpty { message.topic }
+      val senderKey = message.senderId.ifEmpty { message.project }
+      val senderName = message.senderName.ifEmpty { message.senderId }.ifEmpty { message.project }
       val sender = Person.Builder()
         .setKey(senderKey)
         .setName(senderName)
@@ -97,7 +97,7 @@ object PushNotifications {
       builder.setStyle(style)
     } else {
       builder
-        .setContentTitle(message.title.ifEmpty { message.topic })
+        .setContentTitle(message.title.ifEmpty { message.project })
         .setContentText(message.body)
         .setStyle(NotificationCompat.BigTextStyle().bigText(message.body))
     }
@@ -152,7 +152,7 @@ object PushNotifications {
       .setColor(ACCENT)
       .setContentTitle(title)
       .setContentText(if (count == 1) "1 new message" else "$count new messages")
-      .setSubText(message.topic)
+      .setSubText(message.project)
       .setGroup(groupKey)
       .setGroupSummary(true)
       .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
@@ -194,7 +194,7 @@ object PushNotifications {
 
   /**
    * What a tap opens: the `clickUrl` when it is a web or notifier link, else the inbox.
-   * The push has no topic id, so it cannot link to the conversation screen yet.
+   * The push has no project id, so it cannot link to the conversation screen yet.
    */
   private fun tapIntent(context: Context, message: PushMessage): PendingIntent {
     val target = message.clickUrl.takeIf { isOpenable(it) } ?: "notifier://"

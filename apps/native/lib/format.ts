@@ -28,15 +28,15 @@ export function fullTime(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
-type Headline = Pick<InboxMessage, "conversation" | "sender" | "topic">;
+type Headline = Pick<InboxMessage, "conversation" | "sender" | "project">;
 
 /**
  * The row's title line: `<conversation> · <sender>` for chat-style messages,
- * otherwise the topic name.
+ * otherwise the project name.
  */
-export function messageHeadline({ conversation, sender, topic }: Headline): string {
+export function messageHeadline({ conversation, sender, project }: Headline): string {
   if (!conversation) {
-    return sender ? `${topic} · ${sender.name ?? sender.id}` : topic;
+    return sender ? `${project} · ${sender.name ?? sender.id}` : project;
   }
   const title = conversation.title ?? conversation.id;
   return sender ? `${title} · ${sender.name ?? sender.id}` : title;

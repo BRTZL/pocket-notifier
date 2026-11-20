@@ -1,24 +1,24 @@
 import { z } from "zod";
 
 import { idSchema, Timestamp, UserSummary } from "./common";
-import { TopicId, TopicRole } from "./topic";
+import { ProjectId, ProjectRole } from "./project";
 
 export const InviteId = idSchema("invite");
 
 /** The code is the secret part of the invite link `<web>/invite/<code>`. */
 export const InviteCode = z.string().regex(/^[0-9A-Za-z]{24}$/u);
 
-export const InviteTopicGrant = z.object({
-  topicId: TopicId,
-  role: TopicRole.exclude(["owner"]),
+export const InviteProjectGrant = z.object({
+  projectId: ProjectId,
+  role: ProjectRole.exclude(["owner"]),
 });
 
 export const Invite = z.object({
   id: InviteId,
   /** When set, only this email can accept the invite. */
   email: z.email().nullable(),
-  /** Topic memberships granted when the invite is accepted. */
-  grants: z.array(InviteTopicGrant),
+  /** Project memberships granted when the invite is accepted. */
+  grants: z.array(InviteProjectGrant),
   createdBy: UserSummary,
   expiresAt: Timestamp,
   acceptedAt: Timestamp.nullable(),
@@ -30,7 +30,7 @@ export type Invite = z.infer<typeof Invite>;
 
 export const CreateInviteInput = z.object({
   email: z.email().optional(),
-  grants: z.array(InviteTopicGrant).max(50).default([]),
+  grants: z.array(InviteProjectGrant).max(50).default([]),
   expiresInDays: z.number().int().min(1).max(30).default(7),
 });
 
@@ -44,6 +44,6 @@ export const CreateInviteOutput = z.object({
 export const InvitePreview = z.object({
   invitedBy: z.string(),
   email: z.email().nullable(),
-  topics: z.array(z.string()),
+  projects: z.array(z.string()),
   expiresAt: Timestamp,
 });

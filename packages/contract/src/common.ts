@@ -5,7 +5,7 @@ import { z } from "zod";
  * User IDs come from better-auth and use its own format.
  */
 export const ID_PREFIXES = {
-  topic: "top",
+  project: "prj",
   message: "msg",
   attachment: "att",
   response: "rsp",

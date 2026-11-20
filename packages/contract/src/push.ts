@@ -1,8 +1,9 @@
 import { z } from "zod";
 
+import { ConversationKey } from "./conversation";
 import { MessageId } from "./message";
 import type { Priority } from "./priority";
-import { TopicName } from "./topic";
+import { ProjectId, ProjectName } from "./project";
 
 /**
  * Wire format of the FCM data-only message the server sends to devices.
@@ -22,7 +23,11 @@ export const PushMessageData = z.object({
   v: z.literal(PUSH_VERSION),
   kind: z.literal("message"),
   id: MessageId,
-  topic: TopicName,
+  project: ProjectName,
+  /** With `conversationKey`, names the thread a tap opens: `notifier://conversation/<projectId>/<key>`. */
+  projectId: ProjectId,
+  /** `c:<conversation id>`, or `p:<project id>` for the project-level thread. */
+  conversationKey: ConversationKey,
   title: z.string(),
   body: z.string().max(PUSH_BODY_MAX),
   priority: z.enum(["1", "2", "3", "4", "5"]),
@@ -124,8 +129,10 @@ export const ANDROID_CHANNELS = {
 
 /**
  * Notifications stack under this key: per conversation when the message has
- * one, otherwise per topic.
+ * one, otherwise per project.
  */
-export function notificationGroupKey(topic: string, conversationId?: string) {
-  return conversationId ? `topic:${topic}:conversation:${conversationId}` : `topic:${topic}`;
+export function notificationGroupKey(project: string, conversationId?: string) {
+  return conversationId
+    ? `project:${project}:conversation:${conversationId}`
+    : `project:${project}`;
 }

@@ -1,5 +1,5 @@
 import { PRIORITY_NAMES, type Priority } from "@notifier/contract/priority";
-import { RETENTION_DAYS } from "@notifier/contract/topic";
+import { RETENTION_DAYS } from "@notifier/contract/project";
 import {
   Description,
   FieldError,
@@ -13,7 +13,7 @@ import {
 import { Fragment } from "react";
 import { View } from "react-native";
 
-import type { TopicFormField, TopicFormValues } from "@/lib/topic-form";
+import type { ProjectFormField, ProjectFormValues } from "@/lib/project-form";
 
 const PRIORITIES = ([1, 2, 3, 4, 5] as const).map((priority) => ({
   value: String(priority),
@@ -70,19 +70,19 @@ export function PrioritySelect({
 }
 
 /**
- * The topic form's fields. `name` is only shown when creating: it is part of publish
+ * The project form's fields. `name` is only shown when creating: it is part of publish
  * URLs and cannot change afterwards.
  */
-export function TopicFields({
+export function ProjectFields({
   values,
   errors,
   onChange,
   withName,
   isDisabled,
 }: {
-  values: TopicFormValues;
-  errors: Partial<Record<TopicFormField, string>>;
-  onChange: <K extends TopicFormField>(field: K, value: TopicFormValues[K]) => void;
+  values: ProjectFormValues;
+  errors: Partial<Record<ProjectFormField, string>>;
+  onChange: <K extends ProjectFormField>(field: K, value: ProjectFormValues[K]) => void;
   withName: boolean;
   isDisabled?: boolean;
 }) {

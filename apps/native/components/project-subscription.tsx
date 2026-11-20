@@ -1,4 +1,4 @@
-import type { MyTopic } from "@notifier/contract/topic";
+import type { MyProject } from "@notifier/contract/project";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, ControlField, Description, Label, Separator, useToast } from "heroui-native";
 import { useRef } from "react";
@@ -7,21 +7,21 @@ import { View } from "react-native";
 import { errorMessage } from "@/lib/errors";
 import { orpc } from "@/utils/orpc";
 
-/** The signed-in user's own push settings for a topic. */
-export function TopicSubscription({ topic }: { topic: MyTopic }) {
+/** The signed-in user's own push settings for a project. */
+export function ProjectSubscription({ project }: { project: MyProject }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const mutation = useMutation(
-    orpc.topics.setSubscription.mutationOptions({
+    orpc.projects.setSubscription.mutationOptions({
       // Refetch rather than write the response over the cache: it may be older than an
-      // edit of the topic's details that finished meanwhile. The switches keep showing the
+      // edit of the project's details that finished meanwhile. The switches keep showing the
       // sent values until the refetch lands, since the mutation stays pending until then.
       onSuccess: async () => {
         await Promise.all([
           queryClient.invalidateQueries({
-            queryKey: orpc.topics.get.queryKey({ input: { id: topic.id } }),
+            queryKey: orpc.projects.get.queryKey({ input: { id: project.id } }),
           }),
-          queryClient.invalidateQueries({ queryKey: orpc.topics.list.key() }),
+          queryClient.invalidateQueries({ queryKey: orpc.projects.list.key() }),
         ]);
       },
       onError: (error) => {
@@ -30,8 +30,8 @@ export function TopicSubscription({ topic }: { topic: MyTopic }) {
     }),
   );
   // Show the change right away while it is saved.
-  const subscribed = mutation.isPending ? mutation.variables.subscribed : topic.subscribed;
-  const muted = mutation.isPending ? Boolean(mutation.variables.muted) : topic.muted;
+  const subscribed = mutation.isPending ? mutation.variables.subscribed : project.subscribed;
+  const muted = mutation.isPending ? Boolean(mutation.variables.muted) : project.muted;
 
   // One synchronous lock for both switches: a second toggle before the first settles
   // would be computed from stale values.
@@ -43,7 +43,7 @@ export function TopicSubscription({ topic }: { topic: MyTopic }) {
     }
     saveLock.current = true;
     mutation.mutate(
-      { topicId: topic.id, ...next },
+      { projectId: project.id, ...next },
       {
         onSettled: () => {
           saveLock.current = false;
@@ -62,7 +62,7 @@ export function TopicSubscription({ topic }: { topic: MyTopic }) {
         >
           <View className="flex-1">
             <Label>Subscribed</Label>
-            <Description>Your devices get push notifications for this topic.</Description>
+            <Description>Your devices get push notifications for this project.</Description>
           </View>
           <ControlField.Indicator />
         </ControlField>

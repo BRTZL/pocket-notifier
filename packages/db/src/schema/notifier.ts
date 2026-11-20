@@ -1,5 +1,5 @@
 import { DEFAULT_PRIORITY } from "@notifier/contract/priority";
-import { RETENTION_DAYS } from "@notifier/contract/topic";
+import { RETENTION_DAYS } from "@notifier/contract/project";
 import { defineRelationsPart, sql } from "drizzle-orm";
 import {
   check,
@@ -19,8 +19,8 @@ function createdAt() {
   return integer("created_at", { mode: "timestamp_ms" }).default(nowMs).notNull();
 }
 
-export const topic = sqliteTable(
-  "topic",
+export const project = sqliteTable(
+  "project",
   {
     id: text("id").primaryKey(),
     name: text("name").notNull().unique(),
@@ -32,7 +32,7 @@ export const topic = sqliteTable(
      * Set on a user's personal "General" project, which takes notifications sent without
      * a project. At most one per user (the unique index). Uniqueness is an index, not a
      * column constraint, so adding the column stays an `ALTER TABLE` instead of a table
-     * rebuild (dropping `topic` on D1 would cascade-delete its messages).
+     * rebuild (dropping `project` on D1 would cascade-delete its messages).
      */
     personalUserId: text("personal_user_id").references(() => user.id, { onDelete: "cascade" }),
     createdAt: createdAt(),
@@ -41,7 +41,7 @@ export const topic = sqliteTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [uniqueIndex("topic_personalUserId_uidx").on(table.personalUserId)],
+  (table) => [uniqueIndex("project_personalUserId_uidx").on(table.personalUserId)],
 );
 
 /**
@@ -53,10 +53,10 @@ export const feature = sqliteTable(
   "feature",
   {
     id: text("id").primaryKey(),
-    topicId: text("topic_id")
+    projectId: text("project_id")
       .notNull()
-      .references(() => topic.id, { onDelete: "cascade" }),
-    /** Unique per topic: lowercase `[a-z0-9][a-z0-9-]{0,62}`; the conversation id. */
+      .references(() => project.id, { onDelete: "cascade" }),
+    /** Unique per project: lowercase `[a-z0-9][a-z0-9-]{0,62}`; the conversation id. */
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     description: text("description"),
@@ -72,7 +72,7 @@ export const feature = sqliteTable(
     lastMessageAt: integer("last_message_at", { mode: "timestamp_ms" }),
   },
   (table) => [
-    uniqueIndex("feature_topicId_slug_uidx").on(table.topicId, table.slug),
+    uniqueIndex("feature_projectId_slug_uidx").on(table.projectId, table.slug),
     check("feature_status_check", sql`${table.status} in ('active', 'done', 'archived')`),
     check(
       "feature_slug_check",
@@ -81,12 +81,12 @@ export const feature = sqliteTable(
   ],
 );
 
-export const topicMember = sqliteTable(
-  "topic_member",
+export const projectMember = sqliteTable(
+  "project_member",
   {
-    topicId: text("topic_id")
+    projectId: text("project_id")
       .notNull()
-      .references(() => topic.id, { onDelete: "cascade" }),
+      .references(() => project.id, { onDelete: "cascade" }),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -94,18 +94,18 @@ export const topicMember = sqliteTable(
     addedAt: integer("added_at", { mode: "timestamp_ms" }).default(nowMs).notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.topicId, table.userId] }),
-    index("topic_member_userId_idx").on(table.userId),
-    check("topic_member_role_check", sql`${table.role} in ('owner', 'publisher', 'subscriber')`),
+    primaryKey({ columns: [table.projectId, table.userId] }),
+    index("project_member_userId_idx").on(table.userId),
+    check("project_member_role_check", sql`${table.role} in ('owner', 'publisher', 'subscriber')`),
   ],
 );
 
 export const subscription = sqliteTable(
   "subscription",
   {
-    topicId: text("topic_id")
+    projectId: text("project_id")
       .notNull()
-      .references(() => topic.id, { onDelete: "cascade" }),
+      .references(() => project.id, { onDelete: "cascade" }),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -113,7 +113,7 @@ export const subscription = sqliteTable(
     createdAt: createdAt(),
   },
   (table) => [
-    primaryKey({ columns: [table.topicId, table.userId] }),
+    primaryKey({ columns: [table.projectId, table.userId] }),
     index("subscription_userId_idx").on(table.userId),
   ],
 );
@@ -149,9 +149,9 @@ export const message = sqliteTable(
   "message",
   {
     id: text("id").primaryKey(),
-    topicId: text("topic_id")
+    projectId: text("project_id")
       .notNull()
-      .references(() => topic.id, { onDelete: "cascade" }),
+      .references(() => project.id, { onDelete: "cascade" }),
     title: text("title"),
     body: text("body").default("").notNull(),
     priority: integer("priority").notNull(),
@@ -161,8 +161,8 @@ export const message = sqliteTable(
     conversationJson: text("conversation_json"),
     senderJson: text("sender_json"),
     /**
-     * Which conversation of its topic the message belongs to: `c:<conversation.id>`, or
-     * `t:<topic id>` for messages without a conversation. Set at publish. The `''`
+     * Which conversation of its project the message belongs to: `c:<conversation.id>`, or
+     * `p:<project id>` for messages without a conversation. Set at publish. The `''`
      * default matches the column the migration added; the
      * `message_conversation_key_default` trigger replaces it with the derived key.
      */
@@ -173,9 +173,9 @@ export const message = sqliteTable(
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
   },
   (table) => [
-    index("message_topicId_id_idx").on(table.topicId, table.id),
-    index("message_topicId_conversationKey_id_idx").on(
-      table.topicId,
+    index("message_projectId_id_idx").on(table.projectId, table.id),
+    index("message_projectId_conversationKey_id_idx").on(
+      table.projectId,
       table.conversationKey,
       table.id,
     ),
@@ -265,9 +265,9 @@ export const invite = sqliteTable(
 export const notifierRelations = defineRelationsPart(
   {
     user,
-    topic,
+    project,
     feature,
-    topicMember,
+    projectMember,
     subscription,
     accessToken,
     message,
@@ -278,34 +278,38 @@ export const notifierRelations = defineRelationsPart(
   },
   (r) => ({
     user: {
-      memberships: r.many.topicMember({ from: r.user.id, to: r.topicMember.userId }),
+      memberships: r.many.projectMember({ from: r.user.id, to: r.projectMember.userId }),
       subscriptions: r.many.subscription({ from: r.user.id, to: r.subscription.userId }),
       accessTokens: r.many.accessToken({ from: r.user.id, to: r.accessToken.userId }),
       devices: r.many.device({ from: r.user.id, to: r.device.userId }),
       invites: r.many.invite({ from: r.user.id, to: r.invite.createdBy }),
     },
-    topic: {
-      members: r.many.topicMember({ from: r.topic.id, to: r.topicMember.topicId }),
-      subscriptions: r.many.subscription({ from: r.topic.id, to: r.subscription.topicId }),
-      messages: r.many.message({ from: r.topic.id, to: r.message.topicId }),
-      features: r.many.feature({ from: r.topic.id, to: r.feature.topicId }),
+    project: {
+      members: r.many.projectMember({ from: r.project.id, to: r.projectMember.projectId }),
+      subscriptions: r.many.subscription({ from: r.project.id, to: r.subscription.projectId }),
+      messages: r.many.message({ from: r.project.id, to: r.message.projectId }),
+      features: r.many.feature({ from: r.project.id, to: r.feature.projectId }),
     },
     feature: {
-      topic: r.one.topic({ from: r.feature.topicId, to: r.topic.id, optional: false }),
+      project: r.one.project({ from: r.feature.projectId, to: r.project.id, optional: false }),
     },
-    topicMember: {
-      topic: r.one.topic({ from: r.topicMember.topicId, to: r.topic.id, optional: false }),
-      user: r.one.user({ from: r.topicMember.userId, to: r.user.id, optional: false }),
+    projectMember: {
+      project: r.one.project({
+        from: r.projectMember.projectId,
+        to: r.project.id,
+        optional: false,
+      }),
+      user: r.one.user({ from: r.projectMember.userId, to: r.user.id, optional: false }),
     },
     subscription: {
-      topic: r.one.topic({ from: r.subscription.topicId, to: r.topic.id, optional: false }),
+      project: r.one.project({ from: r.subscription.projectId, to: r.project.id, optional: false }),
       user: r.one.user({ from: r.subscription.userId, to: r.user.id, optional: false }),
     },
     accessToken: {
       user: r.one.user({ from: r.accessToken.userId, to: r.user.id, optional: false }),
     },
     message: {
-      topic: r.one.topic({ from: r.message.topicId, to: r.topic.id, optional: false }),
+      project: r.one.project({ from: r.message.projectId, to: r.project.id, optional: false }),
       publisher: r.one.user({ from: r.message.publishedBy, to: r.user.id }),
       token: r.one.accessToken({ from: r.message.tokenId, to: r.accessToken.id }),
       responses: r.many.messageResponse({ from: r.message.id, to: r.messageResponse.messageId }),

@@ -21,7 +21,7 @@ export function useConversations() {
 
 /**
  * Refetches everything that shows read state or responses: conversations, message lists
- * and single messages, and topic unread counts.
+ * and single messages, and project unread counts.
  */
 export function useInvalidateReadState() {
   const queryClient = useQueryClient();
@@ -29,7 +29,7 @@ export function useInvalidateReadState() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: orpc.conversations.key() }),
       queryClient.invalidateQueries({ queryKey: orpc.messages.key() }),
-      queryClient.invalidateQueries({ queryKey: orpc.topics.key() }),
+      queryClient.invalidateQueries({ queryKey: orpc.projects.key() }),
     ]);
   };
 }

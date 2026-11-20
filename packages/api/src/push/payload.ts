@@ -12,7 +12,15 @@ type MessageData = z.infer<typeof PushMessageData>;
 type DismissData = z.infer<typeof PushDismissData>;
 type OptionalKey = Exclude<
   keyof MessageData,
-  "v" | "kind" | "id" | "topic" | "priority" | "createdAt" | "truncated"
+  | "v"
+  | "kind"
+  | "id"
+  | "project"
+  | "projectId"
+  | "conversationKey"
+  | "priority"
+  | "createdAt"
+  | "truncated"
 >;
 
 /** Optional fields after the always-sent ones, in the order `api/push-payload.mdx` fills them. */
@@ -96,7 +104,11 @@ export function toPushData(message: Message): MessageData {
     v: PUSH_VERSION,
     kind: "message",
     id: message.id,
-    topic: message.topic,
+    project: message.project,
+    projectId: message.projectId,
+    conversationKey: message.conversation
+      ? `c:${message.conversation.id}`
+      : `p:${message.projectId}`,
     title: "",
     body: "",
     priority: String(message.priority) as MessageData["priority"],

@@ -10,14 +10,14 @@ describe("members", () => {
   let ada: TestUser;
   let bob: TestUser;
   let carol: TestUser;
-  let topicId: string;
+  let projectId: string;
 
   beforeEach(async () => {
     testDb = await createTestDb();
     ada = await seedUser(testDb.db, "ada");
     bob = await seedUser(testDb.db, "bob");
     carol = await seedUser(testDb.db, "carol");
-    ({ id: topicId } = await clientFor(testDb.db, ada).topics.create({ name: "team" }));
+    ({ id: projectId } = await clientFor(testDb.db, ada).projects.create({ name: "team" }));
   });
 
   afterEach(async () => {
@@ -27,28 +27,28 @@ describe("members", () => {
   it("adds a member with a subscription and lists members", async () => {
     const owner = clientFor(testDb.db, ada);
     const added = await owner.members.add({
-      topicId,
+      projectId,
       email: "BOB@example.com",
       role: "subscriber",
     });
     expect(added).toMatchObject({
-      topicId,
+      projectId,
       role: "subscriber",
       user: { id: "bob", name: "User bob", email: "bob@example.com", image: null },
     });
 
     const bobClient = clientFor(testDb.db, bob);
-    await expect(bobClient.topics.get({ id: topicId })).resolves.toMatchObject({
+    await expect(bobClient.projects.get({ id: projectId })).resolves.toMatchObject({
       role: "subscriber",
       subscribed: true,
       muted: false,
     });
-    const members = await bobClient.members.list({ topicId });
+    const members = await bobClient.members.list({ projectId });
     expect(members.map((m) => [m.user.id, m.role])).toEqual([
       ["ada", "owner"],
       ["bob", "subscriber"],
     ]);
-    await expect(clientFor(testDb.db, carol).members.list({ topicId })).rejects.toMatchObject(
+    await expect(clientFor(testDb.db, carol).members.list({ projectId })).rejects.toMatchObject(
       definedError("NOT_FOUND"),
     );
   });
@@ -56,86 +56,90 @@ describe("members", () => {
   it("rejects unknown emails, duplicates and non-owners", async () => {
     const owner = clientFor(testDb.db, ada);
     await expect(
-      owner.members.add({ topicId, email: "nobody@example.com", role: "publisher" }),
+      owner.members.add({ projectId, email: "nobody@example.com", role: "publisher" }),
     ).rejects.toMatchObject(definedError("NOT_FOUND"));
-    await owner.members.add({ topicId, email: bob.email, role: "publisher" });
+    await owner.members.add({ projectId, email: bob.email, role: "publisher" });
     await expect(
-      owner.members.add({ topicId, email: bob.email, role: "subscriber" }),
+      owner.members.add({ projectId, email: bob.email, role: "subscriber" }),
     ).rejects.toMatchObject(definedError("CONFLICT"));
     await expect(
-      clientFor(testDb.db, bob).members.add({ topicId, email: carol.email, role: "subscriber" }),
+      clientFor(testDb.db, bob).members.add({ projectId, email: carol.email, role: "subscriber" }),
     ).rejects.toMatchObject(definedError("FORBIDDEN"));
   });
 
   it("changes roles, but never demotes the last owner", async () => {
     const owner = clientFor(testDb.db, ada);
-    await owner.members.add({ topicId, email: bob.email, role: "subscriber" });
+    await owner.members.add({ projectId, email: bob.email, role: "subscriber" });
 
     await expect(
-      owner.members.update({ topicId, userId: ada.id, role: "publisher" }),
+      owner.members.update({ projectId, userId: ada.id, role: "publisher" }),
     ).rejects.toMatchObject({ ...definedError("FORBIDDEN"), message: LAST_OWNER_MESSAGE });
     await expect(
-      clientFor(testDb.db, bob).members.update({ topicId, userId: bob.id, role: "owner" }),
+      clientFor(testDb.db, bob).members.update({ projectId, userId: bob.id, role: "owner" }),
     ).rejects.toMatchObject(definedError("FORBIDDEN"));
     await expect(
-      owner.members.update({ topicId, userId: carol.id, role: "publisher" }),
+      owner.members.update({ projectId, userId: carol.id, role: "publisher" }),
     ).rejects.toMatchObject(definedError("NOT_FOUND"));
 
     await expect(
-      owner.members.update({ topicId, userId: bob.id, role: "owner" }),
+      owner.members.update({ projectId, userId: bob.id, role: "owner" }),
     ).resolves.toMatchObject({ role: "owner", user: { id: "bob" } });
     // With two owners, one may step down.
     await expect(
-      owner.members.update({ topicId, userId: ada.id, role: "publisher" }),
+      owner.members.update({ projectId, userId: ada.id, role: "publisher" }),
     ).resolves.toMatchObject({ role: "publisher" });
   });
 
   it("protects the last owner from removal and leaving", async () => {
     const owner = clientFor(testDb.db, ada);
-    await owner.members.add({ topicId, email: bob.email, role: "publisher" });
+    await owner.members.add({ projectId, email: bob.email, role: "publisher" });
 
-    await expect(owner.members.remove({ topicId, userId: ada.id })).rejects.toMatchObject(
+    await expect(owner.members.remove({ projectId, userId: ada.id })).rejects.toMatchObject(
       definedError("FORBIDDEN"),
     );
-    await expect(owner.topics.get({ id: topicId })).resolves.toMatchObject({
+    await expect(owner.projects.get({ id: projectId })).resolves.toMatchObject({
       role: "owner",
       subscribed: true,
     });
 
-    await owner.members.update({ topicId, userId: bob.id, role: "owner" });
-    await expect(owner.members.remove({ topicId, userId: ada.id })).resolves.toEqual({ ok: true });
-    await expect(owner.topics.get({ id: topicId })).rejects.toMatchObject(
+    await owner.members.update({ projectId, userId: bob.id, role: "owner" });
+    await expect(owner.members.remove({ projectId, userId: ada.id })).resolves.toEqual({
+      ok: true,
+    });
+    await expect(owner.projects.get({ id: projectId })).rejects.toMatchObject(
       definedError("NOT_FOUND"),
     );
     await expect(
-      clientFor(testDb.db, bob).members.remove({ topicId, userId: bob.id }),
+      clientFor(testDb.db, bob).members.remove({ projectId, userId: bob.id }),
     ).rejects.toMatchObject(definedError("FORBIDDEN"));
   });
 
   it("lets owners remove members and members leave, dropping their subscription", async () => {
     const { db } = testDb;
     const owner = clientFor(db, ada);
-    await owner.members.add({ topicId, email: bob.email, role: "publisher" });
-    await owner.members.add({ topicId, email: carol.email, role: "subscriber" });
+    await owner.members.add({ projectId, email: bob.email, role: "publisher" });
+    await owner.members.add({ projectId, email: carol.email, role: "subscriber" });
 
     // A non-owner cannot remove someone else.
     await expect(
-      clientFor(db, bob).members.remove({ topicId, userId: carol.id }),
+      clientFor(db, bob).members.remove({ projectId, userId: carol.id }),
     ).rejects.toMatchObject(definedError("FORBIDDEN"));
 
-    await expect(clientFor(db, bob).members.remove({ topicId, userId: bob.id })).resolves.toEqual({
+    await expect(clientFor(db, bob).members.remove({ projectId, userId: bob.id })).resolves.toEqual(
+      {
+        ok: true,
+      },
+    );
+    await expect(owner.members.remove({ projectId, userId: carol.id })).resolves.toEqual({
       ok: true,
     });
-    await expect(owner.members.remove({ topicId, userId: carol.id })).resolves.toEqual({
-      ok: true,
-    });
-    await expect(owner.members.remove({ topicId, userId: carol.id })).rejects.toMatchObject(
+    await expect(owner.members.remove({ projectId, userId: carol.id })).rejects.toMatchObject(
       definedError("NOT_FOUND"),
     );
 
-    const subscriptions = await db.query.subscription.findMany({ where: { topicId } });
+    const subscriptions = await db.query.subscription.findMany({ where: { projectId } });
     expect(subscriptions.map((s) => s.userId)).toEqual(["ada"]);
-    const members = await owner.members.list({ topicId });
+    const members = await owner.members.list({ projectId });
     expect(members.map((m) => m.user.id)).toEqual(["ada"]);
   });
 });

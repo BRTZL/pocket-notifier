@@ -1,15 +1,15 @@
-import { InviteCode, InviteTopicGrant } from "@notifier/contract/invite";
+import { InviteCode, InviteProjectGrant } from "@notifier/contract/invite";
 import type { Database } from "@notifier/db";
 import { user } from "@notifier/db/schema/auth";
-import { invite, subscription, topic, topicMember } from "@notifier/db/schema/notifier";
+import { invite, project, projectMember, subscription } from "@notifier/db/schema/notifier";
 import { sha256Hex } from "@notifier/db/secrets";
 import { and, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 export type InviteRow = typeof invite.$inferSelect;
-export type InviteGrant = z.infer<typeof InviteTopicGrant>;
+export type InviteGrant = z.infer<typeof InviteProjectGrant>;
 
-const Grants = z.array(InviteTopicGrant);
+const Grants = z.array(InviteProjectGrant);
 
 /** Parses `invite.grants_json`. Unreadable data counts as no grants rather than failing. */
 export function parseGrants(json: string): InviteGrant[] {
@@ -90,7 +90,7 @@ export async function releaseInvite(db: Database, inviteId: string): Promise<voi
 /**
  * Links a claimed invite to the user created with it and applies its grants: a
  * membership with the granted role plus an unmuted subscription, for each granted
- * topic that still exists and that the inviter still owns.
+ * project that still exists and that the inviter still owns.
  *
  * One D1 batch, which is a single transaction. Every INSERT is gated in SQL on the
  * invite now being accepted by this user and on the inviter's current ownership, so
@@ -113,23 +113,23 @@ export async function finalizeInvite(
 
   const grantable = sql`exists (
     select 1 from ${invite}
-    inner join ${topicMember} as inviter
-      on inviter.user_id = ${invite.createdBy} and inviter.topic_id = ${topic.id}
+    inner join ${projectMember} as inviter
+      on inviter.user_id = ${invite.createdBy} and inviter.project_id = ${project.id}
     where ${invite.id} = ${inviteId} and ${invite.acceptedBy} = ${userId}
       and inviter.role = 'owner'
   )`;
   const grantInserts = parseGrants(current.grantsJson).flatMap((grant) => [
     db
-      .insert(topicMember)
+      .insert(projectMember)
       .select(
         db
           .select({
-            topicId: topic.id,
+            projectId: project.id,
             userId: sql<string>`${userId}`.as("user_id"),
             role: sql<InviteGrant["role"]>`${grant.role}`.as("role"),
           })
-          .from(topic)
-          .where(and(eq(topic.id, grant.topicId), grantable)),
+          .from(project)
+          .where(and(eq(project.id, grant.projectId), grantable)),
       )
       .onConflictDoNothing(),
     db
@@ -137,12 +137,12 @@ export async function finalizeInvite(
       .select(
         db
           .select({
-            topicId: topic.id,
+            projectId: project.id,
             userId: sql<string>`${userId}`.as("user_id"),
             muted: sql<boolean>`0`.as("muted"),
           })
-          .from(topic)
-          .where(and(eq(topic.id, grant.topicId), grantable)),
+          .from(project)
+          .where(and(eq(project.id, grant.projectId), grantable)),
       )
       .onConflictDoNothing(),
   ]);

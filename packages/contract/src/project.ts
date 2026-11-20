@@ -3,13 +3,13 @@ import { z } from "zod";
 import { idSchema, Timestamp, UserSummary } from "./common";
 import { Priority } from "./priority";
 
-export const TopicId = idSchema("topic");
+export const ProjectId = idSchema("project");
 
 /**
- * Topic names are unique per deployment and appear in publish URLs:
+ * Project names are unique per deployment and appear in publish URLs:
  * lowercase letters, digits, `-` and `_`, starting with a letter or digit.
  */
-export const TopicName = z
+export const ProjectName = z
   .string()
   .min(1)
   .max(64)
@@ -18,34 +18,34 @@ export const TopicName = z
 export const RETENTION_DAYS = { default: 30, min: 1, max: 365 } as const;
 
 /**
- * Days to keep a topic's messages. No `.default()` here: update inputs must be able
+ * Days to keep a project's messages. No `.default()` here: update inputs must be able
  * to tell "not given" apart from 30. Creation falls back to `RETENTION_DAYS.default`.
  */
 export const RetentionDays = z.number().int().min(RETENTION_DAYS.min).max(RETENTION_DAYS.max);
 
 /**
- * - `owner`: manages the topic and its members, publishes, subscribes.
+ * - `owner`: manages the project and its members, publishes, subscribes.
  * - `publisher`: publishes and reads history.
  * - `subscriber`: reads history and receives pushes.
  */
-export const TopicRole = z.enum(["owner", "publisher", "subscriber"]);
-export type TopicRole = z.infer<typeof TopicRole>;
+export const ProjectRole = z.enum(["owner", "publisher", "subscriber"]);
+export type ProjectRole = z.infer<typeof ProjectRole>;
 
-export const Topic = z.object({
-  id: TopicId,
-  name: TopicName,
+export const Project = z.object({
+  id: ProjectId,
+  name: ProjectName,
   displayName: z.string().min(1).max(80).nullable(),
   description: z.string().max(500).nullable(),
   defaultPriority: Priority,
   retentionDays: RetentionDays,
   createdAt: Timestamp,
 });
-export type Topic = z.infer<typeof Topic>;
+export type Project = z.infer<typeof Project>;
 
-/** A topic as seen by the signed-in user. */
-export const MyTopic = Topic.extend({
-  role: TopicRole,
-  /** Whether this user's devices receive pushes for the topic. */
+/** A project as seen by the signed-in user. */
+export const MyProject = Project.extend({
+  role: ProjectRole,
+  /** Whether this user's devices receive pushes for the project. */
   subscribed: z.boolean(),
   /** Subscribed but silenced: messages land in the inbox without a push. */
   muted: z.boolean(),
@@ -57,47 +57,47 @@ export const MyTopic = Topic.extend({
    */
   personal: z.boolean(),
 });
-export type MyTopic = z.infer<typeof MyTopic>;
+export type MyProject = z.infer<typeof MyProject>;
 
-export const CreateTopicInput = z.object({
-  name: TopicName,
+export const CreateProjectInput = z.object({
+  name: ProjectName,
   displayName: z.string().min(1).max(80).optional(),
   description: z.string().max(500).optional(),
   defaultPriority: Priority.optional(),
   retentionDays: RetentionDays.optional(),
 });
 
-export const UpdateTopicInput = z.object({
-  id: TopicId,
+export const UpdateProjectInput = z.object({
+  id: ProjectId,
   displayName: z.string().min(1).max(80).nullable().optional(),
   description: z.string().max(500).nullable().optional(),
   defaultPriority: Priority.optional(),
   retentionDays: RetentionDays.optional(),
 });
 
-export const TopicMember = z.object({
-  topicId: TopicId,
+export const ProjectMember = z.object({
+  projectId: ProjectId,
   user: UserSummary,
-  role: TopicRole,
+  role: ProjectRole,
   addedAt: Timestamp,
 });
-export type TopicMember = z.infer<typeof TopicMember>;
+export type ProjectMember = z.infer<typeof ProjectMember>;
 
 export const AddMemberInput = z.object({
-  topicId: TopicId,
+  projectId: ProjectId,
   /** Email of an existing user. New people join through an invite first. */
   email: z.email(),
-  role: TopicRole.exclude(["owner"]),
+  role: ProjectRole.exclude(["owner"]),
 });
 
 export const UpdateMemberInput = z.object({
-  topicId: TopicId,
+  projectId: ProjectId,
   userId: z.string().min(1),
-  role: TopicRole,
+  role: ProjectRole,
 });
 
 export const SubscriptionInput = z.object({
-  topicId: TopicId,
+  projectId: ProjectId,
   subscribed: z.boolean(),
   muted: z.boolean().default(false),
 });

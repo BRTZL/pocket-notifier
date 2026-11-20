@@ -8,7 +8,7 @@ import { ChatAvatar } from "@/components/chat-avatar";
 import { Icon, type IconName } from "@/components/icon";
 import type { ChatAvatarSubject } from "@/lib/chat-avatar";
 
-/** The large page title of a tab's first screen (`Inbox`, `Topics`, `Settings`). */
+/** The large page title of a tab's first screen (`Inbox`, `Projects`, `Settings`). */
 export function ScreenHeader({ title, right }: { title: string; right?: ReactNode }) {
   const insets = useSafeAreaInsets();
   return (

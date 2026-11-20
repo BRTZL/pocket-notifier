@@ -42,7 +42,7 @@ describe("isPublicApiPath", () => {
   it("covers /v1 and everything under it, nothing else", () => {
     expect(isPublicApiPath("/v1")).toBe(true);
     expect(isPublicApiPath("/v1/")).toBe(true);
-    expect(isPublicApiPath("/v1/topics/x/messages")).toBe(true);
+    expect(isPublicApiPath("/v1/projects/x/messages")).toBe(true);
     expect(isPublicApiPath("/v10")).toBe(false);
     expect(isPublicApiPath("/v1x/docs")).toBe(false);
     expect(isPublicApiPath("/rpc/v1/x")).toBe(false);
@@ -52,7 +52,7 @@ describe("isPublicApiPath", () => {
 describe("isPublicPath", () => {
   it("adds the MCP endpoint and the cookie-less OAuth endpoints, not sign-in or consent", () => {
     for (const path of [
-      "/v1/topics/x/messages",
+      "/v1/projects/x/messages",
       "/mcp",
       "/.well-known/oauth-protected-resource/mcp",
       "/.well-known/oauth-authorization-server/api/auth",
@@ -126,7 +126,7 @@ describe("public API boundary", () => {
     const { app, deps } = setup();
     const bare = await app.request("/v1", { method: "OPTIONS", headers: preflight });
     expect(corsOf(bare)).toEqual(PUBLIC_CORS);
-    const nested = await app.request("/v1/topics/x/messages", {
+    const nested = await app.request("/v1/projects/x/messages", {
       method: "OPTIONS",
       headers: preflight,
     });
@@ -141,7 +141,7 @@ describe("public API boundary", () => {
 
   it("never looks up a session for public requests with cookies", async () => {
     const { app, deps } = setup();
-    const response = await app.request("/v1/topics/x/messages", {
+    const response = await app.request("/v1/projects/x/messages", {
       headers: { Origin: APP_ORIGIN, Cookie: "better-auth.session_token=abc" },
     });
     expect(response.status).toBe(401);
@@ -161,7 +161,7 @@ describe("public API boundary", () => {
 
   it("refuses oversized bodies with 413 before parsing", async () => {
     const { app } = setup();
-    const declared = await app.request("/v1/topics/x/messages", {
+    const declared = await app.request("/v1/projects/x/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Content-Length": String(MAX_BYTES + 1) },
       body: "{}",
@@ -185,7 +185,7 @@ describe("public API boundary", () => {
         controller.enqueue(chunk);
       },
     });
-    const streamed = await app.request("/v1/topics/x/messages", {
+    const streamed = await app.request("/v1/projects/x/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: stream,

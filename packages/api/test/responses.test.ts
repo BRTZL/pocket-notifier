@@ -20,7 +20,7 @@ describe("responses", () => {
   let bob: TestUser;
   let cid: TestUser;
   let messageId: string;
-  let topicId: string;
+  let projectId: string;
 
   beforeEach(async () => {
     testDb = await createTestDb();
@@ -28,10 +28,10 @@ describe("responses", () => {
     bob = await seedUser(testDb.db, "bob");
     cid = await seedUser(testDb.db, "cid");
     const owner = clientFor(testDb.db, ada);
-    ({ id: topicId } = await owner.topics.create({ name: "team" }));
-    await owner.members.add({ topicId, email: bob.email, role: "subscriber" });
+    ({ id: projectId } = await owner.projects.create({ name: "team" }));
+    await owner.members.add({ projectId, email: bob.email, role: "subscriber" });
     ({ id: messageId } = await owner.messages.publish({
-      topic: "team",
+      project: "team",
       actions: [
         { type: "reply", key: "yes", label: "Yes" },
         { type: "reply", key: "note", label: "Note", input: true },
@@ -138,7 +138,7 @@ describe("responses", () => {
       definedError("FORBIDDEN"),
     );
     // Publishers can read responses too, not only owners.
-    await owner.members.update({ topicId, userId: bob.id, role: "publisher" });
+    await owner.members.update({ projectId, userId: bob.id, role: "publisher" });
     await expect(clientFor(testDb.db, bob).responses.list({ messageId })).resolves.toMatchObject({
       items: [{ user: { id: bob.id } }, { user: { id: ada.id } }],
     });

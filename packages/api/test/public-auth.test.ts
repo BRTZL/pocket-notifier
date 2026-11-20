@@ -26,8 +26,8 @@ describe("bearer token auth", () => {
     ada = await seedUser(testDb.db, "ada");
     bob = await seedUser(testDb.db, "bob");
     const owner = clientFor(testDb.db, ada);
-    ({ id: teamId } = await owner.topics.create({ name: "team" }));
-    await owner.topics.create({ name: "ops" });
+    ({ id: teamId } = await owner.projects.create({ name: "team" }));
+    await owner.projects.create({ name: "ops" });
   });
 
   afterEach(async () => {
@@ -145,11 +145,11 @@ describe("bearer token auth", () => {
 
   it("checks scope, membership and role for publish and read", async () => {
     const owner = clientFor(testDb.db, ada);
-    await owner.members.add({ topicId: teamId, email: bob.email, role: "publisher" });
+    await owner.members.add({ projectId: teamId, email: bob.email, role: "publisher" });
 
     const scoped = await authenticateToken(
       testDb.db,
-      `Bearer ${(await tokenFor(ada, { kind: "topics", topics: ["team"] })).secret}`,
+      `Bearer ${(await tokenFor(ada, { kind: "projects", projects: ["team"] })).secret}`,
     );
     await expect(tokenCanPublish(testDb.db, scoped, "team")).resolves.toMatchObject({
       id: teamId,
@@ -170,31 +170,31 @@ describe("bearer token auth", () => {
     );
     const bobTeam = await authenticateToken(
       testDb.db,
-      `Bearer ${(await tokenFor(bob, { kind: "topics", topics: ["team"] })).secret}`,
+      `Bearer ${(await tokenFor(bob, { kind: "projects", projects: ["team"] })).secret}`,
     );
     await expect(tokenCanPublish(testDb.db, bobAll, "team")).resolves.toMatchObject({
       id: teamId,
     });
-    // Not a member of `ops`: indistinguishable from a missing topic.
+    // Not a member of `ops`: indistinguishable from a missing project.
     await expect(tokenCanPublish(testDb.db, bobAll, "ops")).rejects.toMatchObject(
       codeError("NOT_FOUND"),
     );
 
-    // Demoted to subscriber: the token can still read its scoped topic, not publish.
-    await owner.members.update({ topicId: teamId, userId: bob.id, role: "subscriber" });
+    // Demoted to subscriber: the token can still read its scoped project, not publish.
+    await owner.members.update({ projectId: teamId, userId: bob.id, role: "subscriber" });
     await expect(tokenCanPublish(testDb.db, bobTeam, "team")).rejects.toMatchObject(
       codeError("FORBIDDEN"),
     );
     await expect(tokenCanRead(testDb.db, bobTeam, "team")).resolves.toMatchObject({
       id: teamId,
     });
-    // `all` only covers topics where the user is owner or publisher.
+    // `all` only covers projects where the user is owner or publisher.
     await expect(tokenCanRead(testDb.db, bobAll, "team")).rejects.toMatchObject(
       codeError("FORBIDDEN"),
     );
 
-    // Removed from the topic: tokens stop working for it immediately.
-    await owner.members.remove({ topicId: teamId, userId: bob.id });
+    // Removed from the project: tokens stop working for it immediately.
+    await owner.members.remove({ projectId: teamId, userId: bob.id });
     await expect(tokenCanRead(testDb.db, bobTeam, "team")).rejects.toMatchObject(
       codeError("NOT_FOUND"),
     );
@@ -209,14 +209,14 @@ describe("bearer token auth", () => {
     await expect(
       call(
         probe,
-        { topic: "team" },
+        { project: "team" },
         { context: { db: testDb.db, authorization: `Bearer ${secret}`, dispatch: noopDispatch } },
       ),
     ).resolves.toEqual({ items: [], nextCursor: null });
     await expect(
       call(
         probe,
-        { topic: "team" },
+        { project: "team" },
         { context: { db: testDb.db, authorization: null, dispatch: noopDispatch } },
       ),
     ).rejects.toMatchObject(definedError("UNAUTHORIZED"));

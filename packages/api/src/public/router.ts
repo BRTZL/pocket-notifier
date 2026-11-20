@@ -6,20 +6,20 @@ import { appError } from "../lib/errors";
 import {
   announcePublished,
   findMessage,
-  listTopicMessages,
+  listProjectMessages,
   publishMessage,
   toMessage,
   toPublishOutput,
 } from "../lib/messages";
 import { listResponses } from "../lib/responses";
-import { type TokenAuth, type TopicRow, tokenCanPublish, tokenCanRead } from "./auth";
+import { type ProjectRow, type TokenAuth, tokenCanPublish, tokenCanRead } from "./auth";
 import { type PublicContext, tokenAuthed } from "./base";
 
 const publish = tokenAuthed.messages.publish.handler(async ({ context, input }) => {
   const { db, auth } = context;
-  const target = await tokenCanPublish(db, auth, input.topic);
+  const target = await tokenCanPublish(db, auth, input.project);
   const row = await publishMessage(db, {
-    topic: target,
+    project: target,
     publisher: { userId: auth.user.id, tokenId: auth.token.id },
     input,
   });
@@ -28,9 +28,9 @@ const publish = tokenAuthed.messages.publish.handler(async ({ context, input }) 
 });
 
 const list = tokenAuthed.messages.list.handler(async ({ context, input }) => {
-  const target = await tokenCanRead(context.db, context.auth, input.topic);
-  return listTopicMessages(context.db, {
-    topicId: target.id,
+  const target = await tokenCanRead(context.db, context.auth, input.project);
+  return listProjectMessages(context.db, {
+    projectId: target.id,
     cursor: input.cursor,
     since: input.since,
     limit: input.limit,
@@ -39,7 +39,7 @@ const list = tokenAuthed.messages.list.handler(async ({ context, input }) => {
 
 /**
  * A message the token can read. Missing, expired, out-of-scope and not-a-member all
- * look the same (`NOT_FOUND`), so a token cannot probe for other topics' message ids.
+ * look the same (`NOT_FOUND`), so a token cannot probe for other projects' message ids.
  */
 async function readableMessage(db: Database, auth: TokenAuth, id: string) {
   const found = await findMessage(db, id);
@@ -47,17 +47,17 @@ async function readableMessage(db: Database, auth: TokenAuth, id: string) {
     throw appError("NOT_FOUND", "Message not found");
   }
   const notFound = () => appError("NOT_FOUND", "Message not found");
-  let authorized: TopicRow;
+  let authorized: ProjectRow;
   try {
-    authorized = await tokenCanRead(db, auth, found.topicName);
+    authorized = await tokenCanRead(db, auth, found.projectName);
   } catch (error) {
     if (error instanceof ORPCError && (error.code === "FORBIDDEN" || error.code === "NOT_FOUND")) {
       throw notFound();
     }
     throw error;
   }
-  // The check ran by topic name; make sure it authorized this message's own topic.
-  if (authorized.id !== found.message.topicId) {
+  // The check ran by project name; make sure it authorized this message's own project.
+  if (authorized.id !== found.message.projectId) {
     throw notFound();
   }
   return found;
@@ -65,14 +65,14 @@ async function readableMessage(db: Database, auth: TokenAuth, id: string) {
 
 const get = tokenAuthed.messages.get.handler(async ({ context, input }) => {
   const found = await readableMessage(context.db, context.auth, input.id);
-  return toMessage(found.message, found.topicName, found.publisher);
+  return toMessage(found.message, found.projectName, found.publisher);
 });
 
 const responses = tokenAuthed.messages.responses.handler(async ({ context, input }) => {
   const found = await readableMessage(context.db, context.auth, input.id);
   // Readable, so only the role check can fail here: FORBIDDEN for subscribers.
-  const publishable = await tokenCanPublish(context.db, context.auth, found.topicName);
-  if (publishable.id !== found.message.topicId) {
+  const publishable = await tokenCanPublish(context.db, context.auth, found.projectName);
+  if (publishable.id !== found.message.projectId) {
     throw appError("NOT_FOUND", "Message not found");
   }
   return listResponses(context.db, {

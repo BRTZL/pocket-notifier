@@ -28,7 +28,7 @@ describe("newId", () => {
   });
 
   it("creates 1000 unique IDs", () => {
-    const ids = Array.from({ length: 1000 }, () => newId("topic"));
+    const ids = Array.from({ length: 1000 }, () => newId("project"));
     expect(new Set(ids).size).toBe(1000);
   });
 });

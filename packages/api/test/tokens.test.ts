@@ -78,29 +78,32 @@ describe("tokens", () => {
     expect((await client.tokens.list()).map((t) => t.name)).toEqual(["two"]);
   });
 
-  it("checks topic scopes against the caller's role", async () => {
+  it("checks project scopes against the caller's role", async () => {
     const owner = clientFor(testDb.db, ada);
-    const team = await owner.topics.create({ name: "team" });
-    await owner.topics.create({ name: "ops" });
-    await owner.members.add({ topicId: team.id, email: bob.email, role: "subscriber" });
+    const team = await owner.projects.create({ name: "team" });
+    await owner.projects.create({ name: "ops" });
+    await owner.members.add({ projectId: team.id, email: bob.email, role: "subscriber" });
     const bobClient = clientFor(testDb.db, bob);
 
     await expect(
-      bobClient.tokens.create({ name: "x", scope: { kind: "topics", topics: ["team"] } }),
+      bobClient.tokens.create({ name: "x", scope: { kind: "projects", projects: ["team"] } }),
     ).rejects.toMatchObject(definedError("FORBIDDEN"));
     await expect(
-      bobClient.tokens.create({ name: "x", scope: { kind: "topics", topics: ["ops"] } }),
+      bobClient.tokens.create({ name: "x", scope: { kind: "projects", projects: ["ops"] } }),
     ).rejects.toMatchObject(definedError("NOT_FOUND"));
     await expect(
-      owner.tokens.create({ name: "x", scope: { kind: "topics", topics: ["team", "missing"] } }),
+      owner.tokens.create({
+        name: "x",
+        scope: { kind: "projects", projects: ["team", "missing"] },
+      }),
     ).rejects.toMatchObject(definedError("NOT_FOUND"));
 
-    await owner.members.update({ topicId: team.id, userId: bob.id, role: "publisher" });
+    await owner.members.update({ projectId: team.id, userId: bob.id, role: "publisher" });
     const { token } = await bobClient.tokens.create({
       name: "x",
-      scope: { kind: "topics", topics: ["team", "team"] },
+      scope: { kind: "projects", projects: ["team", "team"] },
     });
-    expect(token.scope).toEqual({ kind: "topics", topics: ["team"] });
+    expect(token.scope).toEqual({ kind: "projects", projects: ["team"] });
   });
 
   it("revokes idempotently and hides other users' tokens", async () => {

@@ -10,9 +10,11 @@ export function parseTokenScope(json: string): TokenScope | null {
   }
 }
 
-/** Duplicate topic names are dropped so the stored scope stays canonical. */
+/** Duplicate project names are dropped so the stored scope stays canonical. */
 export function normalizeTokenScope(scope: TokenScope): TokenScope {
-  return scope.kind === "all" ? scope : { kind: "topics", topics: [...new Set(scope.topics)] };
+  return scope.kind === "all"
+    ? scope
+    : { kind: "projects", projects: [...new Set(scope.projects)] };
 }
 
 export const DAY_MS = 86_400_000;

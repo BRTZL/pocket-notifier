@@ -11,7 +11,7 @@ export const ERRORS = {
   },
   FORBIDDEN: {
     status: 403,
-    message: "Not allowed for this topic or resource",
+    message: "Not allowed for this project or resource",
   },
   NOT_FOUND: {
     status: 404,

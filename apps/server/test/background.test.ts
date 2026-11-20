@@ -17,7 +17,7 @@ function requestLog() {
   };
 }
 
-const MESSAGE = { id: "msg_1", topicId: "top_1", topic: "team", priority: 3 } as Parameters<
+const MESSAGE = { id: "msg_1", projectId: "prj_1", project: "team", priority: 3 } as Parameters<
   Dispatch["messagePublished"]
 >[0];
 

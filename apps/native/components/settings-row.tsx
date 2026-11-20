@@ -17,7 +17,7 @@ export function SectionHeader({ title }: { title: string }) {
 }
 
 /**
- * One settings or topic row in the inbox row style: a glyph on a quiet circle, a title,
+ * One settings or project row in the inbox row style: a glyph on a quiet circle, a title,
  * an optional description, and a trailing slot (a chevron when it navigates).
  */
 export function SettingsRow({

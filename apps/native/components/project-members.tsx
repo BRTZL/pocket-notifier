@@ -1,4 +1,4 @@
-import type { MyTopic } from "@notifier/contract/topic";
+import type { MyProject } from "@notifier/contract/project";
 import { useQuery } from "@tanstack/react-query";
 import { Card, ListGroup, Separator, Spinner } from "heroui-native";
 import { Fragment } from "react";
@@ -12,12 +12,12 @@ import { UserAvatar } from "@/components/user-avatar";
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
 
-/** Everyone in the topic with their role; owners can add, re-role and remove people. */
-export function TopicMembers({ topic }: { topic: MyTopic }) {
-  const members = useQuery(orpc.members.list.queryOptions({ input: { topicId: topic.id } }));
+/** Everyone in the project with their role; owners can add, re-role and remove people. */
+export function ProjectMembers({ project }: { project: MyProject }) {
+  const members = useQuery(orpc.members.list.queryOptions({ input: { projectId: project.id } }));
   const { data: session } = authClient.useSession();
   const myId = session?.user.id;
-  const isOwner = topic.role === "owner";
+  const isOwner = project.role === "owner";
 
   function renderMembers() {
     if (members.isPending) {
@@ -78,7 +78,7 @@ export function TopicMembers({ topic }: { topic: MyTopic }) {
         {isOwner ? (
           <>
             <Separator />
-            <AddMemberForm topicId={topic.id} />
+            <AddMemberForm projectId={project.id} />
           </>
         ) : null}
       </Card.Body>
