@@ -38,8 +38,18 @@ The sign-up page shows who sent the invite and which topics it includes (`invite
 
 Invites are single use. They can be revoked until they are accepted.
 
+**The first account.** A fresh deployment has no one to invite the first person, so sign-up without an invite is allowed while the database has no users. That first account owns the deployment; every account after it needs an invite.
+
+**Sign-up request.** The invite code goes in the better-auth sign-up body as `inviteCode`:
+
+```json
+{ "name": "Alex", "email": "alex@example.com", "password": "…", "inviteCode": "<24-char code>" }
+```
+
+Without a valid open invite, every sign-up gets the same `403`, whether or not the email is already registered.
+
 <Callout type="info" title="Implementation note">
-  Sign-up stays a better-auth endpoint. A `before` hook rejects requests without a valid, unused invite code, and an `after` hook marks the invite accepted and creates the memberships.
+  Sign-up stays a better-auth endpoint. A `before` hook rejects requests without a valid open invite. The invite is then claimed atomically just before the user row is written, so no account can exist without a claimed invite. After the user is created, memberships are added for granted topics the inviter still owns.
 </Callout>
 
 ## Topic roles
