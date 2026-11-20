@@ -55,6 +55,8 @@ export function toMyTopic(
     muted: membership.muted,
     unreadCount: stats.unreadCount,
     lastMessageAt: stats.lastMessageAt?.toISOString() ?? null,
+    // Only its owner is ever a member of a personal topic.
+    personal: row.personalUserId !== null,
   };
 }
 

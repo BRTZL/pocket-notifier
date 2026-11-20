@@ -5,11 +5,14 @@ import { and, eq } from "drizzle-orm";
 import { authed } from "../base";
 import { isUniqueViolation } from "../lib/errors";
 import { loadMyTopic, loadMyTopics } from "../lib/my-topics";
-import { requireMember, requireOwner } from "../lib/topic-access";
+import { ensureGeneralProject } from "../lib/projects";
+import { requireMember, requireNotPersonal, requireOwner } from "../lib/topic-access";
 
-const list = authed.topics.list.handler(({ context }) =>
-  loadMyTopics(context.db, context.session.user.id),
-);
+const list = authed.topics.list.handler(async ({ context }) => {
+  // The personal General project shows up like any other topic, created on first need.
+  await ensureGeneralProject(context.db, context.session.user.id);
+  return loadMyTopics(context.db, context.session.user.id);
+});
 
 const get = authed.topics.get.handler(({ context, input }) =>
   loadMyTopic(context.db, context.session.user.id, input.id),
@@ -67,6 +70,7 @@ const update = authed.topics.update.handler(async ({ context, input }) => {
 
 const remove = authed.topics.delete.handler(async ({ context, input }) => {
   await requireOwner(context.db, input.id, context.session.user.id);
+  await requireNotPersonal(context.db, input.id);
   // Members, subscriptions, messages and their reads and responses cascade.
   await context.db.delete(topic).where(eq(topic.id, input.id));
   return { ok: true as const };

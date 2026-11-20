@@ -108,7 +108,8 @@ describe("invite-only sign-up", () => {
       name: newUser.name,
       email: newUser.email,
     });
-    expect((await newClient.topics.list()).map((t) => [t.name, t.role])).toEqual([
+    const listed = await newClient.topics.list();
+    expect(listed.filter((t) => !t.personal).map((t) => [t.name, t.role])).toEqual([
       ["team", "publisher"],
     ]);
 

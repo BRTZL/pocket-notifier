@@ -1,6 +1,6 @@
 import type { TopicRole } from "@notifier/contract/topic";
 import type { Database } from "@notifier/db";
-import { topicMember } from "@notifier/db/schema/notifier";
+import { topic, topicMember } from "@notifier/db/schema/notifier";
 import { ORPCError } from "@orpc/server";
 import { and, eq } from "drizzle-orm";
 
@@ -43,6 +43,24 @@ export async function requireOwner(
     throw appError("FORBIDDEN", "Only a topic owner can do this");
   }
   return membership;
+}
+
+export const PERSONAL_TOPIC_MESSAGE =
+  "General is your private project: it cannot have other members or be deleted";
+
+/**
+ * Throws `FORBIDDEN` when `topicId` is a personal General project, which stays private to
+ * its owner: no members, no invite grants, no deletion.
+ */
+export async function requireNotPersonal(db: Database, topicId: string): Promise<void> {
+  const [row] = await db
+    .select({ personalUserId: topic.personalUserId })
+    .from(topic)
+    .where(eq(topic.id, topicId))
+    .limit(1);
+  if (row?.personalUserId) {
+    throw appError("FORBIDDEN", PERSONAL_TOPIC_MESSAGE);
+  }
 }
 
 /**

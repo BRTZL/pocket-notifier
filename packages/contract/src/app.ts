@@ -6,6 +6,12 @@ import { ConversationSummary, GetConversationInput, ListConversationsInput } fro
 import { Device, DeviceId, RegisterDeviceInput, RenameDeviceInput } from "./device";
 import { ERRORS } from "./errors";
 import {
+  CreateFeatureInput,
+  Feature,
+  ListFeaturesInput,
+  UpdateFeatureStatusInput,
+} from "./feature";
+import {
   CreateInviteInput,
   CreateInviteOutput,
   Invite,
@@ -60,6 +66,15 @@ export const appContract = {
     update: authed.input(UpdateTopicInput).output(MyTopic),
     delete: authed.input(ById(TopicId)).output(Ok),
     setSubscription: authed.input(SubscriptionInput).output(MyTopic),
+  },
+
+  features: {
+    /** A project's features (a feature is a conversation in the app), newest activity first. */
+    list: authed.input(ListFeaturesInput).output(z.array(Feature)),
+    /** Owners and publishers. Idempotent by slug: an existing slug returns that feature. */
+    create: authed.input(CreateFeatureInput).output(Feature),
+    /** Owners only. */
+    updateStatus: authed.input(UpdateFeatureStatusInput).output(Feature),
   },
 
   members: {

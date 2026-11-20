@@ -51,6 +51,11 @@ export const MyTopic = Topic.extend({
   muted: z.boolean(),
   unreadCount: z.number().int().min(0),
   lastMessageAt: Timestamp.nullable(),
+  /**
+   * The caller's personal "General" project: notifications sent without a project land
+   * here. Private (owner only, no members or invites) and never deleted.
+   */
+  personal: z.boolean(),
 });
 export type MyTopic = z.infer<typeof MyTopic>;
 

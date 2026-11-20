@@ -119,7 +119,8 @@ describe("me and topics", () => {
       db.insert(messageRead).values({ messageId: read, userId: ada.id }),
     ]);
 
-    const topics = await adaClient.topics.list();
+    // Every user also has their personal General project.
+    const topics = (await adaClient.topics.list()).filter((t) => !t.personal);
     expect(topics.map((t) => t.name)).toEqual(["alpha", "zeta"]);
     expect(topics[0]).toMatchObject({
       role: "publisher",
@@ -137,7 +138,7 @@ describe("me and topics", () => {
     });
 
     // Bob has read nothing.
-    const [bobAlpha] = await clientFor(db, bob).topics.list();
+    const bobAlpha = (await clientFor(db, bob).topics.list()).find((t) => t.name === "alpha");
     expect(bobAlpha?.unreadCount).toBe(2);
   });
 
@@ -149,7 +150,8 @@ describe("me and topics", () => {
     await expect(clientFor(testDb.db, bob).topics.get({ id: created.id })).rejects.toMatchObject(
       definedError("NOT_FOUND"),
     );
-    await expect(clientFor(testDb.db, bob).topics.list()).resolves.toEqual([]);
+    const bobs = await clientFor(testDb.db, bob).topics.list();
+    expect(bobs.map((t) => [t.displayName, t.personal])).toEqual([["General", true]]);
   });
 
   it("lets only owners update a topic, changing only provided fields", async () => {
