@@ -10,13 +10,14 @@ description: Every v1 design decision, whether it is settled, and where it is ex
 | Product | Our own ntfy-like service, not a layer on top of ntfy | [Scope](/docs/product/scope) |
 | Audience | You plus invited users on one deployment | [Access](/docs/product/access) |
 | Sign-up | Invite links only; public sign-up is off | [Access](/docs/product/access#invites) |
-| Sharing | Membership per topic with `owner`, `publisher`, `subscriber` roles | [Access](/docs/product/access#topic-roles) |
-| Publish auth | Bearer access tokens, scoped to all topics or a list | [Access](/docs/product/access#access-tokens) |
+| Model | Topics removed; Project → Feature → Notification everywhere: database, API, push payload, app and docs | [Data model](/docs/architecture/data-model) |
+| Sharing | Membership per project with `owner`, `publisher`, `subscriber` roles | [Access](/docs/product/access#project-roles) |
+| Publish auth | Bearer access tokens, scoped to all projects or a list | [Access](/docs/product/access#access-tokens) |
 | Token storage | notifier's own `access_token` table, not the better-auth `api-key` plugin | [Access](/docs/product/access#access-tokens) |
 | API style | Our own API, not compatible with ntfy | [API overview](/docs/api/overview) |
 | v1 features | HTTP publish and history, phone push, action buttons, attachments | [Scope](/docs/product/scope) |
 | Live web view | Not in v1, so no Durable Objects yet | [Scope](/docs/product/scope#out-of-scope) |
-| Retention | 30 days by default, configurable per topic | [Retention](/docs/architecture/retention) |
+| Retention | 30 days by default, configurable per project | [Retention](/docs/architecture/retention) |
 | Actions | Open URL, HTTP request, reply / acknowledge | [Publish](/docs/api/publish#actions) |
 | Platform | Android first; iOS kept possible | [Mobile](/docs/mobile/overview) |
 | App stack | Expo + React Native with native pieces where they matter | [Mobile](/docs/mobile/overview) |
@@ -25,16 +26,16 @@ description: Every v1 design decision, whether it is settled, and where it is ex
 | App ID | `com.bartuozel.pocketnotifier` for the Android package and iOS bundle | [Android setup](/docs/mobile/setup) |
 | Background receiving | A small Kotlin `FirebaseMessagingService` in an Expo module, not a JS background task | [Push delivery](/docs/architecture/push-delivery#receiving-on-android) |
 | Channels | One Android channel per priority, five in total | [Notifications](/docs/mobile/notifications#channels) |
-| Grouping | Notifications stack per topic | [Notifications](/docs/mobile/notifications#grouping) |
-| Tap | Opens the click URL if set, otherwise the message in the app | [Notifications](/docs/mobile/notifications#tapping) |
-| Navigation | Three native tabs: Inbox, Topics, Settings | [Navigation](/docs/mobile/navigation) |
+| Grouping | Notifications stack per project | [Notifications](/docs/mobile/notifications#grouping) |
+| Tap | Opens the message's thread: its feature, or the project-level thread | [Notifications](/docs/mobile/notifications#tapping) |
+| Navigation | Three native tabs: Inbox, Projects, Settings | [Navigation](/docs/mobile/navigation) |
 | Main use case | Coding agents in T3 Code notify when done, blocked or failing | [Coding agents](/docs/product/agents) |
 | Agent entry point | A remote MCP server at `/mcp` is the primary path; `agent-notify` over REST stays as the fallback | [MCP server](/docs/api/mcp) |
-| Project and feature | Agents say project (a topic) and feature (a workstream, shown as a conversation); feature status `active`, `done`, `archived` | [MCP server](/docs/api/mcp#projects-and-features) |
+| Project and feature | A project is a product or repository; a feature is a workstream in it, shown as a conversation; feature status `active`, `done`, `archived` | [MCP server](/docs/api/mcp#projects-and-features) |
 | General project | Notifications without a project go to a private, per-user General project, created on first need | [MCP server](/docs/api/mcp#projects-and-features) |
 | Feature auto-create | Sending to a feature that does not exist creates it from the given name | [MCP server](/docs/api/mcp#send_notification) |
 | MCP sign-in | OAuth 2.1 with PKCE and dynamic client registration, from better-auth's MCP provider; sign-in and consent pages served by the Worker | [MCP server](/docs/api/mcp#oauth) |
-| Agent layout | With MCP each project is a topic and each feature a conversation; with REST, one `agents` topic | [Coding agents](/docs/product/agents#topic-layout) |
+| Agent layout | With MCP each repository is a project and each feature a conversation; with REST, one `agents` project | [Coding agents](/docs/product/agents#project-layout) |
 | Avatars | Project avatar with agent badge, chat-style (`MessagingStyle`) | [Notifications](/docs/mobile/notifications#conversations-and-avatars) |
 | Avatar source | Generated initials and color; an HTTPS `iconUrl` overrides | [Notifications](/docs/mobile/notifications#generated-avatars) |
 | Answering agents | Agents can ask with a `reply` action; they cannot read replies through MCP yet | [MCP server](/docs/api/mcp#send_notification) |
@@ -48,8 +49,8 @@ Proposals that are written into the contract or the docs but still need a yes or
 | Attachment size cap | 15 MB per file | [Publish](/docs/api/publish#attachments) |
 | Secrets in HTTP actions | Not supported: HTTPS URL, method and body only, no headers | [Publish](/docs/api/publish#actions) |
 | Waiting for a reply | Not in v1; scripts poll `GET /v1/messages/{id}/responses` | [Messages](/docs/api/messages#reading-replies) |
-| Publishing to a missing topic | Rejected with `404`; topics are created in the app | [Publish](/docs/api/publish#topics) |
-| Topic names | Unique across the whole deployment | [Data model](/docs/architecture/data-model) |
+| Publishing to a missing project | Rejected with `404`; projects are created in the app | [Publish](/docs/api/publish#projects) |
+| Project names | Unique across the whole deployment | [Data model](/docs/architecture/data-model) |
 | Actions per message | Up to 5; the first 3 appear on the notification | [Notifications](/docs/mobile/notifications#actions) |
 | Read sync | A `dismiss` push clears notifications on other devices after a message is read | [Push payload](/docs/api/push-payload#dismiss) |
 | Rate limits | Per token: 60 messages a minute, 1,000 a day | [Errors](/docs/api/errors#rate-limits) |
@@ -62,4 +63,4 @@ Proposals that are written into the contract or the docs but still need a yes or
 - Live delivery to the web dashboard (Durable Objects and WebSocket).
 - An always-on connection for phones without Google Play services.
 - Server-side HTTP actions that can hold secrets.
-- Teams or workspaces above topics.
+- Teams or workspaces above projects.

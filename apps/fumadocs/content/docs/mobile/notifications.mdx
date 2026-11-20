@@ -1,6 +1,6 @@
 ---
 title: Android notifications
-description: Channels per priority, grouping per topic, what a tap does, actions, inline reply and permissions.
+description: Channels per priority, grouping per project, what a tap does, actions, inline reply and permissions.
 ---
 
 ## Channels
@@ -21,7 +21,7 @@ Users change sound, vibration and popups per channel in **System settings → Ap
   Once a channel exists, Android owns its settings and the app cannot change its importance or sound. To change the defaults, a new ID is needed (`priority-5-v2`), and the old channel is deleted.
 </Callout>
 
-**Do Not Disturb.** The urgent channel asks to bypass Do Not Disturb, but Android only allows it after the user grants notification policy access. The app asks for it the first time a topic receives a priority 5 message, never at install.
+**Do Not Disturb.** The urgent channel asks to bypass Do Not Disturb, but Android only allows it after the user grants notification policy access. The app asks for it the first time a project receives a priority 5 message, never at install.
 
 ## Conversations and avatars
 
@@ -38,7 +38,7 @@ Users change sound, vibration and popups per channel in **System settings → Ap
 | Large avatar | `conversation`: icon, or generated | Conversation shortcut icon |
 | Small badge | `sender`: icon, or generated | `Person` icon on the message |
 | Title line | `conversation.title`, then `sender.name` | Conversation title |
-| Stack | Same `conversation.id` in the same topic | One conversation notification |
+| Stack | Same `conversation.id` in the same project | One conversation notification |
 
 On Android 11 and later, these show in the **Conversations** section at the top of the shade. Users can also mark a project as a priority conversation there.
 
@@ -50,7 +50,7 @@ With an `iconUrl`, the app downloads the image once, caches it, and crops it to 
 
 ## Grouping
 
-<Status kind="decided" /> Messages without a conversation stack per topic (`notificationGroupKey(topic)`, which returns `topic:<name>`):
+<Status kind="decided" /> Messages without a conversation stack per project (`notificationGroupKey(project)`, which returns `project:<name>`):
 
 ```text
 ▾ notifier · ci                         3 new
@@ -59,13 +59,13 @@ With an `iconUrl`, the app downloads the image once, caches it, and crops it to 
     Lint warnings on PR 42              1h
 ```
 
-- The group summary shows the topic name and the count, and opens that topic in the app.
+- The group summary shows the project name and the count, and opens the newest message's thread.
 - Each child uses its message ID as the notification tag, so it can be updated or cancelled exactly.
 - A group's channel is the highest priority among its children, so an urgent message is never muted by a quieter group.
 
 ## Tapping
 
-<Status kind="decided" /> A tap opens the message's `clickUrl` when it has one. Otherwise it opens `notifier://message/<id>`. Either way the message is marked read and its notification is cleared.
+<Status kind="decided" /> A tap opens the message's thread, `notifier://conversation/<projectId>/<conversationKey>`, built from the push's `projectId` and `conversationKey`: the feature's thread, or the project-level thread for a message without a feature. The thread marks the conversation read and its notifications are cleared. The `clickUrl` stays one tap away in the thread header. A push without those fields (from an older server) opens its `clickUrl`, else the inbox.
 
 ## Actions
 

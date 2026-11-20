@@ -1,15 +1,15 @@
 ---
 title: Publish
-description: Send a message to a topic, with priority, tags, actions and attachments.
+description: Send a message to a project, with priority, tags, actions and attachments.
 ---
 
 ```http
-POST /v1/topics/{topic}/messages
+POST /v1/projects/{project}/messages
 Authorization: Bearer nt_...
 Content-Type: application/json
 ```
 
-The token's owner must be an `owner` or `publisher` of the topic, and the topic must be in the token's scope.
+The token's owner must be an `owner` or `publisher` of the project, and the project must be in the token's scope.
 
 ## Examples
 
@@ -17,7 +17,7 @@ The token's owner must be an `owner` or `publisher` of the topic, and the topic 
 <Tab value="Minimal">
 
 ```bash
-curl -X POST "$NOTIFIER_URL/v1/topics/backups/messages" \
+curl -X POST "$NOTIFIER_URL/v1/projects/backups/messages" \
   -H "Authorization: Bearer $NOTIFIER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"body":"Nightly backup finished in 4m12s"}'
@@ -97,7 +97,7 @@ The script then [reads the replies](/docs/api/messages#reading-replies).
 ```json
 {
   "id": "msg_01jd8x5k2m9q7r4t6v8w0y3z5a",
-  "topic": "deploys",
+  "project": "deploys",
   "createdAt": "2026-11-20T12:00:00.000Z",
   "expiresAt": "2026-12-20T12:00:00.000Z"
 }
@@ -123,7 +123,7 @@ The authoritative schema is `PublishInput` in `packages/contract/src/message.ts`
     priority: {
       description: "1 (min) to 5 (urgent). Picks the Android channel.",
       type: "1 | 2 | 3 | 4 | 5",
-      default: "the topic's defaultPriority (3 unless changed)",
+      default: "the project's defaultPriority (3 unless changed)",
     },
     tags: {
       description: "Single words shown as chips; useful for filtering.",
@@ -152,7 +152,7 @@ The authoritative schema is `PublishInput` in `packages/contract/src/message.ts`
       typeDescription: "id up to 64 chars; iconUrl must be HTTPS",
     },
     attachmentId: {
-      description: "ID returned by an attachment upload to the same topic.",
+      description: "ID returned by an attachment upload to the same project.",
       type: "string",
       typeDescription: "att_…",
     },
@@ -202,9 +202,9 @@ Every action has a `label` (up to 40 characters), an optional `key`, and `clear`
 
 At most 3 actions fit on an Android notification; the rest appear only in the message screen. <Status kind="open" />
 
-## Topics
+## Projects
 
-The topic in the URL must already exist. Publishing to an unknown topic returns `404 NOT_FOUND` instead of creating it, so a typo cannot create a topic nobody is subscribed to. Topics are created in the dashboard or the app. <Status kind="open" />
+The project in the URL must already exist. Publishing to an unknown project returns `404 NOT_FOUND` instead of creating it, so a typo cannot create a project nobody is subscribed to. Projects are created in the dashboard or the app. <Status kind="open" />
 
 ## Attachments
 
@@ -216,7 +216,7 @@ Attaching a file takes two steps. First upload the file, then publish with its I
 ### Upload
 
 ```bash
-curl -X POST "$NOTIFIER_URL/v1/topics/ci/attachments" \
+curl -X POST "$NOTIFIER_URL/v1/projects/ci/attachments" \
   -H "Authorization: Bearer $NOTIFIER_TOKEN" \
   -F "file=@report.html"
 ```

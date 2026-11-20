@@ -26,7 +26,7 @@ notifier has two APIs, both defined as oRPC contracts in `packages/contract` <St
 export NOTIFIER_URL=https://notifier.example.com
 export NOTIFIER_TOKEN=nt_...
 
-curl "$NOTIFIER_URL/v1/topics/ci/messages" \
+curl "$NOTIFIER_URL/v1/projects/ci/messages" \
   -H "Authorization: Bearer $NOTIFIER_TOKEN"
 ```
 
@@ -34,7 +34,7 @@ curl "$NOTIFIER_URL/v1/topics/ci/messages" \
 <Tab value="TypeScript">
 
 ```ts
-const res = await fetch(`${process.env.NOTIFIER_URL}/v1/topics/ci/messages`, {
+const res = await fetch(`${process.env.NOTIFIER_URL}/v1/projects/ci/messages`, {
   headers: { Authorization: `Bearer ${process.env.NOTIFIER_TOKEN}` },
 });
 const page = await res.json();
@@ -47,7 +47,7 @@ const page = await res.json();
 import os, requests
 
 res = requests.get(
-    f"{os.environ['NOTIFIER_URL']}/v1/topics/ci/messages",
+    f"{os.environ['NOTIFIER_URL']}/v1/projects/ci/messages",
     headers={"Authorization": f"Bearer {os.environ['NOTIFIER_TOKEN']}"},
 )
 page = res.json()
@@ -62,11 +62,11 @@ Create tokens in the dashboard under **Settings → Access tokens**. See [Access
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/v1/topics/{topic}/messages` | [Publish a message](/docs/api/publish) |
-| `GET` | `/v1/topics/{topic}/messages` | [List a topic's messages](/docs/api/messages#listing) |
+| `POST` | `/v1/projects/{project}/messages` | [Publish a message](/docs/api/publish) |
+| `GET` | `/v1/projects/{project}/messages` | [List a project's messages](/docs/api/messages#listing) |
 | `GET` | `/v1/messages/{id}` | [Get one message](/docs/api/messages#one-message) |
 | `GET` | `/v1/messages/{id}/responses` | [Read replies and acknowledgements](/docs/api/messages#reading-replies) |
-| `POST` | `/v1/topics/{topic}/attachments` | [Upload an attachment](/docs/api/publish#attachments) |
+| `POST` | `/v1/projects/{project}/attachments` | [Upload an attachment](/docs/api/publish#attachments) |
 
 The OpenAPI document is generated from `publicContract`, so it always matches the code.
 
@@ -74,7 +74,7 @@ The OpenAPI document is generated from `publicContract`, so it always matches th
 
 - **JSON** request and response bodies. The exception is attachment upload, which uses `multipart/form-data`.
 - **Timestamps** are ISO-8601 strings in UTC: `2026-11-20T12:00:00.000Z`.
-- **IDs** have a type prefix: `top_`, `msg_`, `att_`, `rsp_`, `tok_`, `inv_`, `dev_`. See [Data model](/docs/architecture/data-model#notes).
+- **IDs** have a type prefix: `prj_`, `msg_`, `att_`, `rsp_`, `tok_`, `inv_`, `dev_`. See [Data model](/docs/architecture/data-model#notes).
 - **Pagination.** List endpoints take `limit` (1–100, default 50) and `cursor`, and return `{ items, nextCursor }`. Pass `nextCursor` back as `cursor` to get the next page. `null` means there are no more items. Results are newest first.
 - **Errors** follow one shape, described in [Errors](/docs/api/errors).
 - **Versioning.** Breaking changes get a new prefix (`/v2`). Adding optional fields is not a breaking change, so clients should ignore fields they do not know.

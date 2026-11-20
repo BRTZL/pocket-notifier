@@ -13,10 +13,10 @@ Each milestone ends with something that can be tried, and ships with tests for t
 About a day.
 
 - Drizzle schema and migrations for the [data model](/docs/architecture/data-model).
-- Invite-only sign-up, topics, members, subscriptions, access tokens.
+- Invite-only sign-up, projects, members, subscriptions, access tokens.
 - `@notifier/api` implements `appContract` from `@notifier/contract`. The server serves the public API under `/v1` instead of the scaffold's `/api-reference` prefix.
 
-**Try it:** create a topic and a token in the dashboard, invite a second account.
+**Try it:** create a project and a token in the dashboard, invite a second account.
 
 </Step>
 <Step>
@@ -25,7 +25,7 @@ About a day.
 
 About a day.
 
-- `POST /v1/topics/{topic}/messages` with token checks, validation and rate limits.
+- `POST /v1/projects/{project}/messages` with token checks, validation and rate limits.
 - Message history: `GET` endpoints and `messages.list` for the inbox.
 
 **Try it:** `curl` a message and see it in the dashboard's history.
@@ -39,7 +39,7 @@ One to two days, plus the time to set up Firebase. Unknown until the [setup](/do
 
 - Firebase project, `google-services.json`, a development build.
 - Device registration, the FCM sender in the Worker, handling of stale tokens.
-- Native receiving with the five priority channels and grouping per topic.
+- Native receiving with the five priority channels and grouping per project.
 
 **Try it:** `curl` from a laptop, see the notification on the phone with the app closed.
 
@@ -50,8 +50,8 @@ One to two days, plus the time to set up Firebase. Unknown until the [setup](/do
 
 About two days.
 
-- Android app built from HeroUI Native components: Inbox, Topics and Settings tabs, message detail.
-- Web dashboard: topics, members, tokens, invites, history.
+- Android app built from HeroUI Native components: Inbox, Projects and Settings tabs, message detail.
+- Web dashboard: projects, members, tokens, invites, history.
 
 **Try it:** run through the whole flow from both apps.
 

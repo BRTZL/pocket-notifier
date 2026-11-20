@@ -8,9 +8,9 @@ description: The pieces of notifier and how a message travels from a script to a
 | Piece | Runs on | Job |
 | --- | --- | --- |
 | `apps/server` | Cloudflare Worker (Hono) | Public API at `/v1`, app API at `/rpc`, auth at `/api/auth`, FCM sender, retention cron |
-| `apps/web` | Cloudflare Worker (Next.js via OpenNext) | Dashboard: topics, members, tokens, invites, history |
-| `apps/native` | Android (Expo, development build) | Inbox, topics, settings; receives FCM and builds notifications |
-| D1 | Cloudflare | Users, topics, members, messages, tokens, devices, responses |
+| `apps/web` | Cloudflare Worker (Next.js via OpenNext) | Dashboard: projects, members, tokens, invites, history |
+| `apps/native` | Android (Expo, development build) | Inbox, projects, settings; receives FCM and builds notifications |
+| D1 | Cloudflare | Users, projects, members, messages, tokens, devices, responses |
 | R2 | Cloudflare | Attachment files <Status kind="open" /> |
 | FCM | Google | Delivers data-only messages to Android devices |
 
@@ -27,10 +27,10 @@ sequenceDiagram
   participant F as FCM
   participant P as Android app
 
-  S->>W: POST /v1/topics/deploys/messages (Bearer token)
-  W->>D: Look up token hash, topic and the owner's role
+  S->>W: POST /v1/projects/deploys/messages (Bearer token)
+  W->>D: Look up token hash, project and the owner's role
   W->>D: Insert message (expiresAt = now + retention)
-  W-->>S: 201 { id, topic, createdAt, expiresAt }
+  W-->>S: 201 { id, project, createdAt, expiresAt }
   W->>D: Devices of subscribed, unmuted members
   par one request per device, after the response
     W->>F: messages:send (data-only, priority high for 4–5)
@@ -42,7 +42,7 @@ sequenceDiagram
 The response goes back before the fan-out. The Worker sends pushes in `ctx.waitUntil()`, so a slow FCM call never delays the publisher.
 
 <Callout type="warn" title="Fan-out limits">
-  A Worker invocation has a limit on outgoing requests, so fan-out happens in one `waitUntil` only while a topic has few devices. Beyond that, sending moves to a Cloudflare Queue. With a small invited group, v1 stays well under the limit, and the switch point is a constant in the sender.
+  A Worker invocation has a limit on outgoing requests, so fan-out happens in one `waitUntil` only while a project has few devices. Beyond that, sending moves to a Cloudflare Queue. With a small invited group, v1 stays well under the limit, and the switch point is a constant in the sender.
 </Callout>
 
 ## Replying from a notification

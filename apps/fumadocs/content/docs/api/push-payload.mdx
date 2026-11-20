@@ -18,7 +18,9 @@ This is the contract between the server's FCM sender and the Android receiver. I
   "v": "1",
   "kind": "message",
   "id": "msg_01jd8x5k2m9q7r4t6v8w0y3z5a",
-  "topic": "ci",
+  "project": "ci",
+  "projectId": "prj_01jd8x5k2m9q7r4t6v8w0y3z5b",
+  "conversationKey": "c:ci",
   "title": "main build failed",
   "body": "3 tests failed in auth.spec.ts",
   "priority": "5",
@@ -40,6 +42,8 @@ This is the contract between the server's FCM sender and the Android receiver. I
 | Key | Encoding |
 | --- | --- |
 | `v` | Payload version, `"1"`. The app ignores versions it does not know and shows a generic "New message" notification. |
+| `project`, `projectId` | The project's name and id |
+| `conversationKey` | The message's thread: `c:<conversation id>`, or `p:<projectId>` for the project-level thread. With `projectId` it is the tap target, `notifier://conversation/<projectId>/<conversationKey>` |
 | `priority` | `"1"` to `"5"` |
 | `tags` | Comma-separated, `""` when empty |
 | `clickUrl`, `attachment` | `""` when not set; `attachment` is the file name |
@@ -52,7 +56,7 @@ This is the contract between the server's FCM sender and the Android receiver. I
 
 The sender fills fields in this order and stops adding once the next field would go over the limit:
 
-1. `v`, `kind`, `id`, `topic`, `priority`, `createdAt`, `truncated`
+1. `v`, `kind`, `id`, `project`, `projectId`, `conversationKey`, `priority`, `createdAt`, `truncated` (always sent)
 2. `title`
 3. `conversationId`, `conversationTitle`, `senderId`, `senderName`
 4. `body`, cut to 1,000 characters (`PUSH_BODY_MAX`)

@@ -13,7 +13,7 @@ FCM has two kinds of message:
 | --- | --- | --- |
 | Who draws the notification | The Android system, when the app is in the background | The app, always |
 | Channel per priority | Only the channel ID | ✓ |
-| Grouping per topic | Limited | ✓ |
+| Grouping per project | Limited | ✓ |
 | Action buttons and inline reply | ✗ | ✓ |
 | Dismiss on other devices | ✗ | ✓ |
 
@@ -72,7 +72,7 @@ Logs carry only a reason code (`dead_token`, `rate_limited`, `server_error`, `ti
 </Step>
 </Steps>
 
-**Fan-out.** On publish, the Worker sends to every Android device of users who are members of the topic and subscribed to it without muting, the publisher included. Up to 6 requests run at once, inside `executionCtx.waitUntil`, so the publish response never waits for FCM. Dead devices are deleted in one statement at the end.
+**Fan-out.** On publish, the Worker sends to every Android device of users who are members of the project and subscribed to it without muting, the publisher included. Up to 6 requests run at once, inside `executionCtx.waitUntil`, so the publish response never waits for FCM. Dead devices are deleted in one statement at the end.
 
 Right before each send, the Worker checks that the device still has the same token and still belongs to the same user. A phone that switched accounts while the push was queued is skipped.
 

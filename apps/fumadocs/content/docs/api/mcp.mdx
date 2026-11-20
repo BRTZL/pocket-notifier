@@ -25,9 +25,9 @@ Sign-up stays invite-only: the sign-in page has no sign-up. Create your account 
 
 Agents and the app say **project** and **feature**:
 
-- A **project** is a product or repository, for example `rezme`. In the API and database a project is a **topic**, so all topic rules apply: unique names, roles, retention.
+- A **project** is a product or repository, for example `rezme`. The same project everywhere: in the app, the REST API and the database. Project rules apply: unique names, roles, retention.
 - A **feature** is a workstream inside a project, for example "Improving performance". In the app a feature is a **conversation** (a chat thread): its messages carry `conversation = { id: <feature slug>, title: <feature name> }`.
-- A notification **without a project** goes to your personal **General** project. It is created on first need, is private (no members, no invites, cannot be deleted) and shows up in your topic list with `personal: true`.
+- A notification **without a project** goes to your personal **General** project. It is created on first need, is private (no members, no invites, cannot be deleted) and shows up in your project list with `personal: true`.
 
 Feature slugs are unique per project: lowercase letters, digits and `-`, up to 63 characters, derived from the name when not given (`"Çok hızlı"` becomes `cok-hizli`). A feature has a status, `active`, `done` or `archived`; only owners change it, and sending never changes it.
 
@@ -46,7 +46,7 @@ Feature slugs are unique per project: lowercase letters, digits and `-`, up to 6
 
 ### send_notification
 
-- **Where it goes.** `project` omitted: General. `feature` omitted: the project itself, no thread.
+- **Where it goes.** `project` omitted: General. `feature` omitted: the project-level thread.
 - **Feature auto-create rule.** `feature` is matched by slug, then by name (any case), then by the slug of the given text. If nothing matches, a feature with that text as its name is created, and the result says `created: true`. Agents can send to their current workstream without creating it first.
 - **`title`** is the outcome, at most 32 characters by convention (the API allows 250). **`body`** is one line.
 - **`priority`** 1 to 5: 2 low (FYI), 3 normal (the default for done), 4 high (blocked on a decision), 5 urgent (production or data at risk). Omitted: the project's default priority.
@@ -93,4 +93,4 @@ The authorization server is better-auth's OAuth 2.1 provider (`@better-auth/mcp`
 
 ## Fallback: REST and agent-notify
 
-Scripts without MCP keep using [`POST /v1/topics/{topic}/messages`](/docs/api/publish) with an access token, for example `agent-notify`. See [Coding agents](/docs/product/agents).
+Scripts without MCP keep using [`POST /v1/projects/{project}/messages`](/docs/api/publish) with an access token, for example `agent-notify`. See [Coding agents](/docs/product/agents).

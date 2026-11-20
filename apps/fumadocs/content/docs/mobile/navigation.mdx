@@ -3,10 +3,10 @@ title: Navigation and screens
 description: The three tabs, the screens behind them, and the routes.
 ---
 
-<Status kind="decided" /> Three native tabs (`NativeTabs` from Expo Router): **Inbox**, **Topics**, **Settings**. They are navigation, not screen UI, so they come from Expo Router; everything inside the screens is HeroUI Native.
+<Status kind="decided" /> Three native tabs (`NativeTabs` from Expo Router): **Inbox**, **Projects**, **Settings**. They are navigation, not screen UI, so they come from Expo Router; everything inside the screens is HeroUI Native.
 
 ```text
-┌─ Inbox ──────────────────────┐   ┌─ Topics ─────────────────────┐   ┌─ Settings ───────────────────┐
+┌─ Inbox ──────────────────────┐   ┌─ Projects ─────────────────────┐   ┌─ Settings ───────────────────┐
 │ ● [NO]◖C notifier · Claude   │   │ [AG] agents         (2)  🔔  │   │ Alex · alex@example.com      │
 │   Which database?        3m  │   │ [CI] ci             (1)  🔔  │   │                              │
 │ ● [CI] ci  ‼                 │   │ [BA] backups             🔕  │   │ Notifications           ›    │
@@ -16,7 +16,7 @@ description: The three tabs, the screens behind them, and the routes.
 │ ○ [BA] backups               │   │                              │   │                              │
 │   Nightly backup OK      2h  │   │                        [ + ] │   │ Sign out                     │
 ├──────────────────────────────┤   ├──────────────────────────────┤   ├──────────────────────────────┤
-│  Inbox    Topics   Settings  │   │  Inbox    Topics   Settings  │   │  Inbox    Topics   Settings  │
+│  Inbox    Projects   Settings  │   │  Inbox    Projects   Settings  │   │  Inbox    Projects   Settings  │
 └──────────────────────────────┘   └──────────────────────────────┘   └──────────────────────────────┘
 ```
 
@@ -32,14 +32,16 @@ description: The three tabs, the screens behind them, and the routes.
     <Folder name="(tabs)" defaultOpen>
       <File name="_layout.tsx — NativeTabs" />
       <Folder name="(inbox)" defaultOpen>
-        <File name="index.tsx — combined inbox" />
-        <File name="message/[id].tsx — message detail" />
+        <File name="index.tsx — conversation inbox" />
+        <File name="conversation/[projectId]/[key].tsx — a thread" />
       </Folder>
-      <Folder name="(topics)">
-        <File name="index.tsx — topic list" />
-        <File name="[topicId]/index.tsx — one topic's messages" />
-        <File name="[topicId]/settings.tsx — members, retention, mute" />
-        <File name="new.tsx — create topic" />
+      <Folder name="(projects)">
+        <File name="index.tsx — project list, General included" />
+        <File name="project/[projectId]/index.tsx — the project's features and its project-level thread" />
+        <File name="project/[projectId]/conversation/[key].tsx — a feature or the project-level thread" />
+        <File name="project/[projectId]/settings.tsx — members, retention, mute" />
+        <File name="project/[projectId]/message/[id].tsx — message detail" />
+        <File name="new.tsx — create project" />
       </Folder>
       <Folder name="(settings)">
         <File name="index.tsx" />
@@ -58,19 +60,19 @@ Each tab has its own stack, so going into a message and back keeps the tab's scr
 
 <Accordions multiple>
   <Accordion title="Inbox" id="inbox">
-    All topics, newest first. Each row shows the conversation avatar (with the sender badge), or the topic's avatar when there is no conversation. Unread messages have a dot; priority 4–5 show a marker. Pull to refresh. A filter chip row offers **Unread**, plus one chip per tag seen recently. Swipe a row to mark it read. Opening a message marks it read.
+    All projects, newest first. Each row shows the conversation avatar (with the sender badge), or the project's avatar when there is no conversation. Unread messages have a dot; priority 4–5 show a marker. Pull to refresh. A filter chip row offers **Unread**, plus one chip per tag seen recently. Swipe a row to mark it read. Opening a message marks it read.
   </Accordion>
   <Accordion title="Message detail" id="message">
-    Title, body, topic, time, tags, attachment preview with download, every action (including those beyond the 3 that fit on the notification), and the responses so far if the user may read them.
+    Title, body, project, time, tags, attachment preview with download, every action (including those beyond the 3 that fit on the notification), and the responses so far if the user may read them.
   </Accordion>
-  <Accordion title="Topics" id="topics">
-    Topics the user is a member of, with unread count and subscription state. Tap for the topic's messages; long-press for mute and unsubscribe. Owners see **Settings** for members, default priority and retention.
+  <Accordion title="Projects" id="projects">
+    Projects the user is a member of, the private **General** project included, with unread count and subscription state. A project opens on its **Project thread** (notifications sent without a feature) and its **Features**, each with a status chip (`active` first, then `done`, then `archived`). A feature opens its thread. Owners see **Settings** for members, default priority and retention.
   </Accordion>
   <Accordion title="Settings" id="settings">
     Account and sign out; notification setup (permission state, a link to each channel's system settings, the Do Not Disturb override for urgent messages); devices; access tokens with copy-once secrets; invites.
   </Accordion>
   <Accordion title="Invite sign-up" id="invite">
-    Opened from `notifier://invite/<code>` or the web link. Shows `invites.preview` (who invited you, which topics), then the sign-up form.
+    Opened from `notifier://invite/<code>` or the web link. Shows `invites.preview` (who invited you, which projects), then the sign-up form.
   </Accordion>
 </Accordions>
 
@@ -78,6 +80,6 @@ Each tab has its own stack, so going into a message and back keeps the tab's scr
 
 | Link | Opens |
 | --- | --- |
-| `notifier://message/<id>` | Message detail; used by notification taps without a click URL |
-| `notifier://topic/<topicId>` | Topic messages; used by tapping a group summary |
+| `notifier://conversation/<projectId>/<key>` | A thread; `key` is `c:<feature or conversation id>` or `p:<projectId>`, URL-encoded. Used by notification taps |
+| `notifier://project/<projectId>` | The project screen: its features and project-level thread |
 | `notifier://invite/<code>` | Invite sign-up |

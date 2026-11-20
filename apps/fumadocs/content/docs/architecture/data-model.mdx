@@ -7,13 +7,13 @@ The better-auth tables (`user`, `session`, `account`, `verification`) already ex
 
 ```mermaid
 erDiagram
-  user ||--o{ topic_member : "is member"
-  topic ||--o{ topic_member : has
+  user ||--o{ project_member : "is member"
+  project ||--o{ project_member : has
   user ||--o{ subscription : has
-  topic ||--o{ subscription : has
-  topic ||--o{ message : contains
-  topic ||--o{ feature : has
-  user |o--o| topic : "personal General"
+  project ||--o{ subscription : has
+  project ||--o{ message : contains
+  project ||--o{ feature : has
+  user |o--o| project : "personal General"
   message |o--o| attachment : has
   message ||--o{ message_response : receives
   message ||--o{ message_read : "read by"
@@ -21,8 +21,8 @@ erDiagram
   user ||--o{ device : owns
   user ||--o{ invite : creates
 
-  topic {
-    text id PK "top_..."
+  project {
+    text id PK "prj_..."
     text name UK
     text display_name
     int default_priority
@@ -31,27 +31,27 @@ erDiagram
   }
   feature {
     text id PK "fea_..."
-    text topic_id FK
-    text slug "UK per topic"
+    text project_id FK
+    text slug "UK per project"
     text name
     text description
     text status "active | done | archived"
     text created_by FK
     int last_message_at
   }
-  topic_member {
-    text topic_id FK
+  project_member {
+    text project_id FK
     text user_id FK
     text role "owner | publisher | subscriber"
   }
   subscription {
-    text topic_id FK
+    text project_id FK
     text user_id FK
     int muted
   }
   message {
     text id PK "msg_..."
-    text topic_id FK
+    text project_id FK
     text title
     text body
     int priority
@@ -67,7 +67,7 @@ erDiagram
   }
   attachment {
     text id PK "att_..."
-    text topic_id FK
+    text project_id FK
     text r2_key
     int size
     text content_type
@@ -112,11 +112,12 @@ erDiagram
 ## Notes
 
 - **IDs.** notifier IDs are `<prefix>_<26 lowercase base32 chars>`, for example `msg_01jd8x5k2m9q7r4t6v8w0y3z5a`. The characters are a ULID, so IDs sort by creation time and work as pagination cursors. User IDs come from better-auth. The prefixes are defined in `ID_PREFIXES` in `packages/contract/src/common.ts`.
-- **Topic names** are unique across the deployment, because they appear in publish URLs. <Status kind="open" />
+- **Project names** are unique across the deployment, because they appear in publish URLs. <Status kind="open" />
 - **Time** is stored as Unix milliseconds in integer columns, like the existing auth tables, and exposed as ISO-8601 strings in the API.
 - **JSON columns** (`tags_json`, `actions_json`, `conversation_json`, `sender_json`, `scope_json`, `grants_json`) are validated with the contract's zod schemas on write and on read. D1 has no JSON column type.
 - **Integrity.** Enum-like columns (`role`, `kind`, `platform`) and `message.priority` have SQL `CHECK` constraints, and `access_token.hash` must be 64 lowercase hex characters, so bad rows fail in the database too.
-- **Projects and features.** A project is a `topic`. `topic.personal_user_id` marks a user's private General project; a unique index allows one per user. A `feature` belongs to one topic, and its `slug` (lowercase `[a-z0-9][a-z0-9-]{0,62}`, checked in SQL too) is the `conversation.id` of its messages, so a feature's thread is conversation key `c:<slug>`. Deleting a topic deletes its features.
-- **Read state** is one row per user and message in `message_read`. Unread counts come from messages in the user's topics with no row for that user.
-- **Indexes.** `message (topic_id, id desc)` for history, `message (expires_at)` for cleanup, `device (user_id)`, `topic_member (user_id)`.
-- **Deleting.** Removing a topic cascades to members, subscriptions, messages, reads and responses. Attachment files in R2 are deleted by the retention job, not inside the request.
+- **Project → Feature → Notification.** `project.personal_user_id` marks a user's private General project; a unique index allows one per user. A `feature` belongs to one project, and its `slug` (lowercase `[a-z0-9][a-z0-9-]{0,62}`, checked in SQL too) is the `conversation.id` of its messages, so a feature's thread is conversation key `c:<slug>`. Messages without a conversation form the project-level thread, key `p:<project id>`. Deleting a project deletes its features.
+- **Topics removed.** Projects used to be called topics. Migration `20261120213814_remove_topics` renamed the tables and columns, rewrote ids from `top_` to `prj_`, conversation keys from `t:` to `p:`, and the project ids and names inside invite grants and token scopes.
+- **Read state** is one row per user and message in `message_read`. Unread counts come from messages in the user's projects with no row for that user.
+- **Indexes.** `message (project_id, id desc)` for history, `message (expires_at)` for cleanup, `device (user_id)`, `project_member (user_id)`.
+- **Deleting.** Removing a project cascades to members, subscriptions, messages, reads and responses. Attachment files in R2 are deleted by the retention job, not inside the request.

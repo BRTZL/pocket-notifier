@@ -48,10 +48,10 @@ npx eas-cli build --profile development --platform android
 
 ### Check delivery
 
-Sign in, allow notifications, then publish to a topic you are subscribed to:
+Sign in, allow notifications, then publish to a project you are subscribed to:
 
 ```bash
-curl -X POST "$NOTIFIER_URL/v1/topics/test/messages" \
+curl -X POST "$NOTIFIER_URL/v1/projects/test/messages" \
   -H "Authorization: Bearer $NOTIFIER_TOKEN" -H "Content-Type: application/json" \
   -d '{"title":"Hello","body":"From curl","priority":4}'
 ```

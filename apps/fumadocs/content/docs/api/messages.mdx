@@ -1,15 +1,15 @@
 ---
 title: Messages and replies
-description: Read a topic's history, fetch one message, and read what subscribers replied.
+description: Read a project's history, fetch one message, and read what subscribers replied.
 ---
 
 ## Listing
 
 ```http
-GET /v1/topics/{topic}/messages?limit=50&cursor=...&since=2026-11-20T00:00:00.000Z
+GET /v1/projects/{project}/messages?limit=50&cursor=...&since=2026-11-20T00:00:00.000Z
 ```
 
-Returns the topic's messages, newest first, as `{ items, nextCursor }`. `since` limits the results to messages created after that time. Any member of the topic can read it; tokens need the topic in their scope.
+Returns the project's messages, newest first, as `{ items, nextCursor }`. `since` limits the results to messages created after that time. Any member of the project can read it; tokens need the project in their scope.
 
 ## One message
 
@@ -20,8 +20,8 @@ GET /v1/messages/{id}
 ```json
 {
   "id": "msg_01jd8x5k2m9q7r4t6v8w0y3z5a",
-  "topicId": "top_01jd8w2a4c6e8g0j2l4n6q8s0u",
-  "topic": "deploys",
+  "projectId": "prj_01jd8w2a4c6e8g0j2l4n6q8s0u",
+  "project": "deploys",
   "title": "Deploy v1.42.0 to production?",
   "body": "Staging checks passed.",
   "priority": 4,
@@ -62,14 +62,14 @@ GET /v1/messages/{id}/responses
 }
 ```
 
-Only an `owner` or `publisher` of the topic can read responses. `kind` is `ack` for a one-tap button and `text` for an inline reply.
+Only an `owner` or `publisher` of the project can read responses. `kind` is `ack` for a one-tap button and `text` for an inline reply.
 
 ### Waiting for an answer
 
 v1 has no blocking wait. A script polls until it gets a response or gives up:
 
 ```bash title="wait-for-approval.sh"
-id=$(curl -s -X POST "$NOTIFIER_URL/v1/topics/deploys/messages" \
+id=$(curl -s -X POST "$NOTIFIER_URL/v1/projects/deploys/messages" \
   -H "Authorization: Bearer $NOTIFIER_TOKEN" -H "Content-Type: application/json" \
   -d '{"title":"Deploy?","actions":[{"type":"reply","key":"yes","label":"Deploy"}]}' | jq -r .id)
 

@@ -3,13 +3,13 @@ title: Retention
 description: How long messages, attachments and other records are kept, and how they are cleaned up.
 ---
 
-<Status kind="decided" /> Messages are kept for **30 days** by default. Each topic can set its own `retentionDays` from 1 to 365 (`RETENTION_DAYS` in `packages/contract/src/topic.ts`).
+<Status kind="decided" /> Messages are kept for **30 days** by default. Each project can set its own `retentionDays` from 1 to 365 (`RETENTION_DAYS` in `packages/contract/src/project.ts`).
 
 ## Rules
 
 | Record | Kept until |
 | --- | --- |
-| Message | `expiresAt`, set at publish time from the topic's retention |
+| Message | `expiresAt`, set at publish time from the project's retention |
 | Responses and read state | Deleted with their message |
 | Attachment file | Deleted with its message |
 | Uploaded attachment never used in a message | 1 hour after upload |
@@ -17,7 +17,7 @@ description: How long messages, attachments and other records are kept, and how 
 | Device not seen | 60 days after `lastSeenAt` |
 | Expired access token | Kept, so it still shows as expired in the token list |
 
-Changing a topic's retention affects only new messages. Existing messages keep the `expiresAt` they were published with, so a mistaken setting never wipes history.
+Changing a project's retention affects only new messages. Existing messages keep the `expiresAt` they were published with, so a mistaken setting never wipes history.
 
 ## Cleanup job
 

@@ -3,12 +3,12 @@ title: Pocket Notifier
 description: Self-hosted, invite-only push notifications for scripts, CI and servers, delivered to an Android-first app.
 ---
 
-Pocket Notifier is a notification service in the spirit of [ntfy](https://ntfy.sh): anything that can make an HTTP request can send a message to a **topic**, and everyone subscribed to that topic gets a push notification on their phone.
+Pocket Notifier is a notification service in the spirit of [ntfy](https://ntfy.sh): anything that can make an HTTP request can send a message to a **project**, and everyone subscribed to that project gets a push notification on their phone.
 
 It runs on your own Cloudflare account, is shared with a small group of invited people, and uses its own API rather than ntfy's.
 
 ```bash title="Publish a message"
-curl https://notifier.example.com/v1/topics/deploys/messages \
+curl https://notifier.example.com/v1/projects/deploys/messages \
   -H "Authorization: Bearer nt_..." \
   -H "Content-Type: application/json" \
   -d '{"title":"Prod deploy finished","body":"v1.42.0 is live","priority":4}'
@@ -18,8 +18,8 @@ curl https://notifier.example.com/v1/topics/deploys/messages \
 
 ```mermaid
 flowchart LR
-  script["Script / CI / server"] -- "POST /v1/topics/:topic/messages<br/>Bearer token" --> worker["Hono Worker"]
-  worker --> d1[("D1<br/>topics, messages")]
+  script["Script / CI / server"] -- "POST /v1/projects/:project/messages<br/>Bearer token" --> worker["Hono Worker"]
+  worker --> d1[("D1<br/>projects, messages")]
   worker --> r2[("R2<br/>attachments")]
   worker -- "FCM HTTP v1<br/>data-only" --> fcm["Firebase Cloud Messaging"]
   fcm --> android["Android app"]

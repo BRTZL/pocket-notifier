@@ -1,6 +1,6 @@
 ---
 title: Users and access
-description: Invites, topic roles and access tokens, and who can do what.
+description: Invites, project roles and access tokens, and who can do what.
 ---
 
 There are two kinds of credentials:
@@ -17,7 +17,7 @@ There are two kinds of credentials:
 
 ### Create the invite
 
-An existing user creates an invite. Optionally it is locked to one email address, and it can grant memberships in topics the inviter owns. Invites expire after 7 days by default (at most 30).
+An existing user creates an invite. Optionally it is locked to one email address, and it can grant memberships in projects the inviter owns. Invites expire after 7 days by default (at most 30).
 
 </Step>
 <Step>
@@ -31,7 +31,7 @@ The link looks like `https://<web>/invite/<code>`. The 24-character code is the 
 
 ### Sign up
 
-The sign-up page shows who sent the invite and which topics it includes (`invites.preview`). Creating the account consumes the invite and applies the topic grants in the same request.
+The sign-up page shows who sent the invite and which projects it includes (`invites.preview`). Creating the account consumes the invite and applies the project grants in the same request.
 
 </Step>
 </Steps>
@@ -49,12 +49,12 @@ Invites are single use. They can be revoked until they are accepted.
 Without a valid open invite, every sign-up gets the same `403`, whether or not the email is already registered.
 
 <Callout type="info" title="Implementation note">
-  Sign-up stays a better-auth endpoint. A `before` hook rejects requests without a valid open invite. The invite is then claimed atomically just before the user row is written, so no account can exist without a claimed invite. After the user is created, memberships are added for granted topics the inviter still owns.
+  Sign-up stays a better-auth endpoint. A `before` hook rejects requests without a valid open invite. The invite is then claimed atomically just before the user row is written, so no account can exist without a claimed invite. After the user is created, memberships are added for granted projects the inviter still owns.
 </Callout>
 
-## Topic roles
+## Project roles
 
-<Status kind="decided" /> Every topic has members, and each member has one role. The person who creates a topic is its `owner`.
+<Status kind="decided" /> Every project has members, and each member has one role. The person who creates a project is its `owner`.
 
 | Action | owner | publisher | subscriber |
 | --- | :-: | :-: | :-: |
@@ -62,17 +62,17 @@ Without a valid open invite, every sign-up gets the same `403`, whether or not t
 | Reply to and acknowledge messages | ✓ | ✓ | ✓ |
 | Publish messages and upload attachments | ✓ | ✓ | |
 | Read replies through the API | ✓ | ✓ | |
-| Change topic settings and retention | ✓ | | |
+| Change project settings and retention | ✓ | | |
 | Add, change and remove members | ✓ | | |
-| Delete messages or the topic | ✓ | | |
+| Delete messages or the project | ✓ | | |
 | Create features (projects' workstreams) | ✓ | ✓ | |
 | Change a feature's status | ✓ | | |
 
-A topic can have more than one owner. The last owner cannot leave or be demoted.
+A project can have more than one owner. The last owner cannot leave or be demoted.
 
-<Status kind="decided" /> Each user also has a private **General** project (a topic with `personal: true`) that takes notifications sent without a project. Only its owner is ever a member: adding members, granting it in an invite and deleting it are refused.
+<Status kind="decided" /> Each user also has a private **General** project (`personal: true`) that takes notifications sent without a project. Only its owner is ever a member: adding members, granting it in an invite and deleting it are refused.
 
-Membership controls access. A **subscription** controls pushes: members are subscribed when they join, and each person can unsubscribe or mute a topic. A muted topic still fills the inbox but sends no push.
+Membership controls access. A **subscription** controls pushes: members are subscribed when they join, and each person can unsubscribe or mute a project. A muted project still fills the inbox but sends no push.
 
 ## Access tokens
 
@@ -83,13 +83,13 @@ Authorization: Bearer nt_4fK9qL2mXw8RtY1vB6nC3dE7gH0jP5sA9zU2iO4k
 ```
 
 - **Format.** `nt_` followed by 40 base62 characters. Only a hash is stored. The secret is shown once, when the token is created, and the list shows only its first characters (`nt_4fK9`).
-- **Scope.** Either `all`, meaning every topic where the owner is `owner` or `publisher` (including topics added later), or a list of topic names.
-- **Effective permission.** A token may publish to a topic only if it is in the token's scope **and** the token's owner is currently an `owner` or `publisher` there. Removing a person from a topic immediately stops their tokens for it.
+- **Scope.** Either `all`, meaning every project where the owner is `owner` or `publisher` (including projects added later), or a list of project names.
+- **Effective permission.** A token may publish to a project only if it is in the token's scope **and** the token's owner is currently an `owner` or `publisher` there. Removing a person from a project immediately stops their tokens for it.
 - **Expiry.** Optional, from 1 to 365 days. `lastUsedAt` is updated on use so stale tokens are easy to spot.
 
 <Status kind="decided" /> **MCP clients** (Claude Code, Codex) do not use access tokens. They sign in through the browser with OAuth and act as the signed-in user, with that user's roles. See [MCP server](/docs/api/mcp#oauth).
 
-<Status kind="decided" /> Tokens live in notifier's own `access_token` table rather than the better-auth `api-key` plugin, so the topic scope and the contract stay in one place.
+<Status kind="decided" /> Tokens live in notifier's own `access_token` table rather than the better-auth `api-key` plugin, so the project scope and the contract stay in one place.
 
 ## What is checked where
 
@@ -98,10 +98,10 @@ flowchart TD
   req["Incoming request"] --> kind{"Path"}
   kind -- "/v1/*" --> bearer["Verify bearer token<br/>(hash lookup, expiry)"]
   kind -- "/rpc/*" --> session["Verify better-auth session"]
-  bearer --> scope{"Topic in token scope?"}
+  bearer --> scope{"Project in token scope?"}
   scope -- no --> f403["403 FORBIDDEN"]
   scope -- yes --> role
-  session --> role{"User's role on the topic<br/>allows the action?"}
+  session --> role{"User's role on the project<br/>allows the action?"}
   role -- no --> f403
   role -- yes --> ok["Run procedure"]
 ```
