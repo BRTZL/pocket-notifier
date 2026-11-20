@@ -1,4 +1,4 @@
-import { GOOGLE_TOKEN_URL } from "../src/push/fcm";
+import { GOOGLE_TOKEN_URL, prepareCredential } from "../src/push/oauth";
 import type { ServiceAccount } from "../src/push/service-account";
 
 function toBase64(bytes: ArrayBuffer): string {
@@ -11,7 +11,10 @@ function toBase64(bytes: ArrayBuffer): string {
 
 const PEM_LINE = /.{1,64}/gu;
 
-/** A fresh RSA key pair and a service account whose `private_key` is its PKCS #8 PEM. */
+/**
+ * A fresh RSA key pair, a service account whose `private_key` is its PKCS #8 PEM, and
+ * the imported credential.
+ */
 export async function testServiceAccount(clientEmail = "push@test.iam.gserviceaccount.com") {
   const keys = (await crypto.subtle.generateKey(
     {
@@ -31,7 +34,11 @@ export async function testServiceAccount(clientEmail = "push@test.iam.gserviceac
     client_email: clientEmail,
     private_key: pem,
   };
-  return { account, publicKey: keys.publicKey };
+  const credential = await prepareCredential(account);
+  if (!credential) {
+    throw new Error("test key did not import");
+  }
+  return { account, credential, publicKey: keys.publicKey };
 }
 
 export type RecordedRequest = { url: string; init: RequestInit | undefined };
@@ -40,7 +47,9 @@ export type RecordedRequest = { url: string; init: RequestInit | undefined };
  * A `fetch` that answers the OAuth token endpoint with `tokens` (one per exchange,
  * the last repeated) and FCM sends with `sends` in order (the last repeated).
  */
-export function mockFetch(options: { sends?: (() => Response)[]; tokens?: (() => Response)[] }) {
+type Respond = () => Response | Promise<Response>;
+
+export function mockFetch(options: { sends?: Respond[]; tokens?: Respond[] }) {
   const requests: RecordedRequest[] = [];
   let tokenCalls = 0;
   let sendCalls = 0;

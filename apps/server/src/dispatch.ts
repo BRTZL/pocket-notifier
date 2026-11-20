@@ -16,7 +16,8 @@ export type DispatchOptions = {
 /**
  * Runs `task` after the response with its own standalone logger. The request's wide
  * event is usually emitted by then, so background work must not write to it; the
- * child event carries the parent's request id for correlation. Never rejects.
+ * child event carries the parent's request id for correlation. Never rejects, and never
+ * logs the error text: it could carry response bodies or tokens.
  */
 export function backgroundRunner(
   parent: RequestLogger,
@@ -29,7 +30,9 @@ export function backgroundRunner(
       try {
         await task(log);
       } catch (error) {
-        log.error(error instanceof Error ? error : String(error));
+        log.error("push task failed", {
+          push: { reason: "unknown", error: error instanceof Error ? error.name : "unknown" },
+        });
       } finally {
         log.emit();
       }

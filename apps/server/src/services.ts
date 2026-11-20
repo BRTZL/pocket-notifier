@@ -6,7 +6,6 @@ import type { EvlogVariables } from "evlog/hono";
 import type { Context as HonoContext } from "hono";
 
 import { createDispatch } from "./dispatch";
-
 import { ENV } from "./env.server";
 
 export function getDb(): Database {
@@ -20,11 +19,14 @@ export async function createAuth(database?: Database) {
  * The request's `Dispatch`. Push is configured by the optional `FCM_SERVICE_ACCOUNT`
  * secret; without a usable one, dispatch only logs that push is disabled.
  */
-export function requestDispatch(c: HonoContext<EvlogVariables>, db: Database): Dispatch {
+export async function requestDispatch(
+  c: HonoContext<EvlogVariables>,
+  db: Database,
+): Promise<Dispatch> {
   return createDispatch({
     log: c.get("log"),
     db,
     waitUntil: (promise) => c.executionCtx.waitUntil(promise),
-    push: pushSetupFromSecret(ENV.FCM_SERVICE_ACCOUNT),
+    push: await pushSetupFromSecret(ENV.FCM_SERVICE_ACCOUNT),
   });
 }

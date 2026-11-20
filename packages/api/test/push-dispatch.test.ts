@@ -1,13 +1,17 @@
 import { device } from "@notifier/db/schema/notifier";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Dispatch } from "../src/dispatch";
 import { createPublicHandler } from "../src/public/handler";
+import { pushSetupFromSecret, resetPushSetup } from "../src/push/config";
 import { createPushDispatch, type PushLog, type PushTask } from "../src/push/dispatch";
-import type { PushSender, SendResult } from "../src/push/fcm";
+import { createFcmSender, type PushSender, type SendResult } from "../src/push/fcm";
+import { clearTokenCache } from "../src/push/oauth";
 import { toDismissData, toPushData } from "../src/push/payload";
 import { createTestDb, type TestDb } from "./db";
 import { clientFor, nextMillisecond, noopDispatch, seedUser, type TestUser } from "./helpers";
+import { fcmError, mockFetch, testServiceAccount } from "./push-helpers";
 
 function fakeLog(): PushLog {
   return { set: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
@@ -15,9 +19,15 @@ function fakeLog(): PushLog {
 
 /** A fake FCM sender: every token is `sent` unless listed in `results`. */
 function fakeSender(results: Record<string, SendResult["status"]> = {}) {
-  const send = vi.fn<PushSender["send"]>(async (token) => {
+  const send = vi.fn<PushSender["send"]>(async (token): Promise<SendResult> => {
     const status = results[token] ?? "sent";
-    return status === "sent" ? { status } : { status, reason: "test" };
+    if (status === "dead") {
+      return { status, reason: "dead_token", httpStatus: 404 };
+    }
+    if (status === "failed") {
+      return { status, reason: "server_error", httpStatus: 503 };
+    }
+    return status === "skipped" ? { status, reason: "budget" } : { status };
   });
   return { send } satisfies PushSender;
 }
@@ -74,12 +84,17 @@ describe("push dispatch", () => {
     await testDb.dispose();
   });
 
-  function pushDispatch(sender: PushSender | null) {
+  function pushDispatch(
+    sender: PushSender | null,
+    extra: { concurrency?: number; maxSends?: number; disabledReason?: string } = {},
+  ) {
     const taskLogs: PushLog[] = [];
     const dispatch = createPushDispatch({
       db: testDb.db,
       sender,
-      disabledReason: sender ? undefined : "missing FCM_SERVICE_ACCOUNT",
+      disabledReason: sender ? undefined : (extra.disabledReason ?? "missing FCM_SERVICE_ACCOUNT"),
+      concurrency: extra.concurrency,
+      maxSends: extra.maxSends,
       log: requestLog,
       runInBackground: (_label: string, task: PushTask) => {
         const log = fakeLog();
@@ -117,7 +132,7 @@ describe("push dispatch", () => {
       const { read: _read, myResponses: _responses, ...message } = published;
       for (const [, data, options] of sender.send.mock.calls) {
         expect(data).toEqual(toPushData(message));
-        expect(options).toEqual({ priority: "HIGH" });
+        expect(options).toMatchObject({ priority: "HIGH" });
       }
     });
 
@@ -146,7 +161,15 @@ describe("push dispatch", () => {
         "eve-phone",
       ]);
       expect(taskLogs[0]?.set).toHaveBeenLastCalledWith({
-        push: { recipients: 3, truncated: false, sent: 1, dead: 1, failed: 1 },
+        push: {
+          recipients: 3,
+          payloadTruncated: false,
+          sent: 1,
+          dead: 1,
+          failed: 1,
+          moved: 0,
+          truncated: 0,
+        },
       });
       expect(taskLogs[0]?.warn).toHaveBeenCalledTimes(1);
     });
@@ -205,7 +228,9 @@ describe("push dispatch", () => {
       await settle();
 
       const [dismiss] = toDismissData(ids);
-      expect(sender.send.mock.calls).toEqual([["bob-phone", dismiss, { priority: "NORMAL" }]]);
+      expect(sender.send.mock.calls).toEqual([
+        ["bob-phone", dismiss, expect.objectContaining({ priority: "NORMAL" })],
+      ]);
     });
 
     it("sends nothing when no message was newly read", async () => {
@@ -217,6 +242,119 @@ describe("push dispatch", () => {
       await settle();
       expect(tasks).toHaveLength(0);
       expect(sender.send).not.toHaveBeenCalled();
+    });
+  });
+
+  /** Sets each device's `lastSeenAt` so the most recently seen come in this order. */
+  async function seenInOrder(tokens: string[]) {
+    const base = Date.now();
+    for (const [index, token] of tokens.entries()) {
+      await testDb.db
+        .update(device)
+        .set({ lastSeenAt: new Date(base - index * 60_000) })
+        .where(eq(device.pushToken, token));
+    }
+  }
+
+  describe("limits", () => {
+    it("sends to at most maxSends devices, most recently seen first, and logs the rest", async () => {
+      await seenInOrder(["bob-phone", "ada-tablet", "ada-phone"]);
+      const sender = fakeSender();
+      const { dispatch, taskLogs } = pushDispatch(sender, { maxSends: 2 });
+      await clientFor(testDb.db, ada, dispatch).messages.publish({ topic: "team" });
+      await settle();
+      // Sends run in parallel, so only the set is fixed, not the call order.
+      expect(sender.send.mock.calls.map(([token]) => token).sort()).toEqual([
+        "ada-tablet",
+        "bob-phone",
+      ]);
+      expect(taskLogs[0]?.warn).toHaveBeenCalledWith("push truncated", { push: { truncated: 1 } });
+    });
+
+    it("counts FCM retries against the cap", async () => {
+      clearTokenCache();
+      const { credential } = await testServiceAccount();
+      const mock = mockFetch({ sends: [fcmError(503, { status: "UNAVAILABLE" })] });
+      const sender = createFcmSender(credential, {
+        fetch: mock.fetch,
+        sleep: async () => undefined,
+      });
+      const { dispatch, taskLogs } = pushDispatch(sender, { maxSends: 4, concurrency: 1 });
+      await clientFor(testDb.db, ada, dispatch).messages.publish({ topic: "team" });
+      await settle();
+      // 3 attempts for the first device, 1 for the second, none left for the third.
+      expect(mock.sendRequests()).toHaveLength(4);
+      expect(taskLogs[0]?.warn).toHaveBeenCalledWith("push truncated", { push: { truncated: 1 } });
+    });
+
+    it("skips a device that moved to another account while the push was queued", async () => {
+      await seenInOrder(["ada-phone", "bob-phone", "ada-tablet"]);
+      const sender = fakeSender();
+      sender.send.mockImplementationOnce(async () => {
+        // While the first push is in flight, Bob's phone signs in as Eve.
+        await testDb.db
+          .update(device)
+          .set({ userId: eve.id })
+          .where(eq(device.pushToken, "bob-phone"));
+        return { status: "sent" };
+      });
+      const { dispatch, taskLogs } = pushDispatch(sender, { concurrency: 1 });
+      await clientFor(testDb.db, ada, dispatch).messages.publish({ topic: "team" });
+      await settle();
+      expect(sender.send.mock.calls.map(([token]) => token)).toEqual(["ada-phone", "ada-tablet"]);
+      expect(taskLogs[0]?.set).toHaveBeenLastCalledWith({
+        push: expect.objectContaining({ sent: 2, moved: 1 }),
+      });
+    });
+  });
+
+  describe("logging", () => {
+    it("never logs tokens, response text, error text or payloads", async () => {
+      clearTokenCache();
+      const consoleSpies = (["log", "info", "warn", "error", "debug"] as const).map((method) =>
+        vi.spyOn(console, method).mockImplementation(() => undefined),
+      );
+      const sentinels = ["SENTINEL_TOKEN", "SENTINEL_ACCESS", "SENTINEL_ERROR", "SENTINEL_BODY"];
+      for (const token of ["ada-phone", "ada-tablet", "bob-phone"]) {
+        await testDb.db
+          .update(device)
+          .set({ pushToken: `SENTINEL_TOKEN_${token}` })
+          .where(eq(device.pushToken, token));
+      }
+      const { credential } = await testServiceAccount();
+      const mock = mockFetch({
+        tokens: [() => Response.json({ access_token: "SENTINEL_ACCESS", expires_in: 3600 })],
+        sends: [
+          fcmError(400, { status: "INVALID_ARGUMENT", message: "SENTINEL_ERROR in payload" }),
+          () => {
+            throw new TypeError("SENTINEL_ERROR transport");
+          },
+          () => new Response("SENTINEL_ERROR <html>", { status: 418 }),
+        ],
+      });
+      const sender = createFcmSender(credential, {
+        fetch: mock.fetch,
+        sleep: async () => undefined,
+      });
+      const { dispatch, taskLogs } = pushDispatch(sender, { concurrency: 1 });
+      await clientFor(testDb.db, ada, dispatch).messages.publish({
+        topic: "team",
+        title: "SENTINEL_BODY title",
+        body: "SENTINEL_BODY",
+      });
+      await settle();
+
+      const logged = JSON.stringify([
+        ...[requestLog, ...taskLogs].flatMap((log) =>
+          Object.values(log).map((method) => (method as ReturnType<typeof vi.fn>).mock.calls),
+        ),
+        ...consoleSpies.map((spy) => spy.mock.calls),
+      ]);
+      expect(logged).toContain("failures");
+      for (const sentinel of sentinels) {
+        expect(logged).not.toContain(sentinel);
+      }
+      vi.restoreAllMocks();
     });
   });
 
@@ -246,6 +384,41 @@ describe("push dispatch", () => {
       expect(requestLog.debug).toHaveBeenCalledWith("push disabled", {
         push: { disabled: "missing FCM_SERVICE_ACCOUNT" },
       });
+    });
+
+    it("disables push when the key does not import, warning once per secret value", async () => {
+      resetPushSetup();
+      const warn = vi.fn();
+      const raw = JSON.stringify({
+        project_id: "p",
+        client_email: "push@p.iam.gserviceaccount.com",
+        private_key: "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n",
+      });
+      const setup = await pushSetupFromSecret(raw, { warn });
+      await pushSetupFromSecret(raw, { warn });
+      expect(setup).toEqual({ sender: null, disabledReason: "invalid FCM_SERVICE_ACCOUNT" });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("PRIVATE KEY");
+
+      const { dispatch } = pushDispatch(setup.sender, { disabledReason: setup.disabledReason });
+      const { secret } = await clientFor(testDb.db, ada).tokens.create({
+        name: "ci",
+        scope: { kind: "all" },
+      });
+      const response = await createPublicHandler().handle(
+        new Request("http://api.test/v1/topics/team/messages", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ body: "hello" }),
+        }),
+        { context: { db: testDb.db, authorization: `Bearer ${secret}`, dispatch } },
+      );
+      expect(response.response?.status).toBe(201);
+      expect(tasks).toHaveLength(0);
+      expect(requestLog.debug).toHaveBeenCalledWith("push disabled", {
+        push: { disabled: "invalid FCM_SERVICE_ACCOUNT" },
+      });
+      resetPushSetup();
     });
   });
 });

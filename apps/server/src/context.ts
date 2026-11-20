@@ -21,7 +21,7 @@ export async function createContext({ context }: CreateContextOptions): Promise<
     session,
     // CORS_ORIGIN is the web app's origin, where invite links are opened.
     appUrl: ENV.CORS_ORIGIN.replace(TRAILING_SLASHES, ""),
-    dispatch: requestDispatch(context, db),
+    dispatch: await requestDispatch(context, db),
   };
 }
 

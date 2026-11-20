@@ -20,7 +20,7 @@ export type AppDeps = {
   authHandler: (request: Request) => Promise<Response>;
   getDb: () => Database;
   /** Post-request side effects (push fan-out) for one request. */
-  createDispatch: (c: HonoContext<EvlogVariables>, db: Database) => Dispatch;
+  createDispatch: (c: HonoContext<EvlogVariables>, db: Database) => Promise<Dispatch>;
   createContext: (c: HonoContext<EvlogVariables>) => Promise<ApiContext>;
 };
 
@@ -62,7 +62,7 @@ export function createApp(deps: AppDeps) {
       context: {
         db,
         authorization: c.req.header("Authorization") ?? null,
-        dispatch: deps.createDispatch(c, db),
+        dispatch: await deps.createDispatch(c, db),
       },
     });
     if (result.matched) {

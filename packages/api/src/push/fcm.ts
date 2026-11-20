@@ -1,42 +1,64 @@
 import { z } from "zod";
 
-import type { ServiceAccount } from "./service-account";
+import {
+  type AccessToken,
+  type Credential,
+  getAccessToken,
+  invalidateAccessToken,
+  OAuthError,
+} from "./oauth";
 
-export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
-export const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
-const JWT_BEARER_GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer";
-/** Google caps assertion lifetimes at one hour. */
-const JWT_LIFETIME_S = 3600;
-/** A cached access token is replaced this long before it expires. */
-const TOKEN_REFRESH_MARGIN_MS = 60_000;
 /** Data messages older than this are dropped by FCM instead of delivered late. */
 const MESSAGE_TTL = "86400s";
 
 const DEFAULT_MAX_ATTEMPTS = 3;
+/** Per FCM or OAuth request; pushes run in `waitUntil`, which has little time. */
+const DEFAULT_TIMEOUT_MS = 8000;
 const BACKOFF_BASE_MS = 200;
-/** `Retry-After` is honored up to this; pushes run in `waitUntil`, which has little time. */
+/** `Retry-After` is honored up to this. */
 const MAX_RETRY_DELAY_MS = 2000;
 
-const PEM_ARMOR = /-----(?:BEGIN|END) PRIVATE KEY-----/gu;
-const PEM_NOISE = /\\n|\s/gu;
 const REGISTRATION_TOKEN = /registration token/iu;
 const DIGITS_ONLY = /^\d+$/u;
-const BASE64_PADDING = /[=]+$/u;
 
 export type PushPriority = "HIGH" | "NORMAL";
+
+/**
+ * Why a push did not go out. Only these codes (and a numeric HTTP status) are ever
+ * logged: never response text, tokens, keys or payloads.
+ */
+export type PushFailureReason = "rate_limited" | "server_error" | "timeout" | "auth" | "unknown";
 
 export type SendResult =
   | { status: "sent" }
   /** The token is no longer valid; delete the device. */
-  | { status: "dead"; reason: string }
-  | { status: "failed"; reason: string; httpStatus?: number };
+  | { status: "dead"; reason: "dead_token"; httpStatus: number }
+  | { status: "failed"; reason: PushFailureReason; httpStatus?: number }
+  /** Not attempted: the invocation's send budget was used up. */
+  | { status: "skipped"; reason: "budget" };
+
+/** FCM requests one invocation may still make, retries included. Shared by its sends. */
+export type SendBudget = { take: () => boolean };
+
+export function createSendBudget(limit: number): SendBudget {
+  let remaining = limit;
+  return {
+    take: () => {
+      if (remaining <= 0) {
+        return false;
+      }
+      remaining -= 1;
+      return true;
+    },
+  };
+}
 
 /** Sends one data-only push to one device token. Never throws. */
 export type PushSender = {
   send: (
     token: string,
     data: Record<string, string>,
-    options: { priority: PushPriority },
+    options: { priority: PushPriority; budget: SendBudget },
   ) => Promise<SendResult>;
 };
 
@@ -46,123 +68,8 @@ export type FcmDeps = {
   now: () => number;
   sleep: (ms: number) => Promise<void>;
   maxAttempts: number;
+  timeoutMs: number;
 };
-
-type CachedToken = { value: string; expiresAt: number };
-
-/**
- * Access tokens per service account (`client_email`), shared by every request the
- * isolate serves. The promise is cached so concurrent sends share one exchange.
- */
-const tokenCache = new Map<string, Promise<CachedToken>>();
-
-/** Empties the access-token cache. For tests. */
-export function clearTokenCache() {
-  tokenCache.clear();
-}
-
-function base64UrlFromBytes(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(BASE64_PADDING, "");
-}
-
-function base64UrlFromJson(value: unknown): string {
-  return base64UrlFromBytes(new TextEncoder().encode(JSON.stringify(value)));
-}
-
-/** The DER bytes of a PKCS #8 PEM key, tolerating literal `\n` escapes. */
-export function pemToDer(pem: string): Uint8Array<ArrayBuffer> {
-  const base64 = pem.replace(PEM_ARMOR, "").replace(PEM_NOISE, "");
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-
-/** An RS256 JWT assertion for the OAuth token exchange, signed with WebCrypto. */
-export async function signServiceAccountJwt(
-  account: ServiceAccount,
-  nowMs: number,
-): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "pkcs8",
-    pemToDer(account.private_key),
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const iat = Math.floor(nowMs / 1000);
-  const header = base64UrlFromJson({ alg: "RS256", typ: "JWT" });
-  const claims = base64UrlFromJson({
-    iss: account.client_email,
-    scope: FCM_SCOPE,
-    aud: GOOGLE_TOKEN_URL,
-    iat,
-    exp: iat + JWT_LIFETIME_S,
-  });
-  const signingInput = `${header}.${claims}`;
-  const signature = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    key,
-    new TextEncoder().encode(signingInput),
-  );
-  return `${signingInput}.${base64UrlFromBytes(new Uint8Array(signature))}`;
-}
-
-const TokenResponse = z.object({
-  access_token: z.string().min(1),
-  expires_in: z.number().positive(),
-});
-
-async function exchangeToken(account: ServiceAccount, deps: FcmDeps): Promise<CachedToken> {
-  const requestedAt = deps.now();
-  const assertion = await signServiceAccountJwt(account, requestedAt);
-  const response = await deps.fetch(GOOGLE_TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: JWT_BEARER_GRANT, assertion }).toString(),
-  });
-  if (!response.ok) {
-    throw new Error(`OAuth token exchange failed with HTTP ${response.status}`);
-  }
-  const parsed = TokenResponse.safeParse(await response.json().catch(() => null));
-  if (!parsed.success) {
-    throw new Error("OAuth token exchange returned no access token");
-  }
-  return {
-    value: parsed.data.access_token,
-    expiresAt: requestedAt + parsed.data.expires_in * 1000,
-  };
-}
-
-/** A cached access token, or a new one when there is none or it expires within 60 s. */
-export async function getAccessToken(
-  account: ServiceAccount,
-  deps: FcmDeps,
-  options: { refresh?: boolean } = {},
-): Promise<string> {
-  const key = account.client_email;
-  const pending = tokenCache.get(key);
-  if (pending && !options.refresh) {
-    const cached = await pending.catch(() => null);
-    if (cached && cached.expiresAt - TOKEN_REFRESH_MARGIN_MS > deps.now()) {
-      return cached.value;
-    }
-  }
-  const fresh = exchangeToken(account, deps);
-  tokenCache.set(key, fresh);
-  fresh.catch(() => {
-    if (tokenCache.get(key) === fresh) {
-      tokenCache.delete(key);
-    }
-  });
-  return (await fresh).value;
-}
 
 const FcmErrorBody = z.object({
   error: z
@@ -187,16 +94,12 @@ async function readFcmError(response: Response): Promise<FcmError> {
   return (parsed.success && parsed.data.error) || {};
 }
 
-function errorCodeOf(error: FcmError): string | undefined {
-  return error.details?.find((detail) => detail.errorCode)?.errorCode;
-}
-
 /**
  * Whether FCM says the token itself is unusable. Deliberately narrow: a bare 404 (for
  * example from a wrong project id) is a configuration problem, not a dead device.
  */
 export function isDeadTokenError(httpStatus: number, error: FcmError): boolean {
-  const errorCode = errorCodeOf(error);
+  const errorCode = error.details?.find((detail) => detail.errorCode)?.errorCode;
   if (errorCode === "UNREGISTERED") {
     return true;
   }
@@ -212,13 +115,22 @@ export function isDeadTokenError(httpStatus: number, error: FcmError): boolean {
   return Boolean(tokenViolation) || REGISTRATION_TOKEN.test(error.message ?? "");
 }
 
-function isRetryable(httpStatus: number) {
-  return httpStatus === 429 || httpStatus >= 500;
+function reasonForStatus(httpStatus: number): Exclude<PushFailureReason, "timeout"> {
+  if (httpStatus === 429) {
+    return "rate_limited";
+  }
+  if (httpStatus >= 500) {
+    return "server_error";
+  }
+  if (httpStatus === 401 || httpStatus === 403) {
+    return "auth";
+  }
+  return "unknown";
 }
 
 /** Delay before the next attempt: `Retry-After` when given, else exponential, capped. */
-function retryDelay(response: Response | null, attempt: number, nowMs: number): number {
-  const header = response?.headers.get("Retry-After");
+function retryDelay(response: Response, attempt: number, nowMs: number): number {
+  const header = response.headers.get("Retry-After");
   let delay = BACKOFF_BASE_MS * 2 ** (attempt - 1);
   if (header) {
     const trimmed = header.trim();
@@ -234,60 +146,62 @@ function retryDelay(response: Response | null, attempt: number, nowMs: number): 
   return Math.min(Math.max(delay, 0), MAX_RETRY_DELAY_MS);
 }
 
-function failureReason(error: FcmError, httpStatus: number) {
-  return errorCodeOf(error) ?? error.status ?? `HTTP ${httpStatus}`;
-}
-
-function failed(error: unknown, fallback: string): SendResult {
-  return { status: "failed", reason: error instanceof Error ? error.message : fallback };
+function isTimeout(error: unknown) {
+  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
 /** What one attempt produced, and whether another attempt may help. */
 type Attempt = {
   result: SendResult;
-  /** Set when the attempt may be retried after this many milliseconds. */
+  /** Set when FCM explicitly asked to retry (429/5xx), after this many milliseconds. */
   retryAfterMs?: number;
-  /** FCM rejected the access token: get a new one and try again. */
-  refreshToken?: boolean;
+  /** FCM rejected this access token. */
+  rejectedToken?: AccessToken;
 };
 
 async function attemptSend(
-  account: ServiceAccount,
+  credential: Credential,
   deps: FcmDeps,
   request: { url: string; body: string; attempt: number },
 ): Promise<Attempt> {
-  let accessToken: string;
+  let accessToken: AccessToken;
   try {
-    accessToken = await getAccessToken(account, deps);
+    accessToken = await getAccessToken(credential, deps);
   } catch (authError) {
-    return { result: failed(authError, "auth") };
+    const httpStatus = authError instanceof OAuthError ? authError.httpStatus : undefined;
+    return { result: { status: "failed", reason: "auth", httpStatus } };
   }
   let response: Response;
   try {
     response = await deps.fetch(request.url, {
       method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${accessToken.value}`,
+        "Content-Type": "application/json",
+      },
       body: request.body,
+      signal: AbortSignal.timeout(deps.timeoutMs),
     });
-  } catch (networkError) {
+  } catch (transportError) {
+    // The request may have reached FCM, so delivery is unknown: never resend it, or the
+    // phone could show the notification twice.
     return {
-      result: failed(networkError, "network"),
-      retryAfterMs: retryDelay(null, request.attempt, deps.now()),
+      result: { status: "failed", reason: isTimeout(transportError) ? "timeout" : "unknown" },
     };
   }
   if (response.ok) {
     return { result: { status: "sent" } };
   }
+  const httpStatus = response.status;
   const error = await readFcmError(response);
-  const reason = failureReason(error, response.status);
-  if (isDeadTokenError(response.status, error)) {
-    return { result: { status: "dead", reason } };
+  if (isDeadTokenError(httpStatus, error)) {
+    return { result: { status: "dead", reason: "dead_token", httpStatus } };
   }
-  const result: SendResult = { status: "failed", reason, httpStatus: response.status };
-  if (response.status === 401) {
-    return { result, refreshToken: true };
+  const result: SendResult = { status: "failed", reason: reasonForStatus(httpStatus), httpStatus };
+  if (httpStatus === 401) {
+    return { result, rejectedToken: accessToken };
   }
-  if (isRetryable(response.status)) {
+  if (httpStatus === 429 || httpStatus >= 500) {
     return { result, retryAfterMs: retryDelay(response, request.attempt, deps.now()) };
   }
   return { result };
@@ -295,7 +209,7 @@ async function attemptSend(
 
 /** An FCM HTTP v1 sender for one Firebase project. */
 export function createFcmSender(
-  account: ServiceAccount,
+  credential: Credential,
   overrides: Partial<FcmDeps> = {},
 ): PushSender {
   const deps: FcmDeps = {
@@ -306,26 +220,30 @@ export function createFcmSender(
         setTimeout(resolve, ms);
       }),
     maxAttempts: DEFAULT_MAX_ATTEMPTS,
+    timeoutMs: DEFAULT_TIMEOUT_MS,
     ...overrides,
   };
-  const url = `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(account.project_id)}/messages:send`;
+  const url = `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(credential.projectId)}/messages:send`;
 
   return {
-    send: async (token, data, { priority }) => {
+    send: async (token, data, { priority, budget }) => {
       const body = JSON.stringify({
         message: { token, data, android: { priority, ttl: MESSAGE_TTL } },
       });
       let refreshed = false;
-      let last: SendResult = { status: "failed", reason: "not attempted" };
+      let last: SendResult = { status: "skipped", reason: "budget" };
       for (let attempt = 1; attempt <= deps.maxAttempts; attempt += 1) {
+        if (!budget.take()) {
+          return last;
+        }
         // Attempts depend on each other: each one runs only if the previous failed.
         // biome-ignore lint/performance/noAwaitInLoops: sequential retries
-        const outcome = await attemptSend(account, deps, { url, body, attempt });
+        const outcome = await attemptSend(credential, deps, { url, body, attempt });
         last = outcome.result;
-        if (outcome.refreshToken && !refreshed) {
-          // The cached token was revoked or expired early: get a new one and try again.
+        if (outcome.rejectedToken && !refreshed) {
+          // Revoked or expired early: drop that token so the next attempt gets a new one.
           refreshed = true;
-          await getAccessToken(account, deps, { refresh: true }).catch(() => undefined);
+          invalidateAccessToken(credential, outcome.rejectedToken);
         } else if (outcome.retryAfterMs === undefined || attempt === deps.maxAttempts) {
           return last;
         } else {
