@@ -19,7 +19,7 @@ export async function createContext({ context }: CreateContextOptions): Promise<
   return {
     db,
     session,
-    // CORS_ORIGIN is the web app's origin, where invite links are opened.
+    // CORS_ORIGIN is the deployment's public origin; invite links are built on it.
     appUrl: ENV.CORS_ORIGIN.replace(TRAILING_SLASHES, ""),
     dispatch: await requestDispatch(context, db),
   };

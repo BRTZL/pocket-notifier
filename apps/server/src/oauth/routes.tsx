@@ -4,6 +4,7 @@
  * request (`oauth_query`); the forms post back here and these handlers call the auth
  * endpoints server side, then redirect the browser to where the provider says.
  */
+import { AUTH_PATH, OAUTH_CONSENT_PATH, OAUTH_LOGIN_PATH } from "@notifier/auth/paths";
 import type { Context, Env, Hono } from "hono";
 
 import { ConsentPage, LoginPage, MessagePage } from "./pages";
@@ -109,7 +110,7 @@ function authRequest(c: Context, deps: OAuthPageDeps, path: string, body: unknow
     }
   }
   return deps.authHandler(
-    new Request(`${deps.authOrigin}/api/auth${path}`, {
+    new Request(`${deps.authOrigin}${AUTH_PATH}${path}`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -131,7 +132,7 @@ function messagePage(c: Context, title: string, message: string, status: 400 | 4
 }
 
 export function registerOAuthPages<E extends Env>(app: Hono<E>, deps: OAuthPageDeps) {
-  app.get("/oauth/login", async (c) => {
+  app.get(OAUTH_LOGIN_PATH, async (c) => {
     const oauthQuery = rawQuery(c);
     if (!(await deps.verifyOAuthQuery(oauthQuery))) {
       return messagePage(c, "Link expired", EXPIRED, 400);
@@ -142,7 +143,7 @@ export function registerOAuthPages<E extends Env>(app: Hono<E>, deps: OAuthPageD
     );
   });
 
-  app.post("/oauth/login", async (c) => {
+  app.post(OAUTH_LOGIN_PATH, async (c) => {
     if (!isSameOrigin(c)) {
       return messagePage(c, "Not allowed", "This form can only be sent from its own page.", 403);
     }
@@ -174,7 +175,7 @@ export function registerOAuthPages<E extends Env>(app: Hono<E>, deps: OAuthPageD
     );
   });
 
-  app.get("/oauth/consent", async (c) => {
+  app.get(OAUTH_CONSENT_PATH, async (c) => {
     const oauthQuery = rawQuery(c);
     if (!(await deps.verifyOAuthQuery(oauthQuery))) {
       return messagePage(c, "Link expired", EXPIRED, 400);
@@ -182,7 +183,7 @@ export function registerOAuthPages<E extends Env>(app: Hono<E>, deps: OAuthPageD
     const sessionUser = await deps.getSessionUser(c.req.raw.headers);
     if (!sessionUser) {
       // Signing in re-runs the authorization and comes back here.
-      return withHeaders(c.redirect(`/oauth/login?${oauthQuery}`, 302));
+      return withHeaders(c.redirect(`${OAUTH_LOGIN_PATH}?${oauthQuery}`, 302));
     }
     const client = await deps.findClient(clientIdOf(oauthQuery));
     if (!client) {
@@ -207,7 +208,7 @@ export function registerOAuthPages<E extends Env>(app: Hono<E>, deps: OAuthPageD
     );
   });
 
-  app.post("/oauth/consent", async (c) => {
+  app.post(OAUTH_CONSENT_PATH, async (c) => {
     if (!isSameOrigin(c)) {
       return messagePage(c, "Not allowed", "This form can only be sent from its own page.", 403);
     }

@@ -100,7 +100,7 @@ describe("OAuth for MCP clients, end to end", () => {
   });
 
   it("asks unauthenticated MCP calls to sign in via protected-resource metadata", async () => {
-    const response = await fetchApp("/mcp", {
+    const response = await fetchApp("/api/mcp", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -110,13 +110,13 @@ describe("OAuth for MCP clients, end to end", () => {
     });
     expect(response.status).toBe(401);
     expect(response.headers.get("WWW-Authenticate")).toContain(
-      `resource_metadata="${BASE}/.well-known/oauth-protected-resource/mcp"`,
+      `resource_metadata="${BASE}/.well-known/oauth-protected-resource/api/mcp"`,
     );
     expect(response.headers.get("WWW-Authenticate")).toContain(
       'scope="notifier:read notifier:write offline_access"',
     );
 
-    const forged = await fetchApp("/mcp", {
+    const forged = await fetchApp("/api/mcp", {
       method: "POST",
       headers: { Authorization: "Bearer not-a-token", "Content-Type": "application/json" },
       body: "{}",
@@ -127,9 +127,9 @@ describe("OAuth for MCP clients, end to end", () => {
   it("signs a client in with PKCE and lets it send a notification", async () => {
     // 1. Discovery.
     const resource = (await (
-      await fetchApp("/.well-known/oauth-protected-resource/mcp")
+      await fetchApp("/.well-known/oauth-protected-resource/api/mcp")
     ).json()) as { resource: string; authorization_servers: string[] };
-    expect(resource.resource).toBe(`${BASE}/mcp`);
+    expect(resource.resource).toBe(`${BASE}/api/mcp`);
     const issuer = new URL(resource.authorization_servers[0] ?? "");
     const metadata = (await (
       await fetchApp(`/.well-known/oauth-authorization-server${issuer.pathname}`)
@@ -173,7 +173,7 @@ describe("OAuth for MCP clients, end to end", () => {
     });
     expect(authorize.status).toBe(302);
     const loginPath = authorize.headers.get("Location") ?? "";
-    expect(loginPath.startsWith("/oauth/login?")).toBe(true);
+    expect(loginPath.startsWith("/api/oauth/login?")).toBe(true);
 
     const loginPage = await fetchApp(loginPath);
     expect(loginPage.status).toBe(200);
@@ -191,13 +191,13 @@ describe("OAuth for MCP clients, end to end", () => {
       redirect: "manual" as const,
     });
     const wrong = await fetchApp(
-      "/oauth/login",
+      "/api/oauth/login",
       form({ email: EMAIL, password: "nope nope nope", oauth_query: oauthQuery }),
     );
     expect(wrong.status).toBe(401);
     expect(await wrong.text()).toContain("Wrong email or password.");
     const tampered = await fetchApp(
-      "/oauth/login",
+      "/api/oauth/login",
       form({
         email: EMAIL,
         password: PASSWORD,
@@ -207,12 +207,12 @@ describe("OAuth for MCP clients, end to end", () => {
     expect(tampered.status).toBe(400);
 
     const signedIn = await fetchApp(
-      "/oauth/login",
+      "/api/oauth/login",
       form({ email: EMAIL, password: PASSWORD, oauth_query: oauthQuery }),
     );
     expect(signedIn.status).toBe(302);
     const consentPath = signedIn.headers.get("Location") ?? "";
-    expect(consentPath.startsWith("/oauth/consent?")).toBe(true);
+    expect(consentPath.startsWith("/api/oauth/consent?")).toBe(true);
     const cookie = cookiesOf(signedIn);
     expect(cookie).toContain("session_token");
 
@@ -226,7 +226,7 @@ describe("OAuth for MCP clients, end to end", () => {
     expect(consentHtml).toContain("127.0.0.1:40123");
     expect(consentHtml).toContain("Send notifications to your phone");
     const consentQuery = new URL(consentPath, BASE).search.slice(1);
-    const consented = await fetchApp("/oauth/consent", {
+    const consented = await fetchApp("/api/oauth/consent", {
       ...form({ accept: "yes", oauth_query: consentQuery }),
       headers: { ...form({}).headers, Cookie: cookie },
     });
@@ -256,7 +256,7 @@ describe("OAuth for MCP clients, end to end", () => {
     const accessToken = String(tokens.access_token);
 
     // 7. MCP with the bearer token.
-    const transport = new StreamableHTTPClientTransport(new URL(`${BASE}/mcp`), {
+    const transport = new StreamableHTTPClientTransport(new URL(`${BASE}/api/mcp`), {
       fetch: (input, init) => fetchApp(new Request(input, init)),
       requestInit: { headers: { Authorization: `Bearer ${accessToken}` } },
     });
@@ -324,7 +324,7 @@ describe("OAuth for MCP clients, end to end", () => {
       state: "s",
       code_challenge: challenge,
       code_challenge_method: "S256",
-      resource: `${BASE}/mcp`,
+      resource: `${BASE}/api/mcp`,
     }).toString();
     return await fetchApp(url, { headers: { Accept: "text/html" }, redirect: "manual" });
   }
@@ -341,10 +341,10 @@ describe("OAuth for MCP clients, end to end", () => {
       expect(client.application_type).toBe("native");
       const accepted = await authorize(client.client_id, used);
       expect(accepted.status).toBe(302);
-      expect(accepted.headers.get("Location")?.startsWith("/oauth/login?")).toBe(true);
+      expect(accepted.headers.get("Location")?.startsWith("/api/oauth/login?")).toBe(true);
       // Another path than the registered one is not the same redirect.
       const otherPath = await authorize(client.client_id, used.replace("/callback", "/other"));
-      expect(otherPath.headers.get("Location")?.startsWith("/oauth/login?")).not.toBe(true);
+      expect(otherPath.headers.get("Location")?.startsWith("/api/oauth/login?")).not.toBe(true);
     }
 
     const evil = await register(["http://evil.example/callback"]);

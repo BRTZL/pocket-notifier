@@ -1,7 +1,8 @@
 /**
  * Server-rendered sign-in and consent pages for MCP clients signing in with OAuth.
- * Plain HTML forms, no client script, so they work without the web app.
+ * Plain HTML forms, no client script.
  */
+import { OAUTH_CONSENT_PATH, OAUTH_LOGIN_PATH } from "@notifier/auth/paths";
 import type { Child } from "hono/jsx";
 
 const STYLES = `
@@ -84,7 +85,7 @@ export function LoginPage(props: LoginPageProps) {
           {props.error}
         </div>
       ) : null}
-      <form action="/oauth/login" method="post">
+      <form action={OAUTH_LOGIN_PATH} method="post">
         <input name="oauth_query" type="hidden" value={props.oauthQuery} />
         <label>
           Email
@@ -148,7 +149,7 @@ export function ConsentPage(props: ConsentPageProps) {
           <li key={scope}>{describeScope(scope)}</li>
         ))}
       </ul>
-      <form action="/oauth/consent" method="post">
+      <form action={OAUTH_CONSENT_PATH} method="post">
         <input name="oauth_query" type="hidden" value={props.oauthQuery} />
         <button class="primary" name="accept" type="submit" value="yes">
           Allow

@@ -2,6 +2,7 @@ import type { Context as ApiContext } from "@notifier/api/context";
 import type { Dispatch } from "@notifier/api/dispatch";
 import { createPublicHandler } from "@notifier/api/public/handler";
 import { appRouter } from "@notifier/api/router";
+import { API_PREFIX, AUTH_PATH, MCP_PATH } from "@notifier/auth/paths";
 import type { Database } from "@notifier/db";
 import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
@@ -14,7 +15,7 @@ import { isPublicApiPath, isPublicPath } from "./boundary";
 import { type OAuthPageDeps, registerOAuthPages } from "./oauth/routes";
 
 export type AppDeps = {
-  /** Origin of the web app; the only origin allowed credentialed CORS. */
+  /** The deployment's public origin; the only origin allowed credentialed CORS. */
   appOrigin: string;
   /** Adds the signed-in user to the request log. Never called for the public API. */
   identifyUser: (log: RequestLogger, headers: Headers, path: string) => Promise<unknown>;
@@ -25,18 +26,22 @@ export type AppDeps = {
   createContext: (c: HonoContext<EvlogVariables>) => Promise<ApiContext>;
   /** The OAuth sign-in and consent pages for MCP clients. */
   oauthPages: OAuthPageDeps;
-  /** Serves `/mcp`: verifies the OAuth bearer token, then runs the MCP server. */
+  /** Serves `/api/mcp`: verifies the OAuth bearer token, then runs the MCP server. */
   mcp: (c: HonoContext<EvlogVariables>) => Promise<Response>;
 };
 
 const METHODS = ["GET", "POST", "OPTIONS"];
 const HEADERS = ["Content-Type", "Authorization"];
-/** MCP clients (also browser-based ones) send and read these on `/mcp`. */
+/** MCP clients (also browser-based ones) send and read these on `/api/mcp`. */
 const PUBLIC_METHODS = ["GET", "POST", "DELETE", "OPTIONS"];
 const PUBLIC_HEADERS = [...HEADERS, "Mcp-Protocol-Version", "Mcp-Session-Id", "Last-Event-ID"];
 const PUBLIC_EXPOSED = ["WWW-Authenticate", "Mcp-Session-Id", "Mcp-Protocol-Version"];
 
-/** The server's Hono app. Dependencies are injected so the routing can be tested. */
+/**
+ * The server's Hono app. Everything is served under `/api` (see `@notifier/auth/paths`),
+ * except the OAuth discovery documents at the root `/.well-known/`, so the deployment's
+ * root can serve the docs site. Dependencies are injected so the routing can be tested.
+ */
 export function createApp(deps: AppDeps) {
   const app = new Hono<EvlogVariables>();
 
@@ -64,13 +69,13 @@ export function createApp(deps: AppDeps) {
   });
   app.use("*", (c, next) => (isPublicPath(c.req.path) ? publicCors(c, next) : appCors(c, next)));
 
-  app.on(["POST", "GET"], "/api/auth/*", (c) => deps.authHandler(c.req.raw));
+  app.on(["POST", "GET"], `${AUTH_PATH}/*`, (c) => deps.authHandler(c.req.raw));
   // OAuth discovery for MCP clients: authorization-server metadata at
   // /.well-known/oauth-authorization-server/api/auth (RFC 8414 path insertion) and
-  // protected-resource metadata at /.well-known/oauth-protected-resource/mcp (RFC 9728).
+  // protected-resource metadata at /.well-known/oauth-protected-resource/api/mcp (RFC 9728).
   app.get("/.well-known/*", (c) => deps.authHandler(c.req.raw));
   registerOAuthPages(app, deps.oauthPages);
-  app.on(["GET", "POST", "DELETE"], "/mcp", (c) => deps.mcp(c));
+  app.on(["GET", "POST", "DELETE"], MCP_PATH, (c) => deps.mcp(c));
 
   const publicHandler = createPublicHandler();
   app.use("*", async (c, next) => {
@@ -79,6 +84,7 @@ export function createApp(deps: AppDeps) {
     }
     const db = deps.getDb();
     const result = await publicHandler.handle(c.req.raw, {
+      prefix: API_PREFIX,
       context: {
         db,
         authorization: c.req.header("Authorization") ?? null,
@@ -101,7 +107,7 @@ export function createApp(deps: AppDeps) {
   });
   app.use("*", async (c, next) => {
     const rpcResult = await rpcHandler.handle(c.req.raw, {
-      prefix: "/rpc",
+      prefix: `${API_PREFIX}/rpc`,
       context: await deps.createContext(c),
     });
     if (rpcResult.matched) {
@@ -110,7 +116,7 @@ export function createApp(deps: AppDeps) {
     await next();
   });
 
-  app.get("/", (c) => c.text("OK"));
+  app.get(`${API_PREFIX}/health`, (c) => c.text("OK"));
 
   return app;
 }

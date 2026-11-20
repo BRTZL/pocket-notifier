@@ -1,16 +1,21 @@
+import { API_PREFIX, MCP_PATH } from "@notifier/auth/paths";
+
+/** The public REST API (`/api/v1`). */
+export const PUBLIC_API_PATH = `${API_PREFIX}/v1`;
+
 /**
- * The public `/v1` API authenticates with bearer tokens only: no cookies, no session,
+ * The public `/api/v1` API authenticates with bearer tokens only: no cookies, no session,
  * any origin. Everything else is the credentialed app boundary. Every place that
- * treats the two differently must use this one check, so `/v1` itself is never
+ * treats the two differently must use this one check, so `/api/v1` itself is never
  * handled as an app path.
  */
 export function isPublicApiPath(path: string): boolean {
-  return path === "/v1" || path.startsWith("/v1/");
+  return path === PUBLIC_API_PATH || path.startsWith(`${PUBLIC_API_PATH}/`);
 }
 
 /** The MCP endpoint: OAuth bearer tokens only, any origin, never a session. */
 export function isMcpPath(path: string): boolean {
-  return path === "/mcp";
+  return path === MCP_PATH;
 }
 
 /**

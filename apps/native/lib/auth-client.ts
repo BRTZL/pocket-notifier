@@ -6,7 +6,9 @@ import * as SecureStore from "expo-secure-store";
 import { ENV } from "../src/env";
 
 export const authClient = createAuthClient({
-  baseURL: ENV.EXPO_PUBLIC_SERVER_URL,
+  // The server's better-auth routes are at `<API base>/auth`. A baseURL with a path is
+  // used as is, so this is the full auth base, not just the origin.
+  baseURL: `${ENV.EXPO_PUBLIC_SERVER_URL}/auth`,
   plugins: [
     expoClient({
       scheme: Constants.expoConfig?.scheme as string,

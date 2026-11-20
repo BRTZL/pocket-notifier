@@ -8,8 +8,9 @@ import { limitBody, PUBLIC_BODY_MAX_BYTES } from "./body-limit";
 import { publicRouter } from "./router";
 
 /**
- * The `/v1` REST handler. Routes carry the full `/v1/...` path, so it runs without a
- * prefix; the API reference is served at `/v1/docs` and the spec at `/v1/spec.json`.
+ * The `/v1` REST handler. Routes carry the full `/v1/...` path; the server mounts it
+ * under a `prefix` (`/api`). The API reference is served at `<prefix>/v1/docs` and the
+ * spec at `<prefix>/v1/spec.json`.
  * Bodies over `maxBodyBytes` get a 413 before oRPC buffers or parses them.
  */
 export function createPublicHandler({ maxBodyBytes = PUBLIC_BODY_MAX_BYTES } = {}) {
@@ -37,7 +38,7 @@ export function createPublicHandler({ maxBodyBytes = PUBLIC_BODY_MAX_BYTES } = {
   });
 
   return {
-    async handle(request: Request, options: { context: PublicContext }) {
+    async handle(request: Request, options: { context: PublicContext; prefix?: `/${string}` }) {
       const limited = await limitBody(request, maxBodyBytes);
       if (limited instanceof Response) {
         return { matched: true as const, response: limited };

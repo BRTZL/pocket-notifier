@@ -9,7 +9,6 @@ import * as oauthSchema from "@notifier/db/schema/oauth";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { jwt } from "better-auth/plugins";
-
 import {
   claimInvite,
   finalizeInvite,
@@ -18,6 +17,7 @@ import {
   inviteAllowsEmail,
   releaseInvite,
 } from "./invites";
+import { MCP_PATH, OAUTH_CONSENT_PATH, OAUTH_LOGIN_PATH } from "./paths";
 
 export type AuthConfig = {
   BETTER_AUTH_URL: string;
@@ -34,13 +34,14 @@ const TRAILING_SLASHES = /\/+$/u;
 /** Scopes of the notifier MCP server. `notifier:write` sends notifications and edits features. */
 export const MCP_SCOPES = ["notifier:read", "notifier:write"] as const;
 
-/** Paths of the Worker's own sign-in and consent pages for MCP clients (`apps/server`). */
-export const OAUTH_LOGIN_PATH = "/oauth/login";
-export const OAUTH_CONSENT_PATH = "/oauth/consent";
+export * from "./paths";
 
-/** The MCP endpoint, which is the OAuth protected resource: `<BETTER_AUTH_URL>/mcp`. */
+/**
+ * The MCP endpoint, which is the OAuth protected resource: `<BETTER_AUTH_URL>/api/mcp`.
+ * `BETTER_AUTH_URL` is the deployment's origin, without a path.
+ */
 export function mcpResourceUrl(env: Pick<AuthConfig, "BETTER_AUTH_URL">): string {
-  return `${env.BETTER_AUTH_URL.replace(TRAILING_SLASHES, "")}/mcp`;
+  return `${env.BETTER_AUTH_URL.replace(TRAILING_SLASHES, "")}${MCP_PATH}`;
 }
 
 /**
@@ -238,9 +239,9 @@ export type McpAccessClaims = { sub?: string; azp?: unknown; client_id?: unknown
 
 /**
  * Protects the MCP endpoint: verifies the bearer access token (signature, issuer, the
- * `/mcp` audience, expiry, both notifier scopes) and passes its claims to `handler`.
+ * `/api/mcp` audience, expiry, both notifier scopes) and passes its claims to `handler`.
  * Without a usable token it answers 401 with
- * `WWW-Authenticate: Bearer resource_metadata="<server>/.well-known/oauth-protected-resource/mcp"`.
+ * `WWW-Authenticate: Bearer resource_metadata="<origin>/.well-known/oauth-protected-resource/api/mcp"`.
  * The challenge also asks for `offline_access`, so clients get a refresh token.
  */
 export function protectMcp(
