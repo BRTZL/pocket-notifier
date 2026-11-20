@@ -12,7 +12,7 @@ import {
   toPublishOutput,
 } from "../lib/messages";
 import { listResponses } from "../lib/responses";
-import { type TokenAuth, tokenCanPublish, tokenCanRead } from "./auth";
+import { type TokenAuth, type TopicRow, tokenCanPublish, tokenCanRead } from "./auth";
 import { type PublicContext, tokenAuthed } from "./base";
 
 const publish = tokenAuthed.messages.publish.handler(async ({ context, input }) => {
@@ -46,13 +46,19 @@ async function readableMessage(db: Database, auth: TokenAuth, id: string) {
   if (!found) {
     throw appError("NOT_FOUND", "Message not found");
   }
+  const notFound = () => appError("NOT_FOUND", "Message not found");
+  let authorized: TopicRow;
   try {
-    await tokenCanRead(db, auth, found.topicName);
+    authorized = await tokenCanRead(db, auth, found.topicName);
   } catch (error) {
     if (error instanceof ORPCError && (error.code === "FORBIDDEN" || error.code === "NOT_FOUND")) {
-      throw appError("NOT_FOUND", "Message not found");
+      throw notFound();
     }
     throw error;
+  }
+  // The check ran by topic name; make sure it authorized this message's own topic.
+  if (authorized.id !== found.message.topicId) {
+    throw notFound();
   }
   return found;
 }
@@ -65,7 +71,10 @@ const get = tokenAuthed.messages.get.handler(async ({ context, input }) => {
 const responses = tokenAuthed.messages.responses.handler(async ({ context, input }) => {
   const found = await readableMessage(context.db, context.auth, input.id);
   // Readable, so only the role check can fail here: FORBIDDEN for subscribers.
-  await tokenCanPublish(context.db, context.auth, found.topicName);
+  const publishable = await tokenCanPublish(context.db, context.auth, found.topicName);
+  if (publishable.id !== found.message.topicId) {
+    throw appError("NOT_FOUND", "Message not found");
+  }
   return listResponses(context.db, {
     messageId: found.message.id,
     cursor: input.cursor,

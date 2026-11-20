@@ -270,6 +270,11 @@ describe("public messages API", () => {
       await expect(bobApi.messages.responses({ id })).rejects.toMatchObject(
         definedError("FORBIDDEN"),
       );
+      // As a publisher, Bob's token can read them.
+      await owner.members.update({ topicId: teamId, userId: bob.id, role: "publisher" });
+      await expect(bobApi.messages.responses({ id })).resolves.toMatchObject({
+        items: [{ actionKey: "yes" }, { actionKey: "note" }],
+      });
       const outOfScope = publicClientFor(testDb.db, await tokenFor(ada, ["ops"]));
       await expect(outOfScope.messages.responses({ id })).rejects.toMatchObject(
         definedError("NOT_FOUND"),

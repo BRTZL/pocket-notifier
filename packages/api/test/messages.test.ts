@@ -13,6 +13,8 @@ import {
   type TestUser,
 } from "./helpers";
 
+const UNREADABLE_TAGS = /unreadable tags_json/u;
+
 describe("app messages", () => {
   let testDb: TestDb;
   let ada: TestUser;
@@ -111,6 +113,19 @@ describe("app messages", () => {
   });
 
   describe("markRead", () => {
+    it("ignores expired messages in both forms", async () => {
+      const [expired = "", live = ""] = await publishMany("team", 2);
+      await testDb.db
+        .update(message)
+        .set({ expiresAt: new Date(Date.now() - 1000) })
+        .where(eq(message.id, expired));
+      const bobClient = clientFor(testDb.db, bob);
+      expect(await bobClient.messages.markRead({ ids: [expired] })).toEqual({ updated: 0 });
+      expect(await bobClient.messages.markRead({ upTo: live })).toEqual({ updated: 1 });
+      const rows = await testDb.db.select().from(messageRead).where(eq(messageRead.userId, bob.id));
+      expect(rows.map((row) => row.messageId)).toEqual([live]);
+    });
+
     it("marks ids the caller can see and counts only new rows", async () => {
       const [teamMsg] = await publishMany("team", 1);
       const owner = clientFor(testDb.db, ada);
@@ -156,6 +171,14 @@ describe("app messages", () => {
   });
 
   describe("publish", () => {
+    it("sets expiresAt from the topic's retention", async () => {
+      const owner = clientFor(testDb.db, ada);
+      await owner.topics.create({ name: "short", retentionDays: 7 });
+      const out = await owner.messages.publish({ topic: "short" });
+      expect(Date.parse(out.expiresAt) - Date.parse(out.createdAt)).toBe(7 * 86_400_000);
+      expect((await owner.messages.get({ id: out.id })).expiresAt).toBe(out.expiresAt);
+    });
+
     it("lets owners and publishers publish, and dispatches the stored message", async () => {
       const messagePublished = vi.fn<Dispatch["messagePublished"]>();
       const bobClient = clientFor(testDb.db, bob, { messagePublished });
@@ -192,6 +215,21 @@ describe("app messages", () => {
           attachmentId: "att_01jd8x7q3n1p5s8u0w2y4a6c8e",
         }),
       ).rejects.toMatchObject(codeError("BAD_REQUEST"));
+    });
+  });
+
+  describe("stored JSON", () => {
+    // A plain Error, not an ORPCError: the handlers answer it with a 500.
+    it("fails loudly on a row that does not parse", async () => {
+      const [id = ""] = await publishMany("team", 1);
+      const bobClient = clientFor(testDb.db, bob);
+      await testDb.db.update(message).set({ tagsJson: "not json" }).where(eq(message.id, id));
+      await expect(bobClient.messages.get({ id })).rejects.toThrow(UNREADABLE_TAGS);
+      await expect(bobClient.messages.list({})).rejects.toThrow(UNREADABLE_TAGS);
+
+      // Valid JSON that breaks the contract schema fails the same way.
+      await testDb.db.update(message).set({ tagsJson: '["two words"]' }).where(eq(message.id, id));
+      await expect(bobClient.messages.get({ id })).rejects.toThrow(UNREADABLE_TAGS);
     });
   });
 

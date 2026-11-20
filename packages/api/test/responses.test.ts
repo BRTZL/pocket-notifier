@@ -20,6 +20,7 @@ describe("responses", () => {
   let bob: TestUser;
   let cid: TestUser;
   let messageId: string;
+  let topicId: string;
 
   beforeEach(async () => {
     testDb = await createTestDb();
@@ -27,8 +28,8 @@ describe("responses", () => {
     bob = await seedUser(testDb.db, "bob");
     cid = await seedUser(testDb.db, "cid");
     const owner = clientFor(testDb.db, ada);
-    const { id: teamId } = await owner.topics.create({ name: "team" });
-    await owner.members.add({ topicId: teamId, email: bob.email, role: "subscriber" });
+    ({ id: topicId } = await owner.topics.create({ name: "team" }));
+    await owner.members.add({ topicId, email: bob.email, role: "subscriber" });
     ({ id: messageId } = await owner.messages.publish({
       topic: "team",
       actions: [
@@ -56,12 +57,17 @@ describe("responses", () => {
     });
     const text = await bobClient.responses.create({ messageId, actionKey: "note", text: "Later" });
     expect(text).toMatchObject({ kind: "text", text: "Later" });
-    // An input action can still be answered with a plain tap.
-    const adaAck = await clientFor(testDb.db, ada).responses.create({
-      messageId,
-      actionKey: "note",
-    });
-    expect(adaAck).toMatchObject({ kind: "ack", text: null });
+  });
+
+  it("requires text on an input action", async () => {
+    const adaClient = clientFor(testDb.db, ada);
+    await expect(
+      adaClient.responses.create({ messageId, actionKey: "note" }),
+    ).rejects.toMatchObject(codeError("BAD_REQUEST"));
+    // Empty text fails the input schema before reaching the handler.
+    await expect(
+      adaClient.responses.create({ messageId, actionKey: "note", text: "" }),
+    ).rejects.toMatchObject(codeError("BAD_REQUEST"));
   });
 
   it("rejects unknown and non-reply actions, and text on an ack action", async () => {
@@ -117,6 +123,11 @@ describe("responses", () => {
     await expect(clientFor(testDb.db, bob).responses.list({ messageId })).rejects.toMatchObject(
       definedError("FORBIDDEN"),
     );
+    // Publishers can read responses too, not only owners.
+    await owner.members.update({ topicId, userId: bob.id, role: "publisher" });
+    await expect(clientFor(testDb.db, bob).responses.list({ messageId })).resolves.toMatchObject({
+      items: [{ user: { id: bob.id } }, { user: { id: ada.id } }],
+    });
     await expect(clientFor(testDb.db, cid).responses.list({ messageId })).rejects.toMatchObject(
       definedError("NOT_FOUND"),
     );

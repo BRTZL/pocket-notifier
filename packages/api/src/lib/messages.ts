@@ -92,22 +92,33 @@ function parseStored<T extends z.ZodType>(
   field: string,
   id: string,
 ): z.output<T> {
-  const parsed = schema.safeParse(json === null ? null : JSON.parse(json));
+  let value: unknown = null;
+  if (json !== null) {
+    try {
+      value = JSON.parse(json);
+    } catch {
+      throw new Error(`message ${id} has an unreadable ${field}`);
+    }
+  }
+  const parsed = schema.safeParse(value);
   if (!parsed.success) {
     throw new Error(`message ${id} has an unreadable ${field}`);
   }
   return parsed.data;
 }
 
-/** The contract `Message` for a stored row. JSON columns are validated on the way out. */
+/**
+ * The contract `Message` for a stored row, parsed with the contract schema, so a
+ * corrupt row fails loudly (a 500) instead of reaching a client or the push hook.
+ */
 export function toMessage(row: MessageRow, topicName: string, publisher: UserRow | null): Message {
-  return {
+  const assembled = {
     id: row.id,
     topicId: row.topicId,
     topic: topicName,
     title: row.title,
     body: row.body,
-    priority: row.priority as Message["priority"],
+    priority: row.priority,
     tags: parseStored(StoredTags, row.tagsJson, "tags_json", row.id),
     clickUrl: row.clickUrl,
     actions: parseStored(StoredActions, row.actionsJson, "actions_json", row.id),
@@ -123,6 +134,13 @@ export function toMessage(row: MessageRow, topicName: string, publisher: UserRow
     createdAt: row.createdAt.toISOString(),
     expiresAt: row.expiresAt.toISOString(),
   };
+  const parsed = MessageSchema.safeParse(assembled);
+  if (!parsed.success) {
+    throw new Error(`message ${row.id} does not match the Message schema`, {
+      cause: parsed.error,
+    });
+  }
+  return parsed.data;
 }
 
 export function toPublishOutput(row: MessageRow, topicName: string) {

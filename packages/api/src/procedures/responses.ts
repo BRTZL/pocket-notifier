@@ -34,9 +34,14 @@ const create = authed.responses.create.handler(async ({ context, input, errors }
   if (action.type !== "reply") {
     throw badRequest(`Action "${input.actionKey}" is not a reply action`);
   }
-  if (input.text !== undefined && !action.input) {
+  // The action decides the kind: an input action needs text, a plain one takes none.
+  if (action.input && !input.text) {
+    throw badRequest(`Action "${input.actionKey}" needs a text reply`);
+  }
+  if (!action.input && input.text !== undefined) {
     throw badRequest(`Action "${input.actionKey}" takes no text; send it without one`);
   }
+  const kind = action.input ? "text" : "ack";
 
   try {
     const [row] = await db
@@ -46,8 +51,8 @@ const create = authed.responses.create.handler(async ({ context, input, errors }
         messageId: found.message.id,
         userId: caller.id,
         actionKey: action.key,
-        kind: input.text === undefined ? "ack" : "text",
-        text: input.text ?? null,
+        kind,
+        text: kind === "text" ? (input.text ?? null) : null,
       })
       .returning();
     if (!row) {
