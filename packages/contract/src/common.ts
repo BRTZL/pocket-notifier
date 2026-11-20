@@ -12,6 +12,7 @@ export const ID_PREFIXES = {
   token: "tok",
   invite: "inv",
   device: "dev",
+  feature: "fea",
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;
