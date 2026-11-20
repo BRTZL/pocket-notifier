@@ -7,15 +7,13 @@ notifier has two APIs, both defined as oRPC contracts in `packages/contract` <St
 
 | | Public API | App API |
 | --- | --- | --- |
-| For | Scripts, CI, servers | The web dashboard and the mobile app |
-| Style | REST + JSON, OpenAPI | oRPC over `/rpc` |
+| For | Scripts, CI, servers | The mobile app |
+| Style | REST + JSON, OpenAPI | oRPC over `/api/rpc` |
 | Auth | `Authorization: Bearer nt_...` | better-auth session cookie |
 | Contract | `publicContract` in `src/public.ts` | `appContract` in `src/app.ts` |
-| Base path | `/v1` | `/rpc` |
+| Base path | `/api/v1` | `/api/rpc` |
 
-<Callout type="warn" title="Not served yet">
-  The server still serves the scaffold's OpenAPI handler under `/api-reference`. Serving the public API at `/v1` is part of [M1](/docs/product/roadmap). Until then, none of these endpoints exist.
-</Callout>
+The server lives under `/api` on `https://notifier.bartuozel.com`; the docs site is the root. The examples set `NOTIFIER_URL` to that API base, so paths read `/v1/...`. The interactive API reference is at [`/api/v1/docs`](https://notifier.bartuozel.com/api/v1/docs) and the OpenAPI document at `/api/v1/spec.json`.
 
 ## Authentication
 
@@ -23,7 +21,7 @@ notifier has two APIs, both defined as oRPC contracts in `packages/contract` <St
 <Tab value="curl">
 
 ```bash
-export NOTIFIER_URL=https://notifier.example.com
+export NOTIFIER_URL=https://notifier.bartuozel.com/api
 export NOTIFIER_TOKEN=nt_...
 
 curl "$NOTIFIER_URL/v1/projects/ci/messages" \

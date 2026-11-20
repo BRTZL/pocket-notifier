@@ -1,6 +1,6 @@
 ---
 title: App API
-description: The oRPC procedures the web dashboard and the mobile app use.
+description: The oRPC procedures the mobile app uses, served at /api/rpc.
 ---
 
 The app API is `appContract` in `packages/contract/src/app.ts`. The apps call it through the typed oRPC client at `/rpc`, signed in with their better-auth session. Every procedure requires a session except `invites.preview`.

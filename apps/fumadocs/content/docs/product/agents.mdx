@@ -10,8 +10,8 @@ Most notifier messages will come from coding agents (Claude, Codex) running in T
 <Status kind="decided" /> The primary path is the notifier **[MCP server](/docs/api/mcp)**. You add it once per agent and sign in through the browser:
 
 ```bash
-claude mcp add --transport http pocket-notifier https://<server>/mcp
-codex mcp add pocket-notifier --url https://<server>/mcp && codex mcp login pocket-notifier
+claude mcp add --transport http pocket-notifier https://notifier.bartuozel.com/api/mcp
+codex mcp add pocket-notifier --url https://notifier.bartuozel.com/api/mcp && codex mcp login pocket-notifier
 ```
 
 The agent then calls `list_projects`, `list_features` and `send_notification`. The [`pocket-notifier` skill](#the-agent-skill) tells it when and how.
@@ -95,7 +95,7 @@ curl -X POST "$NOTIFIER_URL/v1/projects/agents/messages" \
 
 The script keeps its interface (`agent-notify <kind> <title> <body> [--url] [--action] [--image]`), its length checks and its 10-minute duplicate check. Only the request changes:
 
-1. Read `NOTIFIER_URL` and `NOTIFIER_TOKEN` instead of `AGENT_NTFY_PROJECT`. The token is a notifier access token scoped to the `agents` project.
+1. Read `NOTIFIER_URL` (the API base, `https://notifier.bartuozel.com/api`) and `NOTIFIER_TOKEN` instead of `AGENT_NTFY_PROJECT`. The token is a notifier access token scoped to the `agents` project.
 2. Send the JSON above instead of ntfy headers.
 3. `--image` becomes an [attachment upload](/docs/api/publish#attachments) followed by the publish.
 

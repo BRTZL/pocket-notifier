@@ -5,7 +5,7 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 ## Features
 
 - **TypeScript** - For type safety and improved developer experience
-- **Next.js** - Full-stack React framework
+- **Next.js** - Docs site (fumadocs, static export)
 - **React Native** - Build mobile apps using React
 - **Expo** - Tools for React Native development
 - **TailwindCSS** - Utility-first CSS for rapid UI development
@@ -41,23 +41,21 @@ Alchemy provisions the D1 database and applies migrations during `deploy`.
 pnpm run db:generate
 ```
 
-Then, run the development server:
+Then, run the server locally (wrangler, local D1 on port 3300):
 
 ```bash
-pnpm run dev
+cd apps/server && pnpm run dev:local
 ```
 
-Open [http://localhost:3301](http://localhost:3301) in your browser to see the web application.
-From `apps/native`, run the `ios` script for iOS or the `android` script for Android to build and launch the app. See [Expo development builds](https://docs.expo.dev/develop/development-builds/introduction/) for device setup.
-The API is running at [http://localhost:3300](http://localhost:3300).
+The API is at [http://localhost:3300/api](http://localhost:3300/api/health), the same paths as production. From `apps/native`, run the `ios` script for iOS or the `android` script for Android to build and launch the app; set `EXPO_PUBLIC_SERVER_URL=http://<LAN IP>:3300/api` in `apps/native/.env`. See [Expo development builds](https://docs.expo.dev/develop/development-builds/introduction/) for device setup. The docs site runs with `pnpm --filter fumadocs dev` on port 4000.
 
 ## UI Customization
 
-React web apps in this stack share shadcn/ui primitives through `packages/ui`.
+`packages/ui` holds shadcn/ui primitives for React web apps (there is no web app at the moment).
 
 - Change design tokens and global styles in `packages/ui/src/styles/globals.css`
 - Update shared primitives in `packages/ui/src/components/*`
-- Adjust shadcn aliases or style config in `packages/ui/components.json` and `apps/web/components.json`
+- Adjust shadcn aliases or style config in `packages/ui/components.json`
 
 ### Add more shared components
 
@@ -75,7 +73,7 @@ import { Button } from "@notifier/ui/components/button";
 
 ### Add app-specific blocks
 
-If you want to add app-specific blocks instead of shared primitives, run the shadcn CLI from `apps/web`.
+If you want to add app-specific blocks instead of shared primitives, run the shadcn CLI from that app's directory.
 
 ## Environment Configuration
 
@@ -91,25 +89,41 @@ Run standalone Node/Bun tools that use Varlock from the owning app directory so 
 
 ## Deployment
 
-### Alchemy
+Production is **https://notifier.bartuozel.com**, on Cloudflare, declared in `packages/infra/alchemy.run.ts` (Alchemy, stage `production`). One hostname serves everything:
 
-- Target: web on Cloudflare + server on Cloudflare
-- Configure provider accounts: `cd packages/infra && pnpm exec alchemy profile edit`
-- Dev: pnpm run dev
-- Deploy: pnpm run deploy
-- Destroy: pnpm run destroy
+| URL | Served by |
+| --- | --- |
+| `/` (and `/docs/...`, `/llms.txt`, `/search.json`) | Docs site (`apps/fumadocs`, static export on Workers static assets, custom domain) |
+| `/api/health` | Server Worker (`apps/server`) |
+| `/api/auth/*` | better-auth (sign-in, sessions, OAuth 2.1 provider; issuer `https://notifier.bartuozel.com/api/auth`) |
+| `/api/rpc/*` | App API (oRPC) for the mobile app |
+| `/api/v1/*` | Public REST API; reference at `/api/v1/docs` |
+| `/api/mcp` | MCP server (OAuth bearer tokens) |
+| `/api/oauth/login`, `/api/oauth/consent` | Sign-in and consent pages for MCP clients |
+| `/.well-known/oauth-authorization-server/api/auth`, `/.well-known/oauth-protected-resource/api/mcp` | OAuth discovery (RFC 8414, RFC 9728), served by the server Worker |
 
-`alchemy profile edit` stores the selected Axiom, Cloudflare, Neon, PlanetScale, and/or Prisma provider profiles under `~/.alchemy`; no provider-specific setup command is required by this scaffold.
+The server Worker has the zone routes `notifier.bartuozel.com/api/*` and `notifier.bartuozel.com/.well-known/*`. Routes run in front of the docs Worker's custom domain, which also creates the `notifier` DNS record. Alchemy creates the D1 database and applies `packages/db/src/migrations` on every deploy. An hourly Cron Trigger runs retention cleanup.
 
-Deploys are staged and default to a personal `dev_<username>` stage. For production, run the deploy with an explicit stage from `packages/infra`:
+Connect an agent:
 
 ```bash
-cd packages/infra && pnpm exec alchemy deploy --stage production
+claude mcp add --transport http pocket-notifier https://notifier.bartuozel.com/api/mcp
+codex mcp add pocket-notifier --url https://notifier.bartuozel.com/api/mcp && codex mcp login pocket-notifier
 ```
 
-### Production origins
+### CI/CD (GitHub Actions)
 
-- Required after the first deploy: set `CORS_ORIGIN` in `apps/server/.env` to the exact deployed web origin, such as `https://app.example.com`, then deploy the server again.
+- `.github/workflows/ci.yml`: on pull requests and pushes to other branches, runs `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm check-types` and `pnpm test`.
+- `.github/workflows/deploy.yml`: on every push to `main` (and by hand with **Run workflow**), runs the same checks, then `alchemy deploy --stage production --yes` from `packages/infra`. Deploys never run in parallel (`concurrency: production`).
+
+`main` is production: pushing or merging to it deploys. The deploy needs no login and no `.env` file: Alchemy reads Cloudflare credentials from the environment and keeps its state in the account's Cloudflare state store. Repository settings hold:
+
+- Secrets: `CLOUDFLARE_API_TOKEN`, `BETTER_AUTH_SECRET`, `ALCHEMY_PASSWORD`, `FCM_SERVICE_ACCOUNT`.
+- Variable: `CLOUDFLARE_ACCOUNT_ID`.
+
+To deploy by hand from a machine with an Alchemy profile (`cd packages/infra && pnpm exec alchemy profile edit`), export the same variables and run `cd packages/infra && pnpm exec alchemy deploy --stage production`.
+
+A fresh deployment starts with an empty database. The first account to sign up becomes the owner without an invite; every later sign-up needs one.
 
 ## Git Hooks and Formatting
 
@@ -120,21 +134,22 @@ cd packages/infra && pnpm exec alchemy deploy --stage production
 ```
 notifier/
 ├── apps/
-│   ├── web/         # Frontend application (Next.js)
+│   ├── fumadocs/    # Docs site (Next.js static export, fumadocs)
 │   ├── native/      # Mobile application (React Native, Expo)
 │   └── server/      # Backend API (Hono, ORPC)
 ├── packages/
 │   ├── ui/          # Shared shadcn/ui components and styles
 │   ├── api/         # API layer / business logic
 │   ├── auth/        # Authentication configuration & logic
-│   └── db/          # Database schema & queries
+│   ├── contract/    # oRPC contracts and shared schemas
+│   ├── db/          # Database schema & queries
+│   └── infra/       # Alchemy deployment (alchemy.run.ts)
 ```
 
 ## Available Scripts
 
 - `pnpm run dev`: Start all applications in development mode
 - `pnpm run build`: Build all applications
-- `pnpm run dev:web`: Start only the web application
 - `pnpm run dev:server`: Start only the server
 - `pnpm run check-types`: Check TypeScript types across all apps
 - `pnpm run dev:native`: Start the React Native/Expo development server

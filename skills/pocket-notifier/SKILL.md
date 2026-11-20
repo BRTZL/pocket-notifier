@@ -9,15 +9,15 @@ Pocket Notifier sends push notifications to the user's phone. Use it so the user
 
 ## Connect (once per machine)
 
-The server is a remote MCP server with OAuth sign-in. Replace `<server>` with the notifier server URL, for example `https://notifier.example.com`.
+The server is a remote MCP server with OAuth sign-in at `https://notifier.bartuozel.com/api/mcp`. For a self-hosted deployment, use `https://<your domain>/api/mcp` instead.
 
 ```bash
 # Claude Code
-claude mcp add --transport http pocket-notifier <server>/mcp
+claude mcp add --transport http pocket-notifier https://notifier.bartuozel.com/api/mcp
 # then in a session: /mcp -> pocket-notifier -> Authenticate
 
 # Codex
-codex mcp add pocket-notifier --url <server>/mcp
+codex mcp add pocket-notifier --url https://notifier.bartuozel.com/api/mcp
 codex mcp login pocket-notifier
 ```
 

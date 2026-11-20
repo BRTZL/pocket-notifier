@@ -7,8 +7,8 @@ description: The pieces of notifier and how a message travels from a script to a
 
 | Piece | Runs on | Job |
 | --- | --- | --- |
-| `apps/server` | Cloudflare Worker (Hono) | Public API at `/v1`, app API at `/rpc`, auth at `/api/auth`, FCM sender, retention cron |
-| `apps/web` | Cloudflare Worker (Next.js via OpenNext) | Dashboard: projects, members, tokens, invites, history |
+| `apps/server` | Cloudflare Worker (Hono), routes `notifier.bartuozel.com/api/*` and `/.well-known/*` | Public API at `/api/v1`, app API at `/api/rpc`, auth at `/api/auth`, MCP at `/api/mcp`, FCM sender, retention cron |
+| `apps/fumadocs` | Cloudflare Worker with static assets, custom domain `notifier.bartuozel.com` | This docs site, at the root |
 | `apps/native` | Android (Expo, development build) | Inbox, projects, settings; receives FCM and builds notifications |
 | D1 | Cloudflare | Users, projects, members, messages, tokens, devices, responses |
 | R2 | Cloudflare | Attachment files <Status kind="open" /> |
@@ -73,14 +73,12 @@ flowchart LR
   db["@notifier/db"]
   auth["@notifier/auth"]
   server["apps/server"]
-  web["apps/web"]
   native["apps/native"]
 
   api --> contract
   api --> db
   api --> auth
   server --> api
-  web --> contract
   native --> contract
 ```
 

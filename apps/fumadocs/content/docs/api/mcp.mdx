@@ -3,17 +3,17 @@ title: MCP server
 description: The remote MCP server AI agents use to notify your phone, with OAuth sign-in.
 ---
 
-<Status kind="decided" /> The primary way agents (Claude Code, Codex, any MCP client) send notifications is the notifier **MCP server** at `<server>/mcp`. Agents sign in through the browser with your notifier account (OAuth 2.1 with PKCE), so there is no token to copy.
+<Status kind="decided" /> The primary way agents (Claude Code, Codex, any MCP client) send notifications is the notifier **MCP server** at `https://notifier.bartuozel.com/api/mcp`. Agents sign in through the browser with your notifier account (OAuth 2.1 with PKCE), so there is no token to copy.
 
 ## Connect
 
 ```bash title="Claude Code"
-claude mcp add --transport http pocket-notifier https://<server>/mcp
+claude mcp add --transport http pocket-notifier https://notifier.bartuozel.com/api/mcp
 # then, inside a session: /mcp  →  pocket-notifier  →  Authenticate
 ```
 
 ```bash title="Codex"
-codex mcp add pocket-notifier --url https://<server>/mcp
+codex mcp add pocket-notifier --url https://notifier.bartuozel.com/api/mcp
 codex mcp login pocket-notifier
 ```
 
@@ -61,22 +61,22 @@ Tool errors are written for agents, for example `Project 'x' not found. Call lis
 
 ## Protocol
 
-- **Transport.** Streamable HTTP, stateless: every `POST /mcp` is answered on its own (one JSON body or a one-event SSE stream). `GET` and `DELETE` return `405`. No sessions, no Durable Objects.
+- **Transport.** Streamable HTTP, stateless: every `POST /api/mcp` is answered on its own (one JSON body or a one-event SSE stream). `GET` and `DELETE` return `405`. No sessions, no Durable Objects.
 - **Auth.** `Authorization: Bearer <access token>` on every request. Without a valid token the answer is `401` with
 
   ```http
-  WWW-Authenticate: Bearer resource_metadata="https://<server>/.well-known/oauth-protected-resource/mcp", scope="notifier:read notifier:write offline_access"
+  WWW-Authenticate: Bearer resource_metadata="https://notifier.bartuozel.com/.well-known/oauth-protected-resource/api/mcp", scope="notifier:read notifier:write offline_access"
   ```
 
 - **Instructions.** The server sends a short guide (when to notify, how to pick project and feature, priorities) as MCP `instructions`. The full version is the `pocket-notifier` agent skill at `skills/pocket-notifier/SKILL.md` in the repository.
 
 ## OAuth
 
-The authorization server is better-auth's OAuth 2.1 provider (`@better-auth/mcp`), issuer `https://<server>/api/auth`.
+The authorization server is better-auth's OAuth 2.1 provider (`@better-auth/mcp`), issuer `https://notifier.bartuozel.com/api/auth`.
 
 | What | Where |
 | --- | --- |
-| Protected-resource metadata (RFC 9728) | `/.well-known/oauth-protected-resource/mcp` (also without `/mcp`) |
+| Protected-resource metadata (RFC 9728) | `/.well-known/oauth-protected-resource/api/mcp` (also without `/api/mcp`) |
 | Authorization-server metadata (RFC 8414) | `/.well-known/oauth-authorization-server/api/auth`, `/api/auth/.well-known/openid-configuration` |
 | Dynamic client registration (RFC 7591) | `POST /api/auth/oauth2/register` |
 | Authorize | `GET /api/auth/oauth2/authorize` |
@@ -86,11 +86,11 @@ The authorization server is better-auth's OAuth 2.1 provider (`@better-auth/mcp`
 
 - **Clients** register themselves without a session as public clients (`token_endpoint_auth_method: "none"`) and must use PKCE with `S256`. A client that omits `application_type` and uses a loopback or custom-scheme redirect registers as a native app.
 - **Redirects.** `http://127.0.0.1:<port>/…`, `http://localhost:<port>/…` and `http://[::1]:<port>/…` are accepted; the port may differ from the registered one (RFC 8252). Other `http:` redirects are refused.
-- **Scopes.** `notifier:read` and `notifier:write` (both required by `/mcp`), `offline_access` for a refresh token, plus `openid`, `profile`, `email`.
-- **Tokens.** Access tokens are JWTs signed with the server's Ed25519 key, with the `/mcp` URL as audience, `sub` = user id, `azp` = client id; they last 1 hour. Refresh tokens last 30 days and rotate on use.
+- **Scopes.** `notifier:read` and `notifier:write` (both required by `/api/mcp`), `offline_access` for a refresh token, plus `openid`, `profile`, `email`.
+- **Tokens.** Access tokens are JWTs signed with the server's Ed25519 key, with the `/api/mcp` URL as audience, `sub` = user id, `azp` = client id; they last 1 hour. Refresh tokens last 30 days and rotate on use.
 - **Consent** is asked once per client and scope set. The page shows the client's name and where it returns to.
 - **Pages.** The sign-in and consent pages are plain HTML forms served by the Worker. Their posts must come from the same origin, and they cannot be framed.
 
 ## Fallback: REST and agent-notify
 
-Scripts without MCP keep using [`POST /v1/projects/{project}/messages`](/docs/api/publish) with an access token, for example `agent-notify`. See [Coding agents](/docs/product/agents).
+Scripts without MCP keep using [`POST /api/v1/projects/{project}/messages`](/docs/api/publish) with an access token, for example `agent-notify`. See [Coding agents](/docs/product/agents).

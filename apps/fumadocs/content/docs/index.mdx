@@ -8,7 +8,7 @@ Pocket Notifier is a notification service in the spirit of [ntfy](https://ntfy.s
 It runs on your own Cloudflare account, is shared with a small group of invited people, and uses its own API rather than ntfy's.
 
 ```bash title="Publish a message"
-curl https://notifier.example.com/v1/projects/deploys/messages \
+curl https://notifier.bartuozel.com/api/v1/projects/deploys/messages \
   -H "Authorization: Bearer nt_..." \
   -H "Content-Type: application/json" \
   -d '{"title":"Prod deploy finished","body":"v1.42.0 is live","priority":4}'
