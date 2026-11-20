@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.bartuozel.notifier"
+      "bundleIdentifier": "com.bartuozel.pocketnotifier"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +19,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.bartuozel.notifier"
+      "package": "com.bartuozel.pocketnotifier"
     },
     "web": {
       "bundler": "metro",

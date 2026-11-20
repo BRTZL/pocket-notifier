@@ -22,7 +22,7 @@ description: Every v1 design decision, whether it is settled, and where it is ex
 | App stack | Expo + React Native with native pieces where they matter | [Mobile](/docs/mobile/overview) |
 | UI | HeroUI Native components only, the same on both platforms | [Mobile](/docs/mobile/overview#components) |
 | Push path | The Worker calls FCM HTTP v1 directly with data-only messages | [Push delivery](/docs/architecture/push-delivery) |
-| App ID | `com.bartuozel.notifier` for the Android package and iOS bundle | [Android setup](/docs/mobile/setup) |
+| App ID | `com.bartuozel.pocketnotifier` for the Android package and iOS bundle | [Android setup](/docs/mobile/setup) |
 | Background receiving | A small Kotlin `FirebaseMessagingService` in an Expo module, not a JS background task | [Push delivery](/docs/architecture/push-delivery#receiving-on-android) |
 | Channels | One Android channel per priority, five in total | [Notifications](/docs/mobile/notifications#channels) |
 | Grouping | Notifications stack per topic | [Notifications](/docs/mobile/notifications#grouping) |
