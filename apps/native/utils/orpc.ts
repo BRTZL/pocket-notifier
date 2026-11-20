@@ -3,20 +3,15 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { QueryCache, QueryClient } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 import { Platform } from "react-native";
 
 import { authClient } from "@/lib/auth-client";
 
 import { ENV } from "../src/env";
 
-export const queryClient = new QueryClient({
-  queryCache: new QueryCache({
-    onError: (error) => {
-      console.error(error);
-    },
-  }),
-});
+/** Query errors are shown by the screens (inline error states and toasts), not logged. */
+export const queryClient = new QueryClient();
 
 async function expoFetch(request: Request, init?: RequestInit) {
   const { fetch } = await import("expo/fetch");
