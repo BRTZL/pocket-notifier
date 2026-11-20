@@ -24,7 +24,10 @@
       "@/*": ["./src/*"],
       "@notifier/ui/*": ["../../packages/ui/src/*"]
     },
-    "types": ["@cloudflare/workers-types"]
+    "types": ["@cloudflare/workers-types"],
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true
   },
   "include": [
     "../server/env.d.ts",
