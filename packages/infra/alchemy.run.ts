@@ -7,6 +7,15 @@ import type * as Redacted from "effect/Redacted";
 import "varlock/auto-load";
 
 /**
+ * One hostname serves everything: the docs site at the root, the server Worker under
+ * `/api`, plus the OAuth discovery documents at the root `/.well-known/` (RFC 8414 and
+ * RFC 9728 put them there, outside `/api`). The zone must already be in the account.
+ */
+const DOMAIN = process.env.NOTIFIER_DOMAIN ?? "notifier.bartuozel.com";
+const ZONE = process.env.NOTIFIER_ZONE ?? "bartuozel.com";
+const ORIGIN = `https://${DOMAIN}`;
+
+/**
  * A secret that may be unset. It resolves to `undefined` when absent, and Alchemy leaves
  * `undefined` env values out of the Worker, so the binding simply does not exist.
  *
@@ -29,11 +38,20 @@ export const server = Cloudflare.Worker("server", {
   compatibility: {
     flags: ["nodejs_compat"],
   },
+  // Routes run in front of the docs site's custom domain, so these paths reach the server.
+  routes: [
+    { pattern: `${DOMAIN}/api/*`, zoneName: ZONE },
+    { pattern: `${DOMAIN}/.well-known/*`, zoneName: ZONE },
+  ],
+  // Only reachable on the deployment's own origin: the OAuth issuer and the MCP resource
+  // are URLs on it, and the session cookie belongs to it.
+  workersDev: false,
   env: {
     DB: db,
-    CORS_ORIGIN: Config.String("CORS_ORIGIN"),
+    CORS_ORIGIN: Config.String("CORS_ORIGIN").pipe(Config.withDefault(ORIGIN)),
     BETTER_AUTH_SECRET: Config.Redacted("BETTER_AUTH_SECRET"),
-    BETTER_AUTH_URL: Cloudflare.Worker.URL,
+    // The origin, without `/api`: better-auth adds its `/api/auth` basePath itself.
+    BETTER_AUTH_URL: ORIGIN,
     // Optional: when unset the binding is left out and the server runs with push disabled.
     FCM_SERVICE_ACCOUNT: optionalSecret("FCM_SERVICE_ACCOUNT"),
   },
@@ -54,30 +72,27 @@ export default Alchemy.Stack(
   },
   Effect.gen(function* () {
     const serverWorker = yield* server;
-    const webWorker = yield* Cloudflare.Website.StaticSite("web", {
-      cwd: "../../apps/web",
-      command: "pnpm run build:cloudflare",
-      // Rebuild shared workspace dependencies until Alchemy has a workspace-aware default memo.
+    // The docs site (apps/fumadocs) is a static export. Its small Worker only runs for
+    // `/docs/*`, to serve the Markdown versions of the pages.
+    const docsWorker = yield* Cloudflare.Website.StaticSite("docs", {
+      cwd: "../../apps/fumadocs",
+      command: "pnpm run build",
+      // Always rebuild: a fresh CI checkout has no `out/` to reuse.
       memo: false,
-      outdir: ".open-next/assets",
-      main: "../../apps/web/.open-next/worker.js",
-      bundle: true,
-      compatibility: {
-        flags: ["nodejs_compat", "global_fetch_strictly_public"],
+      outdir: "out",
+      main: "../../apps/fumadocs/worker.ts",
+      assets: {
+        htmlHandling: "auto-trailing-slash",
+        notFoundHandling: "404-page",
+        runWorkerFirst: ["/docs/*"],
       },
-      env: {
-        IMAGES: Cloudflare.Images.Images(),
-        NEXT_PUBLIC_SERVER_URL: serverWorker.url.as<string>(),
-      },
-      dev: {
-        command: "pnpm run dev:bare",
-        url: "http://localhost:3301",
-      },
+      domain: { name: DOMAIN, zoneName: ZONE },
+      workersDev: false,
     });
 
     return {
-      web: webWorker.url,
-      server: serverWorker.url,
+      docs: docsWorker.url,
+      server: serverWorker.routes,
     };
   }),
 );
