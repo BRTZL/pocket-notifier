@@ -1,0 +1,3 @@
+{
+  "extends": "@notifier/config/tsconfig.base.json"
+}
