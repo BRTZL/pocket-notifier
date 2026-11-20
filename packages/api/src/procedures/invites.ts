@@ -2,6 +2,7 @@ import { findOpenInvite, parseGrants } from "@notifier/auth/invites";
 import { newId } from "@notifier/db/ids";
 import { invite, topic, topicMember } from "@notifier/db/schema/notifier";
 import { randomBase62, sha256Hex } from "@notifier/db/secrets";
+import { ORPCError } from "@orpc/server";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { authed, os } from "../base";
@@ -23,7 +24,12 @@ const list = authed.invites.list.handler(async ({ context }) => {
 const create = authed.invites.create.handler(async ({ context, input }) => {
   const { db } = context;
   const userId = context.session.user.id;
-  const topicIds = [...new Set(input.grants.map((grant) => grant.topicId))];
+  const topicIds = input.grants.map((grant) => grant.topicId);
+  if (new Set(topicIds).size !== topicIds.length) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: "Each topic can appear only once in an invite's grants",
+    });
+  }
   if (topicIds.length > 0) {
     const memberships = await db
       .select({ topicId: topicMember.topicId, role: topicMember.role })

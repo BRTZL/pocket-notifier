@@ -68,6 +68,22 @@ describe("invites", () => {
     ).rejects.toMatchObject(definedError("NOT_FOUND"));
   });
 
+  it("rejects grants that list the same topic twice", async () => {
+    await expect(
+      clientFor(testDb.db, ada).invites.create({
+        grants: [
+          { topicId: teamId, role: "subscriber" },
+          { topicId: teamId, role: "publisher" },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      status: 400,
+      message: expect.stringContaining("only once"),
+    });
+    expect(await clientFor(testDb.db, ada).invites.list()).toEqual([]);
+  });
+
   it("lists own invites newest first and revokes unaccepted ones", async () => {
     const client = clientFor(testDb.db, ada);
     const first = await client.invites.create({});
