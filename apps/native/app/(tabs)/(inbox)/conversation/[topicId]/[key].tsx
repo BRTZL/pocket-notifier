@@ -1,4 +1,8 @@
-import { ConversationRef } from "@notifier/contract/conversation";
+import {
+  ConversationRef,
+  type ConversationSummary,
+  type OpenAsk,
+} from "@notifier/contract/conversation";
 import type { InboxMessage } from "@notifier/contract/message";
 import { RESPONSE_TEXT_MAX } from "@notifier/contract/response";
 import { useLocalSearchParams } from "expo-router";
@@ -8,45 +12,43 @@ import { FlatList, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 
 import { Icon } from "@/components/icon";
-import { EmptyState, ErrorState, LoadingState } from "@/components/query-state";
+import { EmptyState, ErrorState, LoadErrorBanner, LoadingState } from "@/components/query-state";
 import { HeaderIconButton, StackHeader } from "@/components/screen-header";
 import { DaySeparator, MessageBubble, MyBubble } from "@/components/thread-bubbles";
 import { useOpenLink } from "@/hooks/use-open-link";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { useSendResponse } from "@/hooks/use-send-response";
-import { useMarkConversationRead, useThread } from "@/hooks/use-thread";
-import { type ChatAvatarSubject, topicGlyph } from "@/lib/chat-avatar";
-import { isAccessError } from "@/lib/errors";
-import { buildThread, type ComposerTarget, composerTarget, type ThreadItem } from "@/lib/thread";
+import { useConversationSummary, useMarkConversationRead, useThread } from "@/hooks/use-thread";
+import { type ChatAvatarSubject, conversationAvatar } from "@/lib/chat-avatar";
+import { errorMessage, isAccessError } from "@/lib/errors";
+import { buildThread, type ThreadItem } from "@/lib/thread";
 
 type Params = { topicId?: string; key?: string; title?: string };
 
-/** Title, avatar and subtitle from the loaded messages; the route's `title` until they load. */
-function describeThread(ref: ConversationRef, messages: InboxMessage[], fallbackTitle?: string) {
-  const newest = messages[0];
-  const conversation = messages.find((message) => message.conversation)?.conversation ?? null;
-  const topic = newest?.topic ?? "";
-  const isTopicFeed = ref.key.startsWith("t:");
-  const title =
-    (isTopicFeed ? fallbackTitle : (conversation?.title ?? conversation?.id ?? fallbackTitle)) ??
-    topic;
-  const lastSender = messages.find((message) => message.sender)?.sender ?? null;
+/**
+ * Header content: the conversation's summary once loaded (title, avatar, last sender),
+ * the route's `title` until then. The link is the latest message's only: an older one
+ * would open something stale.
+ */
+function describeThread(
+  summary: ConversationSummary | undefined,
+  newest: InboxMessage | undefined,
+  fallbackTitle?: string,
+) {
+  if (!summary) {
+    return { title: fallbackTitle ?? "Conversation", subtitle: "", avatar: null, linkUrl: null };
+  }
+  const { title, topic, lastMessage } = summary;
   // A topic feed is titled after its topic: repeating the name adds nothing.
-  const subtitle = [lastSender ? (lastSender.name ?? lastSender.id) : null, topic]
+  const subtitle = [lastMessage.senderName, topic]
     .filter((part) => part && part !== title)
     .join(" · ");
-  const avatar: ChatAvatarSubject = isTopicFeed
-    ? { kind: "glyph", name: title, glyph: topicGlyph(topic) }
-    : {
-        kind: "conversation",
-        // The conversation id, as the inbox row and the web dashboard seed the color.
-        id: ref.key.slice(2),
-        name: title,
-        iconUrl: conversation?.iconUrl ?? null,
-      };
-  // The latest message's link only: an older one would open something stale.
-  const linkUrl = newest?.clickUrl ?? null;
-  return { title, subtitle, avatar, linkUrl };
+  return {
+    title,
+    subtitle,
+    avatar: conversationAvatar(summary),
+    linkUrl: newest?.clickUrl ?? null,
+  };
 }
 
 function ThreadHeader({
@@ -80,23 +82,42 @@ function ThreadHeader({
   );
 }
 
-/** "Reply to <sender>" with a round send button; answers the newest open text reply. */
-function Composer({ target }: { target: ComposerTarget }) {
+type Drafts = Record<string, string>;
+
+/**
+ * "Reply to <sender>" with a round send button; answers the conversation's open ask.
+ * Drafts are kept per ask (`messageId:actionKey`): when the open ask changes, a draft
+ * stays with the ask it was written for and is never sent to another one, and a
+ * finished send only clears its own ask's draft.
+ */
+function Composer({
+  ask,
+  drafts,
+  setDrafts,
+}: {
+  ask: OpenAsk;
+  drafts: Drafts;
+  setDrafts: (update: (drafts: Drafts) => Drafts) => void;
+}) {
   const { send, isSending } = useSendResponse();
-  const [text, setText] = useState("");
+  const draftKey = `${ask.messageId}:${ask.actionKey}`;
+  const text = drafts[draftKey] ?? "";
   const trimmed = text.trim();
+  const name = ask.senderName ?? ask.title ?? "the agent";
 
   async function submit() {
     if (trimmed.length === 0 || isSending) {
       return;
     }
-    const sent = await send({
-      messageId: target.message.id,
-      actionKey: target.action.key,
+    // Captured now: the open ask may change while the answer is on its way.
+    const target = { messageId: ask.messageId, actionKey: ask.actionKey, key: draftKey };
+    const result = await send({
+      messageId: target.messageId,
+      actionKey: target.actionKey,
       text: trimmed,
     });
-    if (sent) {
-      setText("");
+    if (result === "sent") {
+      setDrafts(({ [target.key]: _sent, ...rest }) => rest);
     }
   }
 
@@ -105,14 +126,14 @@ function Composer({ target }: { target: ComposerTarget }) {
       <Input
         variant="secondary"
         value={text}
-        onChangeText={setText}
-        placeholder={target.action.placeholder ?? `Reply to ${target.senderName}`}
+        onChangeText={(value) => setDrafts((current) => ({ ...current, [draftKey]: value }))}
+        placeholder={`Reply to ${name}`}
         maxLength={RESPONSE_TEXT_MAX}
         editable={!isSending}
         returnKeyType="send"
         submitBehavior="submit"
         onSubmitEditing={() => void submit()}
-        accessibilityLabel={`Reply to ${target.senderName}`}
+        accessibilityLabel={`Reply to ${name}`}
         className="bg-surface h-[50px] flex-1 rounded-full px-5 text-[16px]"
       />
       <Button
@@ -163,6 +184,82 @@ function renderItem({ item }: { item: ThreadItem }) {
   }
 }
 
+/** Older history failed to load: rows on screen stay, with a retry above them. */
+function OlderHistoryFooter({ query }: { query: ReturnType<typeof useThread>["query"] }) {
+  if (query.isFetchingNextPage) {
+    return (
+      <View className="items-center py-4">
+        <Spinner />
+      </View>
+    );
+  }
+  if (query.isFetchNextPageError) {
+    return (
+      <LoadErrorBanner
+        title="Could not load older messages"
+        description={errorMessage(query.error)}
+        onRetry={() => void query.fetchNextPage({ cancelRefetch: false })}
+      />
+    );
+  }
+  return null;
+}
+
+function ThreadMessages({
+  query,
+  messages,
+}: {
+  query: ReturnType<typeof useThread>["query"];
+  messages: InboxMessage[];
+}) {
+  if (query.isPending) {
+    return <LoadingState />;
+  }
+  if (query.isError && messages.length === 0) {
+    return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  }
+  if (messages.length === 0) {
+    return (
+      <EmptyState title="No messages" pose="inbox-empty">
+        Every message here has expired.
+      </EmptyState>
+    );
+  }
+  return (
+    <FlatList
+      inverted
+      className="bg-surface-secondary flex-1"
+      contentContainerClassName="px-4 pt-3.5 pb-2"
+      keyboardShouldPersistTaps="handled"
+      data={buildThread(messages)}
+      keyExtractor={(item) => item.key}
+      renderItem={renderItem}
+      onEndReached={() => {
+        // No fetch while another runs, and no retry loop after a failed page: its
+        // footer has "Try again".
+        if (query.hasNextPage && !query.isFetching && !query.isFetchNextPageError) {
+          void query.fetchNextPage({ cancelRefetch: false });
+        }
+      }}
+      onEndReachedThreshold={0.4}
+      // An inverted list shows its footer at the top, above the oldest message.
+      ListFooterComponent={<OlderHistoryFooter query={query} />}
+    />
+  );
+}
+
+/** Gone or no longer ours: nothing of the conversation stays on screen. */
+function ThreadUnavailable() {
+  return (
+    <View className="bg-background flex-1">
+      <ThreadHeader title="Conversation" subtitle="" avatar={null} linkUrl={null} />
+      <EmptyState title="Conversation not available" pose="error">
+        It expired, or you no longer have access to its topic.
+      </EmptyState>
+    </View>
+  );
+}
+
 function Thread({
   conversation,
   title: titleParam,
@@ -171,73 +268,36 @@ function Thread({
   title?: string;
 }) {
   const { query, messages } = useThread(conversation);
+  const summary = useConversationSummary(conversation);
+  const [drafts, setDrafts] = useState<Drafts>({});
+  const isUnavailable = isAccessError(query.error) || isAccessError(summary.error);
   useRefreshOnFocus(query.refetch);
-  useMarkConversationRead(
-    conversation,
-    messages.some((message) => !message.read),
-  );
-  const header = describeThread(conversation, messages, titleParam);
-  const target = composerTarget(messages);
+  useRefreshOnFocus(summary.refetch);
+  // Only once the summary confirmed access; never for a conversation that is gone.
+  useMarkConversationRead(conversation, summary.isSuccess && !isUnavailable);
 
-  function renderBody() {
-    if (isAccessError(query.error)) {
-      return (
-        <EmptyState title="Conversation not available" pose="error">
-          It expired, or you no longer have access to its topic.
-        </EmptyState>
-      );
-    }
-    if (query.isPending) {
-      return <LoadingState />;
-    }
-    if (query.isError && messages.length === 0) {
-      return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
-    }
-    if (messages.length === 0) {
-      return (
-        <EmptyState title="No messages" pose="inbox-empty">
-          Every message here has expired.
-        </EmptyState>
-      );
-    }
-    return (
-      <FlatList
-        inverted
-        className="bg-surface-secondary flex-1"
-        contentContainerClassName="px-4 pt-3.5 pb-2"
-        keyboardShouldPersistTaps="handled"
-        data={buildThread(messages)}
-        keyExtractor={(item) => item.key}
-        renderItem={renderItem}
-        onEndReached={() => {
-          if (query.hasNextPage && !query.isFetching && !query.isFetchNextPageError) {
-            void query.fetchNextPage({ cancelRefetch: false });
-          }
-        }}
-        onEndReachedThreshold={0.4}
-        ListFooterComponent={
-          query.isFetchingNextPage ? (
-            <View className="items-center py-4">
-              <Spinner />
-            </View>
-          ) : null
-        }
-      />
-    );
+  if (isUnavailable) {
+    return <ThreadUnavailable />;
   }
-
-  const isLoaded = messages.length > 0;
+  const header = describeThread(summary.data, messages[0], titleParam);
+  const openAsk = summary.data?.openAsk ?? null;
   return (
     <View className="bg-background flex-1">
       <ThreadHeader
         title={header.title}
         subtitle={header.subtitle}
-        avatar={isLoaded || titleParam ? header.avatar : null}
+        avatar={header.avatar}
         linkUrl={header.linkUrl}
       />
       <KeyboardAvoidingView behavior="padding" className="bg-surface-secondary flex-1">
-        {renderBody()}
-        {isLoaded ? target ? <Composer target={target} /> : <QuietFooter /> : null}
+        <ThreadMessages query={query} messages={messages} />
+        {summary.isSuccess && messages.length > 0 ? (
+          openAsk ? (
+            <Composer ask={openAsk} drafts={drafts} setDrafts={setDrafts} />
+          ) : (
+            <QuietFooter />
+          )
+        ) : null}
       </KeyboardAvoidingView>
     </View>
   );

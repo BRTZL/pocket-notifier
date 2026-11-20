@@ -116,16 +116,3 @@ export function openReplyActions(message: InboxMessage): ReplyAction[] {
     (action): action is ReplyAction => action.type === "reply" && isUnanswered(message, action),
   );
 }
-
-export type ComposerTarget = { message: InboxMessage; action: ReplyAction; senderName: string };
-
-/** The newest unanswered text reply in the thread: what the composer answers. */
-export function composerTarget(newestFirst: InboxMessage[]): ComposerTarget | null {
-  for (const message of newestFirst) {
-    const action = openReplyActions(message).find((candidate) => candidate.input);
-    if (action) {
-      return { message, action, senderName: senderName(message) ?? message.topic };
-    }
-  }
-  return null;
-}

@@ -8,22 +8,18 @@ export type ChatAvatarSubject =
   /** A topic feed or any other non-chat row: a glyph on a quiet surface. */
   | { kind: "glyph"; name: string; glyph: IconName };
 
-/** Glyph for a topic row, guessed from its name; most topics are deploys, backups or monitors. */
+/** Name patterns and their glyphs, first match wins; most topics are deploys, backups or monitors. */
+const TOPIC_GLYPHS: [RegExp, IconName][] = [
+  [/deploy|release|ci\b|-ci|build/u, "rocket-launch"],
+  [/backup|snapshot/u, "cloud-done"],
+  [/uptime|monitor|health|ping/u, "monitor-heart"],
+  [/server|host|lab|infra/u, "dns"],
+];
+
+/** Glyph for a topic row, guessed from its name. */
 export function topicGlyph(name: string): IconName {
   const lower = name.toLowerCase();
-  if (/deploy|release|ci\b|-ci|build/u.test(lower)) {
-    return "rocket-launch";
-  }
-  if (/backup|snapshot/u.test(lower)) {
-    return "cloud-done";
-  }
-  if (/uptime|monitor|health|ping/u.test(lower)) {
-    return "monitor-heart";
-  }
-  if (/server|host|lab|infra/u.test(lower)) {
-    return "dns";
-  }
-  return "tag";
+  return TOPIC_GLYPHS.find(([pattern]) => pattern.test(lower))?.[1] ?? "tag";
 }
 
 /** The avatar for a conversation summary: the project for chats, a glyph for topic feeds. */

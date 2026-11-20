@@ -21,9 +21,11 @@ import { useUniwind } from "uniwind";
 
 import { LoadingState } from "@/components/query-state";
 import { AppThemeProvider } from "@/contexts/app-theme-provider";
+import { useIncomingUrl } from "@/hooks/use-incoming-url";
 import { useNavigationTheme } from "@/hooks/use-navigation-theme";
 import { useAppStateFocus } from "@/hooks/use-refresh-on-focus";
 import { authClient } from "@/lib/auth-client";
+import { replayTarget } from "@/lib/link-path";
 import { publicQueryClient } from "@/utils/orpc";
 
 /**
@@ -34,8 +36,10 @@ import { publicQueryClient } from "@/utils/orpc";
  */
 function useSignedOutRedirect(isSignedIn: boolean, isPending: boolean) {
   const segments = useSegments();
-  // The path is enough: app links carry their ids in the path, not the query.
+  // The path is enough: app links carry their ids in the path, not the query. The
+  // incoming link keeps it encoded, for the replay.
   const href = usePathname();
+  const url = useIncomingUrl();
   const pendingHref = useRef<string | null>(null);
   const wasSignedIn = useRef(false);
   // Set by signing out, until the auth screens show: the route left behind is not a link.
@@ -74,10 +78,12 @@ function useSignedOutRedirect(isSignedIn: boolean, isPending: boolean) {
     }
     const frame = requestAnimationFrame(() => {
       pendingHref.current = null;
-      router.replace(target as Href);
+      // The link that opened the app keeps the path encoded; see `replayTarget`.
+      const replay = replayTarget(target, url);
+      router.replace(replay as Href);
     });
     return () => cancelAnimationFrame(frame);
-  }, [isSignedIn, section]);
+  }, [isSignedIn, section, url]);
 }
 
 function AuthGate() {
