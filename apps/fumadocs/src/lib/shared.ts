@@ -1,6 +1,6 @@
 import { createGetUrl } from "fumadocs-core/source";
 
-export const appName = "notifier";
+export const appName = "Pocket Notifier";
 export const docsRoute = "/docs";
 export const docsImageRoute = "/og/docs";
 

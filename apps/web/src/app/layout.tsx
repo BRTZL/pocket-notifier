@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "notifier",
-  description: "notifier",
+  title: "Pocket Notifier",
+  description: "Push notifications from your AI agents.",
 };
 
 export default function RootLayout({
