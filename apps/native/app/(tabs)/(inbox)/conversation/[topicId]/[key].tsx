@@ -31,8 +31,9 @@ function describeThread(ref: ConversationRef, messages: InboxMessage[], fallback
     (isTopicFeed ? fallbackTitle : (conversation?.title ?? conversation?.id ?? fallbackTitle)) ??
     topic;
   const lastSender = messages.find((message) => message.sender)?.sender ?? null;
+  // A topic feed is titled after its topic: repeating the name adds nothing.
   const subtitle = [lastSender ? (lastSender.name ?? lastSender.id) : null, topic]
-    .filter(Boolean)
+    .filter((part) => part && part !== title)
     .join(" · ");
   const avatar: ChatAvatarSubject = isTopicFeed
     ? { kind: "glyph", name: title, glyph: topicGlyph(topic) }
@@ -43,7 +44,8 @@ function describeThread(ref: ConversationRef, messages: InboxMessage[], fallback
         name: title,
         iconUrl: conversation?.iconUrl ?? null,
       };
-  const linkUrl = messages.find((message) => message.clickUrl)?.clickUrl ?? null;
+  // The latest message's link only: an older one would open something stale.
+  const linkUrl = newest?.clickUrl ?? null;
   return { title, subtitle, avatar, linkUrl };
 }
 
