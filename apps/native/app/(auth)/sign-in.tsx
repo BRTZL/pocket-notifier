@@ -83,7 +83,10 @@ export default function SignInScreen() {
             isRequired
             error={errors.email}
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              setFieldErrors((current) => ({ ...current, email: undefined }));
+            }}
             placeholder="you@example.com"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -99,7 +102,10 @@ export default function SignInScreen() {
             error={errors.password}
             inputRef={passwordRef}
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              setFieldErrors((current) => ({ ...current, password: undefined }));
+            }}
             placeholder="Your password"
             secureTextEntry
             autoComplete="current-password"

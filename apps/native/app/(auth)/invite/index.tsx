@@ -49,7 +49,10 @@ export default function InviteEntryScreen() {
             isRequired
             error={error}
             value={value}
-            onChangeText={setValue}
+            onChangeText={(text) => {
+              setValue(text);
+              setError(null);
+            }}
             placeholder="https://…/invite/… or the code"
             autoCapitalize="none"
             autoCorrect={false}

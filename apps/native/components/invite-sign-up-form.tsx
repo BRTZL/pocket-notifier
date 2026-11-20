@@ -29,7 +29,10 @@ export function InviteSignUpForm({ code }: { code: string }) {
   const submitLock = useRef(false);
 
   function setField(field: Field) {
-    return (text: string) => setValues((current) => ({ ...current, [field]: text }));
+    return (text: string) => {
+      setValues((current) => ({ ...current, [field]: text }));
+      setFieldErrors((current) => ({ ...current, [field]: undefined }));
+    };
   }
 
   async function submit() {

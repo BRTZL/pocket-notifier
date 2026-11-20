@@ -1,5 +1,5 @@
 import { FieldError, Input, type InputRef, Label, TextField } from "heroui-native";
-import { type ComponentProps, type Ref, useState } from "react";
+import type { ComponentProps, Ref } from "react";
 
 type InputProps = Omit<ComponentProps<typeof Input>, "variant" | "className" | "ref">;
 
@@ -7,8 +7,8 @@ type InputProps = Omit<ComponentProps<typeof Input>, "variant" | "className" | "
  * A form field built only from HeroUI parts: `Label` above, the filled `Input` as the
  * box (HeroUI owns its single border, including the invalid state), `FieldError` below.
  *
- * Screens validate on submit, so an error is hidden again as soon as the value changes:
- * a stale "Email is required" must never sit under a filled-in email.
+ * Screens validate on submit and clear a field's error when its value changes, so a stale
+ * "Email is required" never sits under a filled-in email.
  */
 export function FilledField({
   label,
@@ -25,13 +25,7 @@ export function FilledField({
   isDisabled?: boolean;
   inputRef?: Ref<InputRef>;
 }) {
-  // The value the current error was raised for. Updated during render when a new error
-  // arrives (React's "adjust state on prop change" pattern), so no effect is needed.
-  const [snapshot, setSnapshot] = useState({ error, value });
-  if (snapshot.error !== error) {
-    setSnapshot({ error, value });
-  }
-  const showError = Boolean(error) && (snapshot.error !== error || value === snapshot.value);
+  const showError = Boolean(error);
 
   return (
     <TextField isInvalid={showError} isDisabled={isDisabled} isRequired={isRequired}>
@@ -43,7 +37,7 @@ export function FilledField({
         className="h-14 rounded-2xl px-[18px] text-[16px]"
         {...inputProps}
       />
-      <FieldError>{showError ? error : null}</FieldError>
+      <FieldError>{error}</FieldError>
     </TextField>
   );
 }
