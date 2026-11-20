@@ -42,9 +42,12 @@ function UnreadCount({ conversation }: { conversation: ConversationSummary }) {
 export function ConversationRow({
   conversation,
   onPress,
+  isSelected = false,
 }: {
   conversation: ConversationSummary;
   onPress: () => void;
+  /** Open in the right pane of a two-pane layout. */
+  isSelected?: boolean;
 }) {
   const unread = conversation.unreadCount > 0;
   const { senderName, priority, createdAt } = conversation.lastMessage;
@@ -55,8 +58,9 @@ export function ConversationRow({
     <PressableFeedback
       animation={false}
       onPress={onPress}
-      className="flex-row items-center gap-3.5 px-5 py-2.5"
+      className={cn("flex-row items-center gap-3.5 px-5 py-2.5", isSelected && "bg-accent-soft")}
       accessibilityRole="button"
+      accessibilityState={{ selected: isSelected }}
       accessibilityLabel={`${conversation.title}. ${unread ? `${conversation.unreadCount} unread. ` : ""}${senderName ? `${senderName}: ` : ""}${preview}`}
     >
       <PressableFeedback.Highlight />

@@ -1,4 +1,4 @@
-import { PressableFeedback, Typography } from "heroui-native";
+import { cn, PressableFeedback, Typography } from "heroui-native";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 
@@ -27,6 +27,7 @@ export function SettingsRow({
   trailing,
   onPress,
   accessibilityLabel,
+  isSelected = false,
 }: {
   icon?: IconName;
   title: string;
@@ -34,6 +35,8 @@ export function SettingsRow({
   trailing?: ReactNode;
   onPress?: () => void;
   accessibilityLabel?: string;
+  /** Open in the right pane of a two-pane layout. */
+  isSelected?: boolean;
 }) {
   const content = (
     <>
@@ -70,8 +73,12 @@ export function SettingsRow({
     <PressableFeedback
       animation={false}
       onPress={onPress}
-      className="min-h-[60px] flex-row items-center gap-3.5 px-5 py-2.5"
+      className={cn(
+        "min-h-[60px] flex-row items-center gap-3.5 px-5 py-2.5",
+        isSelected && "bg-accent-soft",
+      )}
       accessibilityRole="button"
+      accessibilityState={{ selected: isSelected }}
       accessibilityLabel={accessibilityLabel ?? title}
     >
       <PressableFeedback.Highlight />

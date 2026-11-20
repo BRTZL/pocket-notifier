@@ -69,17 +69,20 @@ export function StackHeader({
   subtitle,
   avatar,
   right,
+  onBack = goBack,
 }: {
   title: string;
   subtitle?: string | null;
   avatar?: ChatAvatarSubject | null;
   right?: ReactNode;
+  /** Defaults to going back in the stack (or home when there is nothing to go back to). */
+  onBack?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   return (
     <View className="bg-background border-border border-b" style={{ paddingTop: insets.top }}>
       <View className="h-16 flex-row items-center gap-2 px-1">
-        <HeaderIconButton icon="arrow-back" label="Back" onPress={goBack} />
+        <HeaderIconButton icon="arrow-back" label="Back" onPress={onBack} />
         {avatar ? <ChatAvatar subject={avatar} size={40} /> : null}
         <View className="ml-1 min-w-0 flex-1">
           <Typography
