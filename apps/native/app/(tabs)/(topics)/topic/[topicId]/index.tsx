@@ -1,65 +1,49 @@
-import { router, Stack } from "expo-router";
-import { Button, Typography } from "heroui-native";
+import { router } from "expo-router";
+import { Typography } from "heroui-native";
 import { View } from "react-native";
-
 import { MessageList } from "@/components/message-list";
 import { EmptyState, ErrorState, LoadingState } from "@/components/query-state";
-import { SenderAvatar } from "@/components/sender-avatar";
+import { HeaderIconButton, StackHeader } from "@/components/screen-header";
 import { InvalidTopicLink, TopicUnavailable } from "@/components/topic-unavailable";
 import { topicTitle, useTopic, useTopicIdParam } from "@/hooks/use-topic";
+import { topicGlyph } from "@/lib/chat-avatar";
 import { isAccessError } from "@/lib/errors";
-
-function TopicHeaderTitle({ name, title }: { name: string; title: string }) {
-  return (
-    <View className="flex-row items-center gap-2.5">
-      <SenderAvatar topic={name} conversation={null} sender={null} />
-      <View>
-        <Typography weight="semibold" numberOfLines={1}>
-          {title}
-        </Typography>
-        {title === name ? null : (
-          <Typography type="body-xs" color="muted" numberOfLines={1}>
-            {name}
-          </Typography>
-        )}
-      </View>
-    </View>
-  );
-}
 
 function TopicScreenContent({ topicId }: { topicId: string }) {
   const topic = useTopic(topicId);
 
-  if (topic.isPending) {
-    return <LoadingState />;
-  }
-  if (isAccessError(topic.error)) {
-    return <TopicUnavailable />;
-  }
-  if (topic.isError && !topic.data) {
-    return <ErrorState error={topic.error} onRetry={() => void topic.refetch()} />;
+  if (topic.isPending || isAccessError(topic.error) || (topic.isError && !topic.data)) {
+    return (
+      <View className="bg-background flex-1">
+        <StackHeader title="Topic" />
+        {topic.isPending ? (
+          <LoadingState />
+        ) : isAccessError(topic.error) ? (
+          <TopicUnavailable />
+        ) : (
+          <ErrorState error={topic.error} onRetry={() => void topic.refetch()} />
+        )}
+      </View>
+    );
   }
 
   const { name, description } = topic.data;
   const title = topicTitle(topic.data);
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title,
-          headerTitle: () => <TopicHeaderTitle name={name} title={title} />,
-          headerRight: () => (
-            <Button
-              size="sm"
-              variant="ghost"
-              onPress={() =>
-                router.push({ pathname: "/topic/[topicId]/settings", params: { topicId } })
-              }
-            >
-              <Button.Label>Settings</Button.Label>
-            </Button>
-          ),
-        }}
+    <View className="bg-background flex-1">
+      <StackHeader
+        title={title}
+        subtitle={title === name ? null : name}
+        avatar={{ kind: "glyph", name: title, glyph: topicGlyph(name) }}
+        right={
+          <HeaderIconButton
+            icon="tune"
+            label="Topic settings"
+            onPress={() =>
+              router.push({ pathname: "/topic/[topicId]/settings", params: { topicId } })
+            }
+          />
+        }
       />
       <MessageList
         topicId={topicId}
@@ -83,11 +67,19 @@ function TopicScreenContent({ topicId }: { topicId: string }) {
           })
         }
       />
-    </>
+    </View>
   );
 }
 
 export default function TopicScreen() {
   const topicId = useTopicIdParam();
-  return topicId ? <TopicScreenContent topicId={topicId} /> : <InvalidTopicLink />;
+  if (!topicId) {
+    return (
+      <View className="bg-background flex-1">
+        <StackHeader title="Topic" />
+        <InvalidTopicLink />
+      </View>
+    );
+  }
+  return <TopicScreenContent topicId={topicId} />;
 }

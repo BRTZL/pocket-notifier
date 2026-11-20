@@ -1,19 +1,38 @@
 import Constants from "expo-constants";
 import { type Href, router } from "expo-router";
-import { Button, Card, ListGroup, Separator, Spinner, useToast } from "heroui-native";
-import { Fragment, useState } from "react";
+import { Button, Spinner, Typography, useToast } from "heroui-native";
+import { useState } from "react";
 import { ScrollView, View } from "react-native";
 
+import { AppearancePicker } from "@/components/appearance-picker";
+import type { IconName } from "@/components/icon";
+import { ScreenHeader } from "@/components/screen-header";
+import { SectionHeader, SettingsRow } from "@/components/settings-row";
 import { UserAvatar } from "@/components/user-avatar";
 import { authClient } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/errors";
 
 import { ENV } from "@/src/env";
 
-const LINKS: { title: string; description: string; href: Href }[] = [
-  { title: "Access tokens", description: "Let scripts and agents publish", href: "/tokens" },
-  { title: "Invites", description: "Bring people onto this server", href: "/invites" },
-  { title: "Devices", description: "Phones that get your pushes", href: "/devices" },
+const LINKS: { title: string; description: string; href: Href; icon: IconName }[] = [
+  {
+    title: "Access tokens",
+    description: "Let scripts and agents publish",
+    href: "/tokens",
+    icon: "key",
+  },
+  {
+    title: "Invites",
+    description: "Bring people onto this server",
+    href: "/invites",
+    icon: "person-add",
+  },
+  {
+    title: "Devices",
+    description: "Phones that get your pushes",
+    href: "/devices",
+    icon: "smartphone",
+  },
 ];
 
 export default function SettingsScreen() {
@@ -38,70 +57,67 @@ export default function SettingsScreen() {
   }
 
   return (
-    <ScrollView
-      className="bg-background flex-1"
-      contentContainerClassName="gap-4 p-4"
-      contentInsetAdjustmentBehavior="automatic"
-    >
-      {user ? (
-        <Card>
-          <Card.Body className="flex-row items-center gap-4">
+    <View className="bg-background flex-1">
+      <ScreenHeader title="Settings" />
+      <ScrollView className="flex-1" contentContainerClassName="pb-8">
+        {user ? (
+          <View className="flex-row items-center gap-3.5 px-5 py-3">
             <UserAvatar
               user={{ id: user.id, name: user.name, email: user.email, image: user.image ?? null }}
               size="lg"
             />
-            <View className="flex-1 gap-0.5">
-              <Card.Title>{user.name}</Card.Title>
-              <Card.Description>{user.email}</Card.Description>
+            <View className="min-w-0 flex-1">
+              <Typography numberOfLines={1} className="font-heavy text-[17px] leading-[22px]">
+                {user.name}
+              </Typography>
+              <Typography numberOfLines={1} className="text-muted text-[15px] leading-[21px]">
+                {user.email}
+              </Typography>
             </View>
-          </Card.Body>
-        </Card>
-      ) : null}
+          </View>
+        ) : null}
 
-      <ListGroup>
-        {LINKS.map((link, index) => (
-          <Fragment key={link.title}>
-            {index > 0 ? <Separator className="mx-4" /> : null}
-            <ListGroup.Item
-              onPress={() => router.push(link.href)}
-              className="active:bg-surface-secondary"
-              accessibilityRole="button"
-            >
-              <ListGroup.ItemContent>
-                <ListGroup.ItemTitle>{link.title}</ListGroup.ItemTitle>
-                <ListGroup.ItemDescription>{link.description}</ListGroup.ItemDescription>
-              </ListGroup.ItemContent>
-              <ListGroup.ItemSuffix />
-            </ListGroup.Item>
-          </Fragment>
+        <SectionHeader title="Publishing and people" />
+        {LINKS.map((link) => (
+          <SettingsRow
+            key={link.title}
+            icon={link.icon}
+            title={link.title}
+            description={link.description}
+            onPress={() => router.push(link.href)}
+          />
         ))}
-      </ListGroup>
 
-      <ListGroup>
-        <ListGroup.Item disabled>
-          <ListGroup.ItemContent>
-            <ListGroup.ItemTitle>App version</ListGroup.ItemTitle>
-          </ListGroup.ItemContent>
-          <ListGroup.ItemSuffix>
-            <ListGroup.ItemDescription>
+        <SectionHeader title="Appearance" />
+        <AppearancePicker />
+
+        <SectionHeader title="About" />
+        <SettingsRow
+          icon="info"
+          title="App version"
+          trailing={
+            <Typography className="text-muted text-[15px]">
               {Constants.expoConfig?.version ?? "unknown"}
-            </ListGroup.ItemDescription>
-          </ListGroup.ItemSuffix>
-        </ListGroup.Item>
-        <Separator className="mx-4" />
-        <ListGroup.Item disabled>
-          <ListGroup.ItemContent>
-            <ListGroup.ItemTitle>Server</ListGroup.ItemTitle>
-            <ListGroup.ItemDescription selectable>
-              {ENV.EXPO_PUBLIC_SERVER_URL}
-            </ListGroup.ItemDescription>
-          </ListGroup.ItemContent>
-        </ListGroup.Item>
-      </ListGroup>
+            </Typography>
+          }
+        />
+        <SettingsRow icon="dns" title="Server" description={ENV.EXPO_PUBLIC_SERVER_URL} />
 
-      <Button variant="danger-soft" onPress={() => void signOut()} isDisabled={isSigningOut}>
-        {isSigningOut ? <Spinner size="sm" /> : <Button.Label>Sign out</Button.Label>}
-      </Button>
-    </ScrollView>
+        <View className="px-5 pt-6">
+          <Button
+            variant="danger-soft"
+            className="h-[52px] rounded-full"
+            onPress={() => void signOut()}
+            isDisabled={isSigningOut}
+          >
+            {isSigningOut ? (
+              <Spinner size="sm" />
+            ) : (
+              <Button.Label className="font-bold">Sign out</Button.Label>
+            )}
+          </Button>
+        </View>
+      </ScrollView>
+    </View>
   );
 }

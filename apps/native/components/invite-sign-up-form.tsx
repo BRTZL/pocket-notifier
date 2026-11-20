@@ -1,18 +1,10 @@
 import { router } from "expo-router";
-import {
-  Button,
-  FieldError,
-  Input,
-  type InputRef,
-  Label,
-  Spinner,
-  TextField,
-  useToast,
-} from "heroui-native";
+import { Button, type InputRef, Spinner, useToast } from "heroui-native";
 import { useRef, useState } from "react";
 import { View } from "react-native";
 import z from "zod";
 
+import { FilledField } from "@/components/filled-field";
 import { authClient } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/errors";
 import { fieldErrors } from "@/lib/form";
@@ -78,62 +70,65 @@ export function InviteSignUpForm({ code }: { code: string }) {
   }
 
   return (
-    <View className="gap-4">
-      <TextField isRequired isInvalid={Boolean(errors.name)}>
-        <Label>Name</Label>
-        <Input
-          value={values.name}
-          onChangeText={setField("name")}
-          placeholder="Your name"
-          autoComplete="name"
-          textContentType="name"
-          returnKeyType="next"
-          submitBehavior="submit"
-          onSubmitEditing={() => emailRef.current?.focus()}
-        />
-        <FieldError>{errors.name}</FieldError>
-      </TextField>
-      <TextField isRequired isInvalid={Boolean(errors.email)}>
-        <Label>Email</Label>
-        <Input
-          ref={emailRef}
-          value={values.email}
-          onChangeText={setField("email")}
-          placeholder="you@example.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoComplete="email"
-          textContentType="emailAddress"
-          returnKeyType="next"
-          submitBehavior="submit"
-          onSubmitEditing={() => passwordRef.current?.focus()}
-        />
-        <FieldError>{errors.email}</FieldError>
-      </TextField>
-      <TextField isRequired isInvalid={Boolean(errors.password)}>
-        <Label>Password</Label>
-        <Input
-          ref={passwordRef}
-          value={values.password}
-          onChangeText={setField("password")}
-          placeholder="At least 8 characters"
-          secureTextEntry
-          autoComplete="new-password"
-          textContentType="newPassword"
-          returnKeyType="go"
-          onSubmitEditing={() => void submit()}
-        />
-        <FieldError>{errors.password}</FieldError>
-      </TextField>
-      <Button onPress={() => void submit()} isDisabled={isSubmitting}>
+    <View className="gap-2.5">
+      <FilledField
+        label="Name"
+        isRequired
+        error={errors.name}
+        value={values.name}
+        onChangeText={setField("name")}
+        placeholder="Your name"
+        autoComplete="name"
+        textContentType="name"
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => emailRef.current?.focus()}
+      />
+      <FilledField
+        label="Email"
+        isRequired
+        error={errors.email}
+        inputRef={emailRef}
+        value={values.email}
+        onChangeText={setField("email")}
+        placeholder="you@example.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoComplete="email"
+        textContentType="emailAddress"
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+      />
+      <FilledField
+        label="Password"
+        isRequired
+        error={errors.password}
+        inputRef={passwordRef}
+        value={values.password}
+        onChangeText={setField("password")}
+        placeholder="At least 8 characters"
+        secureTextEntry
+        autoComplete="new-password"
+        textContentType="newPassword"
+        returnKeyType="go"
+        onSubmitEditing={() => void submit()}
+      />
+      <Button
+        className="mt-2 h-[54px] rounded-full"
+        onPress={() => void submit()}
+        isDisabled={isSubmitting}
+      >
         {isSubmitting ? (
           <Spinner size="sm" color="default" />
         ) : (
-          <Button.Label>Create account</Button.Label>
+          <Button.Label className="font-heavy text-[17px]">Create account</Button.Label>
         )}
       </Button>
-      <Button variant="ghost" onPress={() => router.replace("/sign-in")}>
-        <Button.Label>I already have an account</Button.Label>
+      <Button variant="ghost" className="self-center" onPress={() => router.replace("/sign-in")}>
+        <Button.Label className="text-foreground text-[15.5px] font-bold">
+          I already have an account
+        </Button.Label>
       </Button>
     </View>
   );

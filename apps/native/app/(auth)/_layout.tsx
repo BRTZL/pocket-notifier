@@ -11,8 +11,8 @@ export default function AuthLayout() {
   return (
     <Stack screenOptions={screenOptions}>
       <Stack.Screen name="sign-in" options={{ title: "Sign in", headerShown: false }} />
-      <Stack.Screen name="invite/index" options={{ title: "Invite" }} />
-      <Stack.Screen name="invite/[code]" options={{ title: "Join notifier" }} />
+      <Stack.Screen name="invite/index" options={{ title: "Invite", headerShown: false }} />
+      <Stack.Screen name="invite/[code]" options={{ title: "Join notifier", headerShown: false }} />
     </Stack>
   );
 }

@@ -1,18 +1,12 @@
 import { router } from "expo-router";
-import {
-  Button,
-  Description,
-  FieldError,
-  Input,
-  Label,
-  TextField,
-  Typography,
-} from "heroui-native";
+import { Button, Typography } from "heroui-native";
 import { useState } from "react";
 import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
-import { Mascot } from "@/components/mascot";
+import { FilledField } from "@/components/filled-field";
+import { HeroArt } from "@/components/hero-art";
+import { StackHeader } from "@/components/screen-header";
 import { inviteCodeFromInput } from "@/lib/invite";
 
 export default function InviteEntryScreen() {
@@ -30,35 +24,43 @@ export default function InviteEntryScreen() {
   }
 
   return (
-    <KeyboardAwareScrollView
-      className="bg-background"
-      contentContainerClassName="gap-6 p-6"
-      keyboardShouldPersistTaps="handled"
-    >
-      <View className="items-center gap-1">
-        <Mascot pose="invite" size={150} />
-        <Typography type="h3">Join with an invite</Typography>
-        <Typography color="muted" align="center">
-          Someone on this notifier server sent you an invite link.
-        </Typography>
-      </View>
-      <TextField isRequired isInvalid={error !== null}>
-        <Label>Invite link or code</Label>
-        <Input
-          value={value}
-          onChangeText={setValue}
-          placeholder="https://…/invite/… or the code"
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="go"
-          onSubmitEditing={submit}
-        />
-        <Description>The code is the last part of the link.</Description>
-        <FieldError>{error}</FieldError>
-      </TextField>
-      <Button onPress={submit}>
-        <Button.Label>Continue</Button.Label>
-      </Button>
-    </KeyboardAwareScrollView>
+    <View className="bg-background flex-1">
+      <StackHeader title="Invite" />
+      <KeyboardAwareScrollView
+        className="bg-background"
+        contentContainerClassName="px-5 pt-4 pb-6"
+        keyboardShouldPersistTaps="handled"
+      >
+        <HeroArt pose="invite" height={260} />
+        <View className="mt-[26px] gap-2 px-1">
+          <Typography
+            accessibilityRole="header"
+            className="font-heavy text-[30px] leading-[34px] tracking-[-0.9px]"
+          >
+            Join with an invite.
+          </Typography>
+          <Typography className="text-muted text-[16px] leading-[22px]">
+            Paste the link someone on this server sent you. The code is its last part.
+          </Typography>
+        </View>
+        <View className="mt-[22px] gap-2.5">
+          <FilledField
+            label="Invite link or code"
+            isRequired
+            error={error}
+            value={value}
+            onChangeText={setValue}
+            placeholder="https://…/invite/… or the code"
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="go"
+            onSubmitEditing={submit}
+          />
+          <Button className="mt-2 h-[54px] rounded-full" onPress={submit}>
+            <Button.Label className="font-heavy text-[17px]">Continue</Button.Label>
+          </Button>
+        </View>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }

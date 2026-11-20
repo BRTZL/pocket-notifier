@@ -1,14 +1,14 @@
 import type { InvitePreview } from "@notifier/contract/invite";
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { Alert, Button, Card, Chip } from "heroui-native";
+import { Alert, Button, Chip, Typography } from "heroui-native";
 import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import type { z } from "zod";
-
+import { HeroArt } from "@/components/hero-art";
 import { InviteSignUpForm } from "@/components/invite-sign-up-form";
-import { Mascot } from "@/components/mascot";
 import { EmptyState, LoadingState } from "@/components/query-state";
+import { StackHeader } from "@/components/screen-header";
 import { errorMessage, hasErrorCode } from "@/lib/errors";
 import { parseInviteCode } from "@/lib/invite";
 import { orpc } from "@/utils/orpc";
@@ -31,26 +31,29 @@ function InvalidInvite() {
   );
 }
 
-function InvitePreviewCard({ preview }: { preview: z.infer<typeof InvitePreview> }) {
+function InviteHeadline({ preview }: { preview: z.infer<typeof InvitePreview> }) {
   const { invitedBy, topics, email } = preview;
   return (
-    <Card>
-      <Card.Body className="gap-3">
-        <Card.Title>{invitedBy} invited you</Card.Title>
-        <Card.Description>
-          {email ? `This invite is for ${email}.` : "Create your account to join."}
-        </Card.Description>
-        {topics.length > 0 ? (
-          <View className="flex-row flex-wrap gap-2">
-            {topics.map((topic) => (
-              <Chip key={topic} size="sm" variant="soft" color="accent">
-                <Chip.Label>{topic}</Chip.Label>
-              </Chip>
-            ))}
-          </View>
-        ) : null}
-      </Card.Body>
-    </Card>
+    <View className="gap-2 px-1">
+      <Typography
+        accessibilityRole="header"
+        className="font-heavy text-[30px] leading-[34px] tracking-[-0.9px]"
+      >
+        {invitedBy} invited you.
+      </Typography>
+      <Typography className="text-muted text-[16px] leading-[22px]">
+        {email ? `This invite is for ${email}.` : "Create your account to join."}
+      </Typography>
+      {topics.length > 0 ? (
+        <View className="mt-1 flex-row flex-wrap gap-2">
+          {topics.map((topic) => (
+            <Chip key={topic} size="sm" variant="soft" color="accent">
+              <Chip.Label>{topic}</Chip.Label>
+            </Chip>
+          ))}
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -74,12 +77,10 @@ function InviteSignUp({ code }: { code: string }) {
   return (
     <KeyboardAwareScrollView
       className="bg-background"
-      contentContainerClassName="gap-6 p-6"
+      contentContainerClassName="gap-[22px] px-5 pt-4 pb-6"
       keyboardShouldPersistTaps="handled"
     >
-      <View className="items-center">
-        <Mascot pose="invite" size={140} />
-      </View>
+      <HeroArt pose="invite" height={220} />
       {preview.isError ? (
         // Network or server trouble: the invite may still be fine, and sign-up checks it.
         <Alert status="warning">
@@ -90,7 +91,7 @@ function InviteSignUp({ code }: { code: string }) {
           </Alert.Content>
         </Alert>
       ) : (
-        <InvitePreviewCard preview={preview.data} />
+        <InviteHeadline preview={preview.data} />
       )}
       <InviteSignUpForm code={code} />
     </KeyboardAwareScrollView>
@@ -100,8 +101,10 @@ function InviteSignUp({ code }: { code: string }) {
 export default function InviteSignUpScreen() {
   const { code: rawCode = "" } = useLocalSearchParams<{ code: string }>();
   const code = parseInviteCode(rawCode);
-  if (code === null) {
-    return <InvalidInvite />;
-  }
-  return <InviteSignUp code={code} />;
+  return (
+    <View className="bg-background flex-1">
+      <StackHeader title="Join notifier" />
+      {code === null ? <InvalidInvite /> : <InviteSignUp code={code} />}
+    </View>
+  );
 }

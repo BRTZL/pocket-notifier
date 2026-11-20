@@ -1,22 +1,13 @@
 import { router } from "expo-router";
-import {
-  Button,
-  FieldError,
-  Input,
-  type InputRef,
-  Label,
-  Spinner,
-  TextField,
-  Typography,
-  useToast,
-} from "heroui-native";
+import { Button, type InputRef, Spinner, Typography, useToast } from "heroui-native";
 import { useRef, useState } from "react";
 import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import z from "zod";
 
-import { Mascot } from "@/components/mascot";
+import { FilledField } from "@/components/filled-field";
+import { HeroArt } from "@/components/hero-art";
 import { authClient } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/errors";
 import { fieldErrors } from "@/lib/form";
@@ -69,63 +60,75 @@ export default function SignInScreen() {
   return (
     <SafeAreaView className="bg-background flex-1">
       <KeyboardAwareScrollView
-        contentContainerClassName="grow justify-center gap-6 p-6"
+        contentContainerClassName="grow px-5 pt-3 pb-6"
         keyboardShouldPersistTaps="handled"
       >
-        <View className="items-center gap-1">
-          <Mascot pose="wave" size={150} />
-          <Typography type="h2">notifier</Typography>
-          <Typography color="muted" align="center">
-            Sign in to see your notifications.
+        <HeroArt />
+
+        <View className="mt-[26px] gap-2 px-1">
+          <Typography
+            accessibilityRole="header"
+            className="font-heavy text-[30px] leading-[34px] tracking-[-0.9px]"
+          >
+            Your agents, one chat away.
+          </Typography>
+          <Typography className="text-muted text-[16px] leading-[22px]">
+            Sign in to your notifier server.
           </Typography>
         </View>
 
-        <View className="gap-4">
-          <TextField isRequired isInvalid={Boolean(errors.email)}>
-            <Label>Email</Label>
-            <Input
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              textContentType="emailAddress"
-              returnKeyType="next"
-              submitBehavior="submit"
-              onSubmitEditing={() => passwordRef.current?.focus()}
-            />
-            <FieldError>{errors.email}</FieldError>
-          </TextField>
+        <View className="mt-[22px] gap-2.5">
+          <FilledField
+            label="Email"
+            isRequired
+            error={errors.email}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@example.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            textContentType="emailAddress"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
+          <FilledField
+            label="Password"
+            isRequired
+            error={errors.password}
+            inputRef={passwordRef}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Your password"
+            secureTextEntry
+            autoComplete="current-password"
+            textContentType="password"
+            returnKeyType="go"
+            onSubmitEditing={() => void submit()}
+          />
 
-          <TextField isRequired isInvalid={Boolean(errors.password)}>
-            <Label>Password</Label>
-            <Input
-              ref={passwordRef}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Your password"
-              secureTextEntry
-              autoComplete="current-password"
-              textContentType="password"
-              returnKeyType="go"
-              onSubmitEditing={() => void submit()}
-            />
-            <FieldError>{errors.password}</FieldError>
-          </TextField>
-
-          <Button onPress={() => void submit()} isDisabled={isSubmitting}>
+          <Button
+            className="mt-2 h-[54px] rounded-full"
+            onPress={() => void submit()}
+            isDisabled={isSubmitting}
+          >
             {isSubmitting ? (
               <Spinner size="sm" color="default" />
             ) : (
-              <Button.Label>Sign in</Button.Label>
+              <Button.Label className="font-heavy text-[17px]">Sign in</Button.Label>
             )}
           </Button>
+          <Button
+            variant="ghost"
+            className="mt-1.5 self-center"
+            onPress={() => router.push("/invite")}
+          >
+            <Button.Label className="text-foreground text-[15.5px] font-bold">
+              I have an invite
+            </Button.Label>
+          </Button>
         </View>
-
-        <Button variant="ghost" onPress={() => router.push("/invite")}>
-          <Button.Label>I have an invite</Button.Label>
-        </Button>
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );

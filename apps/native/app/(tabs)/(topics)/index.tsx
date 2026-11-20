@@ -1,13 +1,14 @@
 import type { MyTopic } from "@notifier/contract/topic";
 import { useQuery } from "@tanstack/react-query";
-import { router, Stack } from "expo-router";
-import { Button, Chip, ListGroup, Separator, useThemeColor } from "heroui-native";
-import { Fragment, useState } from "react";
+import { router } from "expo-router";
+import { Button, cn, PressableFeedback, Typography, useThemeColor } from "heroui-native";
+import { useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
-
+import { ChatAvatar } from "@/components/chat-avatar";
 import { EmptyState, ErrorState, LoadingState } from "@/components/query-state";
-import { SenderAvatar } from "@/components/sender-avatar";
+import { HeaderIconButton, ScreenHeader } from "@/components/screen-header";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
+import { topicGlyph } from "@/lib/chat-avatar";
 import { orpc } from "@/utils/orpc";
 
 function subscriptionLabel(topic: MyTopic): string | null {
@@ -19,37 +20,50 @@ function subscriptionLabel(topic: MyTopic): string | null {
 
 function TopicRow({ topic }: { topic: MyTopic }) {
   const subscription = subscriptionLabel(topic);
+  const title = topic.displayName ?? topic.name;
+  const unread = topic.unreadCount > 0;
+  const details = [topic.displayName ? topic.name : null, topic.role, subscription]
+    .filter(Boolean)
+    .join(" · ");
   return (
-    <ListGroup.Item
+    <PressableFeedback
+      animation={false}
       onPress={() => router.push({ pathname: "/topic/[topicId]", params: { topicId: topic.id } })}
-      className="active:bg-surface-secondary"
+      className="flex-row items-center gap-3.5 px-5 py-2.5"
       accessibilityRole="button"
-      accessibilityLabel={`${topic.displayName ?? topic.name}, ${topic.unreadCount} unread${subscription ? `, ${subscription}` : ""}`}
+      accessibilityLabel={`${title}, ${topic.unreadCount} unread${subscription ? `, ${subscription}` : ""}`}
     >
-      <ListGroup.ItemPrefix>
-        <SenderAvatar topic={topic.name} conversation={null} sender={null} />
-      </ListGroup.ItemPrefix>
-      <ListGroup.ItemContent>
-        <ListGroup.ItemTitle>{topic.displayName ?? topic.name}</ListGroup.ItemTitle>
-        <ListGroup.ItemDescription>
-          {topic.displayName ? `${topic.name} · ${topic.role}` : topic.role}
-        </ListGroup.ItemDescription>
-      </ListGroup.ItemContent>
-      <ListGroup.ItemSuffix>
-        <View className="flex-row items-center gap-1.5">
-          {subscription ? (
-            <Chip size="sm" variant="tertiary" color="default">
-              <Chip.Label>{subscription}</Chip.Label>
-            </Chip>
-          ) : null}
-          {topic.unreadCount > 0 ? (
-            <Chip size="sm" variant="primary" color="accent">
-              <Chip.Label>{topic.unreadCount > 99 ? "99+" : String(topic.unreadCount)}</Chip.Label>
-            </Chip>
-          ) : null}
+      <PressableFeedback.Highlight />
+      <ChatAvatar subject={{ kind: "glyph", name: title, glyph: topicGlyph(topic.name) }} />
+      <View className="min-w-0 flex-1">
+        <Typography
+          numberOfLines={1}
+          className={cn("text-[17px] leading-[22px]", unread ? "font-heavy" : "font-semibold")}
+        >
+          {title}
+        </Typography>
+        <Typography numberOfLines={1} className="text-muted mt-[3px] text-[15px] leading-[21px]">
+          {details}
+        </Typography>
+      </View>
+      {unread ? (
+        <View
+          className={cn(
+            "h-[22px] min-w-[22px] items-center justify-center rounded-full px-[7px]",
+            topic.muted || !topic.subscribed ? "bg-surface-tertiary" : "bg-accent",
+          )}
+        >
+          <Typography
+            className={cn(
+              "text-[12.5px] leading-4 font-bold",
+              topic.muted || !topic.subscribed ? "text-muted" : "text-accent-foreground",
+            )}
+          >
+            {topic.unreadCount > 99 ? "99+" : String(topic.unreadCount)}
+          </Typography>
         </View>
-      </ListGroup.ItemSuffix>
-    </ListGroup.Item>
+      ) : null}
+    </PressableFeedback>
   );
 }
 
@@ -77,52 +91,47 @@ export default function TopicsScreen() {
     }
     if (topics.data.length === 0) {
       return (
-        <View className="gap-4">
+        <View className="gap-4 px-5">
           <EmptyState title="No topics yet" pose="topics-empty">
             Topics you create or are invited to show up here.
           </EmptyState>
-          <Button onPress={() => router.push("/new")}>
+          <Button className="h-[52px] rounded-full" onPress={() => router.push("/new")}>
             <Button.Label>Create a topic</Button.Label>
           </Button>
         </View>
       );
     }
     return (
-      <ListGroup>
-        {topics.data.map((topic, index) => (
-          <Fragment key={topic.id}>
-            {index > 0 ? <Separator className="mx-4" /> : null}
-            <TopicRow topic={topic} />
-          </Fragment>
+      <View>
+        {topics.data.map((topic) => (
+          <TopicRow key={topic.id} topic={topic} />
         ))}
-      </ListGroup>
+      </View>
     );
   }
 
   return (
-    <ScrollView
-      className="bg-background flex-1"
-      contentContainerClassName="grow p-4"
-      contentInsetAdjustmentBehavior="automatic"
-      refreshControl={
-        <RefreshControl
-          refreshing={isManualRefresh}
-          onRefresh={() => void refresh()}
-          colors={[accent]}
-          tintColor={accent}
-        />
-      }
-    >
-      <Stack.Screen
-        options={{
-          headerRight: () => (
-            <Button size="sm" variant="ghost" onPress={() => router.push("/new")}>
-              <Button.Label>New topic</Button.Label>
-            </Button>
-          ),
-        }}
+    <View className="bg-background flex-1">
+      <ScreenHeader
+        title="Topics"
+        right={
+          <HeaderIconButton icon="add" label="New topic" onPress={() => router.push("/new")} />
+        }
       />
-      {renderContent()}
-    </ScrollView>
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="grow pt-1 pb-6"
+        refreshControl={
+          <RefreshControl
+            refreshing={isManualRefresh}
+            onRefresh={() => void refresh()}
+            colors={[accent]}
+            tintColor={accent}
+          />
+        }
+      >
+        {renderContent()}
+      </ScrollView>
+    </View>
   );
 }
