@@ -147,9 +147,23 @@ export const Message = z.object({
 });
 export type Message = z.infer<typeof Message>;
 
+/**
+ * One of the signed-in user's own responses to a message, so the app can show what they
+ * already answered. Same fields as `MessageResponse`, without the ids and the user.
+ */
+export const MyResponse = z.object({
+  actionKey: z.string(),
+  kind: z.enum(["ack", "text"]),
+  text: z.string().nullable(),
+  createdAt: Timestamp,
+});
+export type MyResponse = z.infer<typeof MyResponse>;
+
 /** A message in the signed-in user's inbox. */
 export const InboxMessage = Message.extend({
   read: z.boolean(),
+  /** The caller's own responses to this message, oldest first; never anyone else's. */
+  myResponses: z.array(MyResponse),
 });
 export type InboxMessage = z.infer<typeof InboxMessage>;
 

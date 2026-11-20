@@ -4,14 +4,21 @@ import {
   type Message,
   MessageId,
   Message as MessageSchema,
+  type MyResponse,
   type PublishInput,
   Tag,
 } from "@notifier/contract/message";
 import type { Database } from "@notifier/db";
 import { newId } from "@notifier/db/ids";
 import { user } from "@notifier/db/schema/auth";
-import { message, messageRead, topic, topicMember } from "@notifier/db/schema/notifier";
-import { and, desc, eq, gt, isNull, lt, type SQL } from "drizzle-orm";
+import {
+  message,
+  messageRead,
+  messageResponse,
+  topic,
+  topicMember,
+} from "@notifier/db/schema/notifier";
+import { and, asc, desc, eq, gt, isNull, lt, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Dispatch } from "../dispatch";
@@ -265,13 +272,72 @@ export function selectInbox(db: Database, userId: string, extra: (SQL | undefine
     .orderBy(desc(message.id));
 }
 
-export function toInboxMessage(row: {
+type InboxRow = {
   message: MessageRow;
   topicName: string;
   publisher: UserRow | null;
   readAt: Date | null;
-}): InboxMessage {
-  return { ...toMessage(row.message, row.topicName, row.publisher), read: row.readAt !== null };
+};
+
+/**
+ * `userId`'s own responses to each of `messageIds`, oldest first, in one query. Messages
+ * without one are absent from the map.
+ */
+export async function selectMyResponses(
+  db: Database,
+  userId: string,
+  messageIds: string[],
+): Promise<Map<string, MyResponse[]>> {
+  const byMessage = new Map<string, MyResponse[]>();
+  if (messageIds.length === 0) {
+    return byMessage;
+  }
+  const rows = await db
+    .select({
+      messageId: messageResponse.messageId,
+      actionKey: messageResponse.actionKey,
+      kind: messageResponse.kind,
+      text: messageResponse.text,
+      createdAt: messageResponse.createdAt,
+    })
+    .from(messageResponse)
+    .where(
+      and(
+        eq(messageResponse.userId, userId),
+        // One JSON parameter instead of one per id: D1 allows 100 bound parameters per query.
+        sql`${messageResponse.messageId} in (select value from json_each(${JSON.stringify(messageIds)}))`,
+      ),
+    )
+    .orderBy(asc(messageResponse.createdAt), asc(messageResponse.id));
+  for (const row of rows) {
+    const list = byMessage.get(row.messageId) ?? [];
+    list.push({
+      actionKey: row.actionKey,
+      kind: row.kind,
+      text: row.text,
+      createdAt: row.createdAt.toISOString(),
+    });
+    byMessage.set(row.messageId, list);
+  }
+  return byMessage;
+}
+
+/** Inbox rows as `InboxMessage`s, with the caller's own responses loaded in one query. */
+export async function toInboxMessages(
+  db: Database,
+  userId: string,
+  rows: InboxRow[],
+): Promise<InboxMessage[]> {
+  const responses = await selectMyResponses(
+    db,
+    userId,
+    rows.map((row) => row.message.id),
+  );
+  return rows.map((row) => ({
+    ...toMessage(row.message, row.topicName, row.publisher),
+    read: row.readAt !== null,
+    myResponses: responses.get(row.message.id) ?? [],
+  }));
 }
 
 export const unreadOnly = () => isNull(messageRead.messageId);

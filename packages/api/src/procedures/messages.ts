@@ -11,7 +11,7 @@ import {
   parseCursor,
   publishMessage,
   selectInbox,
-  toInboxMessage,
+  toInboxMessages,
   toMessage,
   toPage,
   toPublishOutput,
@@ -41,7 +41,13 @@ const list = authed.messages.list.handler(async ({ context, input }) => {
     input.unreadOnly ? unreadOnly() : undefined,
     cursor ? lt(message.id, cursor) : undefined,
   ]).limit(input.limit + 1);
-  return toPage(rows, input.limit, (row) => row.message.id, toInboxMessage);
+  const page = toPage(
+    rows,
+    input.limit,
+    (row) => row.message.id,
+    (row) => row,
+  );
+  return { ...page, items: await toInboxMessages(db, userId, page.items) };
 });
 
 const get = authed.messages.get.handler(async ({ context, input }) => {
@@ -51,7 +57,11 @@ const get = authed.messages.get.handler(async ({ context, input }) => {
   if (!row) {
     throw appError("NOT_FOUND", "Message not found");
   }
-  return toInboxMessage(row);
+  const [item] = await toInboxMessages(context.db, context.session.user.id, [row]);
+  if (!item) {
+    throw new Error("inbox message mapping returned no item");
+  }
+  return item;
 });
 
 const markRead = authed.messages.markRead.handler(async ({ context, input }) => {

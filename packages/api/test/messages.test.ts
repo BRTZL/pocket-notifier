@@ -110,6 +110,45 @@ describe("app messages", () => {
         clientFor(testDb.db, cid).messages.get({ id: third ?? "" }),
       ).rejects.toMatchObject(definedError("NOT_FOUND"));
     });
+
+    it("includes only the caller's own responses, on every message of a page", async () => {
+      const adaClient = clientFor(testDb.db, ada);
+      const bobClient = clientFor(testDb.db, bob);
+      const actions = [
+        { type: "reply" as const, key: "ok", label: "OK" },
+        { type: "reply" as const, key: "note", label: "Note", input: true },
+      ];
+      const { id: ask } = await adaClient.messages.publish({ topic: "team", actions });
+      await nextMillisecond();
+      const { id: other } = await adaClient.messages.publish({ topic: "team", actions });
+      await nextMillisecond();
+      const { id: quiet } = await adaClient.messages.publish({ topic: "team", body: "no reply" });
+
+      await bobClient.responses.create({ messageId: ask, actionKey: "ok" });
+      await nextMillisecond();
+      await bobClient.responses.create({ messageId: ask, actionKey: "note", text: "Later" });
+      await bobClient.responses.create({ messageId: other, actionKey: "note", text: "Done" });
+      // Ada answers too; Bob must never see her response.
+      await adaClient.responses.create({ messageId: ask, actionKey: "note", text: "Ada's" });
+
+      const bobInbox = await bobClient.messages.list({});
+      const byId = new Map(bobInbox.items.map((item) => [item.id, item.myResponses]));
+      expect(byId.get(ask)).toEqual([
+        { actionKey: "ok", kind: "ack", text: null, createdAt: expect.any(String) },
+        { actionKey: "note", kind: "text", text: "Later", createdAt: expect.any(String) },
+      ]);
+      expect(byId.get(other)).toEqual([
+        { actionKey: "note", kind: "text", text: "Done", createdAt: expect.any(String) },
+      ]);
+      expect(byId.get(quiet)).toEqual([]);
+
+      expect((await bobClient.messages.get({ id: ask })).myResponses).toHaveLength(2);
+      expect((await adaClient.messages.get({ id: ask })).myResponses).toEqual([
+        { actionKey: "note", kind: "text", text: "Ada's", createdAt: expect.any(String) },
+      ]);
+      const adaInbox = await adaClient.messages.list({});
+      expect(adaInbox.items.find((item) => item.id === other)?.myResponses).toEqual([]);
+    });
   });
 
   describe("markRead", () => {
@@ -186,7 +225,7 @@ describe("app messages", () => {
       expect(out).toMatchObject({ topic: "team" });
       const stored = await bobClient.messages.get({ id: out.id });
       expect(stored).toMatchObject({ priority: 3, publishedBy: { id: bob.id } });
-      const { read: _read, ...published } = stored;
+      const { read: _read, myResponses: _myResponses, ...published } = stored;
       expect(messagePublished).toHaveBeenCalledTimes(1);
       expect(messagePublished).toHaveBeenCalledWith(published);
 
