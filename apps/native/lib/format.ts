@@ -51,3 +51,70 @@ export function isHighPriority(priority: number): boolean {
 export function shortDate(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+function startOfDay(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+/** Whole local calendar days between `date` and `now` (0 today, 1 yesterday). */
+function daysAgo(date: Date, now: Date): number {
+  return Math.round((startOfDay(now) - startOfDay(date)) / DAY);
+}
+
+/** Local 24-hour `HH:mm`. */
+export function clockTime(iso: string): string {
+  const date = new Date(iso);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+/** `Nov 14`, with the year when it is not this year. */
+function shortDay(date: Date, now: Date): string {
+  const day = `${MONTHS[date.getMonth()]} ${date.getDate()}`;
+  return date.getFullYear() === now.getFullYear() ? day : `${day}, ${date.getFullYear()}`;
+}
+
+/** Chat list time: `14:02` today, `Thu` within the week, else `Nov 14`. */
+export function chatTime(iso: string, now = new Date()): string {
+  const date = new Date(iso);
+  const days = daysAgo(date, now);
+  if (days <= 0) {
+    return clockTime(iso);
+  }
+  if (days < 7) {
+    return WEEKDAYS[date.getDay()] ?? shortDay(date, now);
+  }
+  return shortDay(date, now);
+}
+
+/** Day separator in a thread: `Today`, `Yesterday`, else `Nov 14`. */
+export function dayLabel(iso: string, now = new Date()): string {
+  const days = daysAgo(new Date(iso), now);
+  if (days <= 0) {
+    return "Today";
+  }
+  if (days === 1) {
+    return "Yesterday";
+  }
+  return shortDay(new Date(iso), now);
+}
+
+/** Local calendar day key, to group thread items by day. */
+export function dayKey(iso: string): number {
+  return startOfDay(new Date(iso));
+}

@@ -1,6 +1,5 @@
 import type { InboxMessage } from "@notifier/contract/message";
 import { RESPONSE_TEXT_MAX } from "@notifier/contract/response";
-import { useMutation } from "@tanstack/react-query";
 import {
   Button,
   Chip,
@@ -16,37 +15,14 @@ import { useState } from "react";
 import { View } from "react-native";
 
 import { useOpenLink } from "@/hooks/use-open-link";
-import { errorMessage, hasErrorCode } from "@/lib/errors";
+import { responseTo, useSendResponse } from "@/hooks/use-send-response";
+import { errorMessage } from "@/lib/errors";
 import { runHttpAction } from "@/lib/http-action";
-import { orpc } from "@/utils/orpc";
 
-type MessageAction = InboxMessage["actions"][number];
-type ReplyAction = Extract<MessageAction, { type: "reply" }>;
-type HttpAction = Extract<MessageAction, { type: "http" }>;
-
-/** Sends a `reply` action's response; CONFLICT means it was already answered, which counts as done. */
-function useReply(messageId: string, actionKey: string) {
-  const [isDone, setIsDone] = useState(false);
-  const [wasAlreadyAnswered, setWasAlreadyAnswered] = useState(false);
-  const { toast } = useToast();
-  const mutation = useMutation(
-    orpc.responses.create.mutationOptions({
-      onSuccess: () => setIsDone(true),
-      onError: (error) => {
-        if (hasErrorCode(error, "CONFLICT")) {
-          setWasAlreadyAnswered(true);
-          setIsDone(true);
-          return;
-        }
-        toast.show({ variant: "danger", label: errorMessage(error, "Could not send the reply") });
-      },
-    }),
-  );
-  function send(text?: string) {
-    mutation.mutate({ messageId, actionKey, text });
-  }
-  return { send, isDone, wasAlreadyAnswered, isSending: mutation.isPending };
-}
+export type MessageAction = InboxMessage["actions"][number];
+export type ReplyAction = Extract<MessageAction, { type: "reply" }>;
+export type HttpAction = Extract<MessageAction, { type: "http" }>;
+export type ViewAction = Extract<MessageAction, { type: "view" }>;
 
 function DoneChip({ label }: { label: string }) {
   return (
@@ -57,12 +33,13 @@ function DoneChip({ label }: { label: string }) {
 }
 
 function AckButton({ messageId, action }: { messageId: string; action: ReplyAction }) {
-  const { send, isDone, wasAlreadyAnswered, isSending } = useReply(messageId, action.key);
-  if (isDone) {
-    return <DoneChip label={wasAlreadyAnswered ? "Already answered" : `${action.label} · sent`} />;
-  }
+  const { send, isSending } = useSendResponse();
   return (
-    <Button variant="primary" onPress={() => send()} isDisabled={isSending}>
+    <Button
+      variant="primary"
+      onPress={() => void send({ messageId, actionKey: action.key })}
+      isDisabled={isSending}
+    >
       {isSending ? (
         <Spinner size="sm" color="default" />
       ) : (
@@ -73,10 +50,9 @@ function AckButton({ messageId, action }: { messageId: string; action: ReplyActi
 }
 
 function InlineReply({ messageId, action }: { messageId: string; action: ReplyAction }) {
-  const { send, isDone, wasAlreadyAnswered, isSending } = useReply(messageId, action.key);
+  const { send, isSending } = useSendResponse();
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [sentText, setSentText] = useState<string | null>(null);
 
   function submit(value: string) {
     const trimmed = value.trim();
@@ -85,19 +61,7 @@ function InlineReply({ messageId, action }: { messageId: string; action: ReplyAc
       return;
     }
     setError(null);
-    setSentText(trimmed);
-    send(trimmed);
-  }
-
-  if (isDone) {
-    return (
-      <View className="gap-2">
-        <DoneChip label={wasAlreadyAnswered ? "Already answered" : `${action.label} · sent`} />
-        {sentText && !wasAlreadyAnswered ? (
-          <Typography color="muted">“{sentText}”</Typography>
-        ) : null}
-      </View>
-    );
+    void send({ messageId, actionKey: action.key, text: trimmed });
   }
 
   return (
@@ -105,6 +69,7 @@ function InlineReply({ messageId, action }: { messageId: string; action: ReplyAc
       <TextField isInvalid={error !== null} isDisabled={isSending}>
         <Label>{action.label}</Label>
         <TextArea
+          variant="secondary"
           value={text}
           onChangeText={setText}
           placeholder={action.placeholder ?? "Write a reply"}
@@ -136,7 +101,16 @@ function InlineReply({ messageId, action }: { messageId: string; action: ReplyAc
   );
 }
 
-function HttpButton({ action }: { action: HttpAction }) {
+/** An `http` action: the locked-down request from the phone, with a toast for the outcome. */
+export function HttpButton({
+  action,
+  size = "md",
+  variant = "secondary",
+}: {
+  action: HttpAction;
+  size?: "sm" | "md";
+  variant?: "secondary" | "outline";
+}) {
   const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
 
@@ -157,16 +131,25 @@ function HttpButton({ action }: { action: HttpAction }) {
   }
 
   return (
-    <Button variant="secondary" onPress={() => void run()} isDisabled={isRunning}>
+    <Button size={size} variant={variant} onPress={() => void run()} isDisabled={isRunning}>
       {isRunning ? <Spinner size="sm" /> : <Button.Label>{action.label}</Button.Label>}
     </Button>
   );
 }
 
-function ViewButton({ action }: { action: Extract<MessageAction, { type: "view" }> }) {
+/** A `view` action: opens its link through the link-safety check. */
+export function ViewButton({
+  action,
+  size = "md",
+  variant = "secondary",
+}: {
+  action: ViewAction;
+  size?: "sm" | "md";
+  variant?: "secondary" | "outline";
+}) {
   const openLink = useOpenLink();
   return (
-    <Button variant="secondary" onPress={() => openLink(action.url)}>
+    <Button size={size} variant={variant} onPress={() => openLink(action.url)}>
       <Button.Label>{action.label}</Button.Label>
     </Button>
   );
@@ -185,12 +168,22 @@ export function MessageActions({ message }: { message: InboxMessage }) {
             return <ViewButton key={action.key} action={action} />;
           case "http":
             return <HttpButton key={action.key} action={action} />;
-          case "reply":
+          case "reply": {
+            const answer = responseTo(message, action.key);
+            if (answer) {
+              return (
+                <View key={action.key} className="gap-2">
+                  <DoneChip label={`${action.label} · sent`} />
+                  {answer.text ? <Typography color="muted">“{answer.text}”</Typography> : null}
+                </View>
+              );
+            }
             return action.input ? (
               <InlineReply key={action.key} messageId={message.id} action={action} />
             ) : (
               <AckButton key={action.key} messageId={message.id} action={action} />
             );
+          }
           default:
             return null;
         }

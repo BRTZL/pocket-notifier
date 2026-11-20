@@ -1,42 +1,13 @@
 import type { InboxMessage } from "@notifier/contract/message";
-import { Alert, Button, Separator, Spinner, useThemeColor } from "heroui-native";
+import { Separator, Spinner, useThemeColor } from "heroui-native";
 import { type ReactElement, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 
 import { MessageRow } from "@/components/message-row";
-import { EmptyState, ErrorState, LoadingState } from "@/components/query-state";
+import { EmptyState, ErrorState, LoadErrorBanner, LoadingState } from "@/components/query-state";
 import { useInbox } from "@/hooks/use-inbox";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { errorMessage, isAccessError } from "@/lib/errors";
-
-/**
- * Shown above rows that are already on screen when a refresh or the next page fails;
- * "Try again" repeats the operation that failed.
- */
-function LoadErrorBanner({
-  title,
-  description,
-  onRetry,
-}: {
-  title: string;
-  description: string;
-  onRetry: () => void;
-}) {
-  return (
-    <View className="gap-2 px-4 pb-3">
-      <Alert status="danger">
-        <Alert.Indicator />
-        <Alert.Content>
-          <Alert.Title>{title}</Alert.Title>
-          <Alert.Description>{description}</Alert.Description>
-        </Alert.Content>
-      </Alert>
-      <Button size="sm" variant="secondary" onPress={onRetry}>
-        <Button.Label>Try again</Button.Label>
-      </Button>
-    </View>
-  );
-}
 
 export type MessageListProps = {
   /** One topic's messages; the combined inbox when omitted. */

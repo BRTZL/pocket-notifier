@@ -80,3 +80,32 @@ export function EmptyState({
     </View>
   );
 }
+
+/**
+ * Shown above rows that are already on screen when a refresh or the next page fails;
+ * "Try again" repeats the operation that failed.
+ */
+export function LoadErrorBanner({
+  title,
+  description,
+  onRetry,
+}: {
+  title: string;
+  description: string;
+  onRetry: () => void;
+}) {
+  return (
+    <View className="gap-2 px-4 pb-3">
+      <Alert status="danger">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>{title}</Alert.Title>
+          <Alert.Description>{description}</Alert.Description>
+        </Alert.Content>
+      </Alert>
+      <Button size="sm" variant="secondary" onPress={onRetry}>
+        <Button.Label>Try again</Button.Label>
+      </Button>
+    </View>
+  );
+}
