@@ -112,6 +112,11 @@ export const message = sqliteTable(
     actionsJson: text("actions_json").notNull(),
     conversationJson: text("conversation_json"),
     senderJson: text("sender_json"),
+    /**
+     * Which conversation of its topic the message belongs to: `c:<conversation.id>`, or
+     * `t:<topic id>` for messages without a conversation. Set at publish.
+     */
+    conversationKey: text("conversation_key").notNull(),
     publishedBy: text("published_by").references(() => user.id, { onDelete: "set null" }),
     tokenId: text("token_id").references(() => accessToken.id, { onDelete: "set null" }),
     createdAt: createdAt(),
@@ -119,6 +124,11 @@ export const message = sqliteTable(
   },
   (table) => [
     index("message_topicId_id_idx").on(table.topicId, table.id),
+    index("message_topicId_conversationKey_id_idx").on(
+      table.topicId,
+      table.conversationKey,
+      table.id,
+    ),
     index("message_expiresAt_idx").on(table.expiresAt),
     check("message_priority_check", sql`${table.priority} in (1, 2, 3, 4, 5)`),
   ],

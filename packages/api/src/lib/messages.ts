@@ -61,6 +61,7 @@ export async function publishMessage(
   const actions = normalizeActions(input.actions);
 
   const now = new Date();
+  const conversationKey = input.conversation ? `c:${input.conversation.id}` : `t:${target.id}`;
   const [row] = await db
     .insert(message)
     .values({
@@ -74,6 +75,7 @@ export async function publishMessage(
       actionsJson: JSON.stringify(actions),
       conversationJson: input.conversation ? JSON.stringify(input.conversation) : null,
       senderJson: input.sender ? JSON.stringify(input.sender) : null,
+      conversationKey,
       publishedBy: publisher.userId,
       tokenId: publisher.tokenId,
       createdAt: now,

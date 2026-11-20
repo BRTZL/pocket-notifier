@@ -104,6 +104,7 @@ describe("me and topics", () => {
       priority: 3,
       tagsJson: "[]",
       actionsJson: "[]",
+      conversationKey: `t:${alpha.id}`,
       createdAt: new Date(createdAt),
       expiresAt: new Date(expiresAt),
     });

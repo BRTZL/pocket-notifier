@@ -11,15 +11,22 @@ const STATEMENT_BREAKPOINT = "--> statement-breakpoint";
 
 export type TestDb = {
   db: Database;
+  /** The raw D1 binding, for SQL in the old schema or `EXPLAIN QUERY PLAN`. */
+  d1: D1Database;
+  /** Applies the migrations held back by `stopBefore`. */
+  migrateRest: () => Promise<void>;
   dispose: () => Promise<void>;
 };
 
-function readMigrationStatements(): string[] {
-  const folders = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
+export type TestDbOptions = {
+  /**
+   * Apply only the migrations before this folder name; `migrateRest` applies the others.
+   * For testing a migration against rows written in the old shape.
+   */
+  stopBefore?: string;
+};
 
+function readMigrationStatements(folders: string[]): string[] {
   return folders.flatMap((folder) =>
     readFileSync(join(MIGRATIONS_DIR, folder, "migration.sql"), "utf8")
       .split(STATEMENT_BREAKPOINT)
@@ -32,7 +39,17 @@ function readMigrationStatements(): string[] {
  * Starts an in-memory D1 database in Miniflare with every migration in
  * `packages/db/src/migrations` applied, in folder order.
  */
-export async function createTestDb(): Promise<TestDb> {
+export async function createTestDb(options: TestDbOptions = {}): Promise<TestDb> {
+  const folders = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  const { stopBefore } = options;
+  if (stopBefore !== undefined && !folders.includes(stopBefore)) {
+    throw new Error(`No migration named ${stopBefore}`);
+  }
+  const split = stopBefore === undefined ? folders.length : folders.indexOf(stopBefore);
+
   // Miniflare 5 takes a new options shape; the v4 shape is still the shortest way to
   // describe "one Worker with one D1 binding".
   const mf = new Miniflare(
@@ -45,11 +62,22 @@ export async function createTestDb(): Promise<TestDb> {
   );
 
   try {
-    const d1 = await mf.getD1Database("DB");
-    await d1.batch(readMigrationStatements().map((statement) => d1.prepare(statement)));
     // Miniflare types D1 against `@cloudflare/workers-types/experimental`; the shape is the same.
-    const db: Database = drizzle(d1 as unknown as D1Database, { relations });
-    return { db, dispose: () => mf.dispose() };
+    const d1 = (await mf.getD1Database("DB")) as unknown as D1Database;
+    const apply = async (names: string[]) => {
+      const statements = readMigrationStatements(names);
+      if (statements.length > 0) {
+        await d1.batch(statements.map((statement) => d1.prepare(statement)));
+      }
+    };
+    await apply(folders.slice(0, split));
+    const db: Database = drizzle(d1, { relations });
+    return {
+      db,
+      d1,
+      migrateRest: () => apply(folders.slice(split)),
+      dispose: () => mf.dispose(),
+    };
   } catch (error) {
     await mf.dispose();
     throw error;

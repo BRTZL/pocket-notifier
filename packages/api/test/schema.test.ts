@@ -52,6 +52,7 @@ describe("notifier schema", () => {
         priority: 3,
         tagsJson: "[]",
         actionsJson: "[]",
+        conversationKey: `t:${topicId}`,
         publishedBy: userId,
         expiresAt: new Date(now.getTime() + 86_400_000),
       }),
@@ -95,6 +96,7 @@ describe("notifier schema", () => {
         priority: 2.5,
         tagsJson: "[]",
         actionsJson: "[]",
+        conversationKey: `t:${topicId}`,
         expiresAt: new Date(Date.now() + 86_400_000),
       }),
     ).rejects.toThrow();
