@@ -208,6 +208,91 @@ describe("public messages API", () => {
     });
   });
 
+  describe("conversations are features", () => {
+    async function keyOf(id: string) {
+      const [row] = await testDb.db
+        .select({ key: message.conversationKey })
+        .from(message)
+        .where(eq(message.id, id));
+      return row?.key;
+    }
+
+    it("files a conversation id that is not a slug under a derived feature", async () => {
+      const api = publicClientFor(testDb.db, adaSecret);
+      const out = await api.messages.publish({
+        project: "team",
+        body: "CI green",
+        conversation: { id: "org/repo" },
+      });
+      expect(await keyOf(out.id)).toBe("c:org-repo");
+      expect((await api.messages.get({ id: out.id })).conversation).toEqual({
+        id: "org-repo",
+        title: "org/repo",
+      });
+
+      const features = await clientFor(testDb.db, ada).features.list({ projectId: teamId });
+      expect(features).toMatchObject([
+        { slug: "org-repo", name: "org/repo", conversationKey: "c:org-repo" },
+      ]);
+      expect(features[0]?.lastMessageAt).toBe(out.createdAt);
+
+      // The same id again lands in the same feature.
+      const again = await api.messages.publish({
+        project: "team",
+        conversation: { id: "org/repo" },
+      });
+      expect(await keyOf(again.id)).toBe("c:org-repo");
+      expect(await clientFor(testDb.db, ada).features.list({ projectId: teamId })).toHaveLength(1);
+    });
+
+    it("appends -2 when the derived slug belongs to a feature with another name", async () => {
+      const owner = clientFor(testDb.db, ada);
+      await owner.features.create({
+        projectId: teamId,
+        name: "Org Repo Rewrite",
+        slug: "org-repo",
+      });
+      const api = publicClientFor(testDb.db, adaSecret);
+      const out = await api.messages.publish({
+        project: "team",
+        conversation: { id: "org/repo", title: "Org repo" },
+      });
+      expect(await keyOf(out.id)).toBe("c:org-repo-2");
+      const slugs = (await owner.features.list({ projectId: teamId })).map((item) => item.slug);
+      expect(slugs.sort()).toEqual(["org-repo", "org-repo-2"]);
+    });
+
+    it("advances an existing feature's last_message_at and reorders features.list", async () => {
+      const owner = clientFor(testDb.db, ada);
+      await owner.features.create({ projectId: teamId, name: "Alpha" });
+      await owner.features.create({ projectId: teamId, name: "Beta" });
+      const api = publicClientFor(testDb.db, adaSecret);
+      await api.messages.publish({ project: "team", conversation: { id: "beta" } });
+      await nextMillisecond();
+      const out = await api.messages.publish({
+        project: "team",
+        conversation: { id: "Alpha", title: "Ignored" },
+      });
+      expect(await keyOf(out.id)).toBe("c:alpha");
+      expect((await api.messages.get({ id: out.id })).conversation).toEqual({
+        id: "alpha",
+        title: "Alpha",
+      });
+
+      const features = await owner.features.list({ projectId: teamId });
+      expect(features.map((item) => item.slug)).toEqual(["alpha", "beta"]);
+      expect(features[0]?.lastMessageAt).toBe(out.createdAt);
+      expect(features.map((item) => item.name)).toEqual(["Alpha", "Beta"]);
+    });
+
+    it("keeps messages without a conversation in the project-level thread", async () => {
+      const api = publicClientFor(testDb.db, adaSecret);
+      const out = await api.messages.publish({ project: "team", body: "plain" });
+      expect(await keyOf(out.id)).toBe(`p:${teamId}`);
+      expect(await clientFor(testDb.db, ada).features.list({ projectId: teamId })).toEqual([]);
+    });
+  });
+
   describe("list", () => {
     it("pages newest first, skips expired messages and filters by since", async () => {
       const api = publicClientFor(testDb.db, adaSecret);

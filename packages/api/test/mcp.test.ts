@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Dispatch } from "../src/dispatch";
 import { handleMcpRequest, type McpTokenClaims } from "../src/mcp/handler";
 import { createTestDb, type TestDb } from "./db";
-import { clientFor, seedUser, type TestUser } from "./helpers";
+import { clientFor, nextMillisecond, publicClientFor, seedUser, type TestUser } from "./helpers";
 
 const MCP_URL = "http://localhost:3000/mcp";
 const CLIENT_ID = "testClientIdtestClientIdtestClie";
@@ -193,6 +193,56 @@ describe("MCP server", () => {
         { type: "reply", input: true, quickReplies: ["Merge", "Wait"] },
       ],
     });
+  });
+
+  it("files MCP and REST sends to the same feature under the same key", async () => {
+    await call("create_project", { name: "rezme" });
+    const owner = clientFor(testDb.db, ada);
+    const { secret } = await owner.tokens.create({ name: "ci", scope: { kind: "all" } });
+    const api = publicClientFor(testDb.db, secret);
+
+    const viaMcp = await call("send_notification", {
+      project: "rezme",
+      feature: "Improving performance",
+      title: "Profiled",
+    });
+    expect(viaMcp.structuredContent).toMatchObject({
+      feature: { slug: "improving-performance", created: true },
+    });
+    const viaRest = await api.messages.publish({
+      project: "rezme",
+      conversation: { id: "improving-performance" },
+    });
+    // REST first, then MCP by the slug-of-text rule: still one feature.
+    const restFirst = await api.messages.publish({
+      project: "rezme",
+      conversation: { id: "org/repo" },
+    });
+    await nextMillisecond();
+    const back = await call("send_notification", {
+      project: "rezme",
+      feature: "org/repo",
+      title: "Merged",
+    });
+    expect(back.structuredContent).toMatchObject({
+      feature: { slug: "org-repo", created: false },
+    });
+
+    const keyOf = new Map(
+      (await testDb.db.select({ id: message.id, key: message.conversationKey }).from(message)).map(
+        (row) => [row.id, row.key],
+      ),
+    );
+    expect(keyOf.get(String(viaMcp.structuredContent?.messageId))).toBe("c:improving-performance");
+    expect(keyOf.get(viaRest.id)).toBe("c:improving-performance");
+    expect(keyOf.get(restFirst.id)).toBe("c:org-repo");
+    expect(keyOf.get(String(back.structuredContent?.messageId))).toBe("c:org-repo");
+    const [{ id: projectId } = { id: "" }] = await testDb.db
+      .select({ id: project.id })
+      .from(project)
+      .where(eq(project.name, "rezme"));
+    const features = await owner.features.list({ projectId });
+    expect(features.map((item) => item.slug)).toEqual(["org-repo", "improving-performance"]);
   });
 
   it("sends to General when no project is given", async () => {

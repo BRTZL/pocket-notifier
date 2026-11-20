@@ -23,6 +23,7 @@ import { z } from "zod";
 
 import type { Dispatch } from "../dispatch";
 import { badRequest } from "./errors";
+import { ensureFeature, touchFeature } from "./features";
 import { toUserSummary } from "./serialize";
 import { DAY_MS } from "./token-scope";
 
@@ -52,6 +53,12 @@ function normalizeActions(actions: PublishFields["actions"]): Message["actions"]
 /**
  * Stores a message in `project` and returns the stored row. Access checks are the
  * caller's job; this applies the project's defaults and the shared publish rules.
+ *
+ * Every conversation is a feature: a message with `conversation` is filed under the
+ * project's feature for it (found or created by `ensureFeature`), stored with
+ * `conversation = { id: slug, title: name }` so its thread key is `c:<slug>`, and moves
+ * that feature's `last_message_at`. Without `conversation` it goes to the project-level
+ * thread, `p:<project id>`.
  */
 export async function publishMessage(
   db: Database,
@@ -67,8 +74,27 @@ export async function publishMessage(
   }
   const actions = normalizeActions(input.actions);
 
+  const featureRow = input.conversation
+    ? (
+        await ensureFeature(db, {
+          projectId: target.id,
+          key: input.conversation.id,
+          name: input.conversation.title ?? input.conversation.id,
+          userId: publisher.userId,
+        })
+      ).feature
+    : undefined;
+  const conversation =
+    input.conversation && featureRow
+      ? {
+          id: featureRow.slug,
+          title: featureRow.name,
+          ...(input.conversation.iconUrl ? { iconUrl: input.conversation.iconUrl } : {}),
+        }
+      : null;
+
   const now = new Date();
-  const conversationKey = input.conversation ? `c:${input.conversation.id}` : `p:${target.id}`;
+  const conversationKey = featureRow ? `c:${featureRow.slug}` : `p:${target.id}`;
   const [row] = await db
     .insert(message)
     .values({
@@ -80,7 +106,7 @@ export async function publishMessage(
       tagsJson: JSON.stringify(input.tags),
       clickUrl: input.clickUrl ?? null,
       actionsJson: JSON.stringify(actions),
-      conversationJson: input.conversation ? JSON.stringify(input.conversation) : null,
+      conversationJson: conversation ? JSON.stringify(conversation) : null,
       senderJson: input.sender ? JSON.stringify(input.sender) : null,
       conversationKey,
       publishedBy: publisher.userId,
@@ -91,6 +117,9 @@ export async function publishMessage(
     .returning();
   if (!row) {
     throw new Error("message insert returned no row");
+  }
+  if (featureRow) {
+    await touchFeature(db, featureRow.id, row.createdAt);
   }
   return row;
 }

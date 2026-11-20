@@ -24,6 +24,8 @@ import { clientFor, seedUser } from "./helpers";
 const CONVERSATION_KEY_MIGRATION = "20261120185331_conversation_key";
 const PROJECTS_FEATURES_MIGRATION = "20261120205545_projects_features_oauth";
 const REMOVE_TOPICS_MIGRATION = "20261120213814_remove_topics";
+const FEATURE_BACKFILL_MIGRATION = "20261120222058_feature_backfill";
+const FEATURE_ID = /^fea_[0-9a-z]{26}$/u;
 
 const LATER = Date.now() + 86_400_000;
 const OLD_ID = "top_01jd8x5k2m9q7r4t6v8w0y3z5a";
@@ -375,6 +377,117 @@ describe("remove topics migration", () => {
       });
       const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
       expect((await schemaObjects(testDb.d1)).toSorted(byName)).toEqual(expected.toSorted(byName));
+    } finally {
+      await testDb.dispose();
+    }
+  });
+});
+
+describe("feature backfill migration", () => {
+  it("creates a feature for each valid-slug conversation that has none", async () => {
+    const testDb = await createTestDb({ stopBefore: FEATURE_BACKFILL_MIGRATION });
+    try {
+      const { db, d1 } = testDb;
+      const ada = await seedUser(db, "ada");
+      const projectId = "prj_01jd8x5k2m9q7r4t6v8w0y3z5b";
+      const insertMessage = d1.prepare(
+        `insert into message (id, project_id, priority, tags_json, actions_json, conversation_json, conversation_key, created_at, expires_at)
+         values (?, ?, 3, '[]', '[]', ?, ?, ?, ?)`,
+      );
+      // Raw rows: publishing through the API would already create the features.
+      await d1.batch([
+        d1.prepare("insert into project (id, name) values (?, 'legacy')").bind(projectId),
+        d1
+          .prepare(
+            "insert into feature (id, project_id, slug, name, created_by) values ('fea_01jd8x5k2m9q7r4t6v8w0y3z5c', ?, 'taken', 'Taken', ?)",
+          )
+          .bind(projectId, ada.id),
+        insertMessage.bind(
+          "msg_01jd8x5k2m9q7r4t6v8w0y0001",
+          projectId,
+          '{"id":"alpha","title":"Old"}',
+          "c:alpha",
+          1000,
+          LATER,
+        ),
+        insertMessage.bind(
+          "msg_01jd8x5k2m9q7r4t6v8w0y0002",
+          projectId,
+          '{"id":"alpha","title":"Alpha"}',
+          "c:alpha",
+          2000,
+          LATER,
+        ),
+        insertMessage.bind(
+          "msg_01jd8x5k2m9q7r4t6v8w0y0003",
+          projectId,
+          '{"id":"beta"}',
+          "c:beta",
+          3000,
+          LATER,
+        ),
+        insertMessage.bind(
+          "msg_01jd8x5k2m9q7r4t6v8w0y0004",
+          projectId,
+          '{"id":"org/repo"}',
+          "c:org/repo",
+          4000,
+          LATER,
+        ),
+        insertMessage.bind(
+          "msg_01jd8x5k2m9q7r4t6v8w0y0005",
+          projectId,
+          '{"id":"taken","title":"Other"}',
+          "c:taken",
+          5000,
+          LATER,
+        ),
+        insertMessage.bind(
+          "msg_01jd8x5k2m9q7r4t6v8w0y0006",
+          projectId,
+          '{"id":"gone"}',
+          "c:gone",
+          6000,
+          Date.now() - 1000,
+        ),
+        insertMessage.bind(
+          "msg_01jd8x5k2m9q7r4t6v8w0y0007",
+          projectId,
+          null,
+          `p:${projectId}`,
+          7000,
+          LATER,
+        ),
+      ]);
+      await testDb.migrateRest();
+
+      const rows = await db
+        .select({
+          id: feature.id,
+          slug: feature.slug,
+          name: feature.name,
+          createdAt: feature.createdAt,
+          lastMessageAt: feature.lastMessageAt,
+        })
+        .from(feature)
+        .where(eq(feature.projectId, projectId))
+        .orderBy(feature.slug);
+      expect(rows.map(({ slug, name }) => ({ slug, name }))).toEqual([
+        { slug: "alpha", name: "Alpha" },
+        { slug: "beta", name: "beta" },
+        { slug: "taken", name: "Taken" },
+      ]);
+      expect(rows[0]?.createdAt.getTime()).toBe(1000);
+      expect(rows[0]?.lastMessageAt?.getTime()).toBe(2000);
+      for (const row of rows) {
+        expect(row.id).toMatch(FEATURE_ID);
+      }
+      // Messages keep their keys, including the one that is not a slug.
+      const keys = await db
+        .select({ key: message.conversationKey })
+        .from(message)
+        .where(eq(message.id, "msg_01jd8x5k2m9q7r4t6v8w0y0004"));
+      expect(keys).toEqual([{ key: "c:org/repo" }]);
     } finally {
       await testDb.dispose();
     }

@@ -138,9 +138,11 @@ describe("conversations", () => {
       const [ops, team, conversation] = items;
       expect(ops?.lastMessage.senderName).toBeNull();
       expect(team?.lastMessage.senderName).toBe("codex");
+      // The conversation is the feature `alpha`, named by its first message; a later
+      // title does not rename it.
       expect(conversation).toMatchObject({
         key: "c:alpha",
-        title: "New name",
+        title: "Old name",
         lastMessage: { id: latest, title: "Build failed", senderName: "Claude", priority: 5 },
       });
       const preview = conversation?.lastMessage.body ?? "";

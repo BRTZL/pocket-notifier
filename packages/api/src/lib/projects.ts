@@ -28,6 +28,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import type { Dispatch } from "../dispatch";
 import { appError, badRequest, isUniqueViolation } from "./errors";
+import { ensureFeature } from "./features";
 import { announcePublished, type MessageRow, publishMessage, toMessage } from "./messages";
 import { loadMyProject, loadMyProjects } from "./my-projects";
 
@@ -412,7 +413,12 @@ export async function resolveSendTarget(
   if (found) {
     return { access, feature: found, featureCreated: false };
   }
-  const created = await createFeature(db, { access, userId, name: target.feature });
+  const created = await ensureFeature(db, {
+    projectId: access.project.id,
+    key: target.feature,
+    name: target.feature,
+    userId,
+  });
   return { access, feature: created.feature, featureCreated: created.created };
 }
 
@@ -478,8 +484,9 @@ async function countPushDevices(db: Database, projectId: string): Promise<number
 
 /**
  * Publishes a notification into `access.project`, optionally into `featureRow`'s
- * conversation, hands it to the push fan-out and touches the feature's
- * `last_message_at`. Access (owner or publisher) is checked here.
+ * conversation, and hands it to the push fan-out. `publishMessage` moves the feature's
+ * `last_message_at`, as for every other publish path. Access (owner or publisher) is
+ * checked here.
  */
 export async function sendNotification(
   db: Database,
@@ -514,12 +521,6 @@ export async function sendNotification(
     publisher: { userId: args.userId, tokenId: null },
     input: parsed.data,
   });
-  if (args.feature) {
-    await db
-      .update(feature)
-      .set({ lastMessageAt: row.createdAt })
-      .where(eq(feature.id, args.feature.id));
-  }
   const [publisher] = await db.select().from(user).where(eq(user.id, args.userId)).limit(1);
   announcePublished(args.dispatch, toMessage(row, args.access.project.name, publisher ?? null));
   return { message: row, deliveredTo: await countPushDevices(db, args.access.project.id) };
