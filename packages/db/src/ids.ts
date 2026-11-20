@@ -29,7 +29,9 @@ function encodeRandom(): string {
 /**
  * Creates a notifier ID: `<prefix>_<26 lowercase Crockford base32 chars>`.
  * The chars are a ULID (48-bit ms timestamp, then 80 random bits), so IDs sort by
- * creation time and work as pagination cursors.
+ * creation millisecond and work as pagination cursors. IDs created in the same
+ * millisecond are ordered randomly, so never rely on ID order to tell which of two
+ * same-millisecond records came first.
  */
 export function newId(kind: IdKind): string {
   return `${ID_PREFIXES[kind]}_${encodeTime(Date.now())}${encodeRandom()}`;

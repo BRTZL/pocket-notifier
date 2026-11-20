@@ -59,7 +59,7 @@ CREATE TABLE `message` (
 	CONSTRAINT `fk_message_topic_id_topic_id_fk` FOREIGN KEY (`topic_id`) REFERENCES `topic`(`id`) ON DELETE CASCADE,
 	CONSTRAINT `fk_message_published_by_user_id_fk` FOREIGN KEY (`published_by`) REFERENCES `user`(`id`) ON DELETE SET NULL,
 	CONSTRAINT `fk_message_token_id_access_token_id_fk` FOREIGN KEY (`token_id`) REFERENCES `access_token`(`id`) ON DELETE SET NULL,
-	CONSTRAINT "message_priority_check" CHECK("priority" between 1 and 5)
+	CONSTRAINT "message_priority_check" CHECK("priority" in (1, 2, 3, 4, 5))
 );
 --> statement-breakpoint
 CREATE TABLE `message_read` (

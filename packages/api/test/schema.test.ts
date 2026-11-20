@@ -1,5 +1,5 @@
 import { newId } from "@notifier/db/ids";
-import { user } from "@notifier/db/schema/auth";
+import { session, user } from "@notifier/db/schema/auth";
 import { message, topic, topicMember } from "@notifier/db/schema/notifier";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -7,17 +7,20 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, type TestDb } from "./db";
 
 describe("notifier schema", () => {
-  let testDb: TestDb;
+  let testDb: TestDb | undefined;
 
   beforeAll(async () => {
     testDb = await createTestDb();
   });
 
   afterAll(async () => {
-    await testDb.dispose();
+    await testDb?.dispose();
   });
 
   it("stores a topic with members and messages and cascades on delete", async () => {
+    if (!testDb) {
+      throw new Error("test database not created");
+    }
     const { db } = testDb;
     const userId = "user_1";
     const topicId = newId("topic");
@@ -26,6 +29,19 @@ describe("notifier schema", () => {
 
     await db.batch([
       db.insert(user).values({ id: userId, name: "Ada", email: "ada@example.com" }),
+      db.insert(user).values({ id: "user_2", name: "Bob", email: "bob@example.com" }),
+      db.insert(session).values({
+        id: "session_ada",
+        token: "token_ada",
+        userId,
+        expiresAt: new Date(now.getTime() + 86_400_000),
+      }),
+      db.insert(session).values({
+        id: "session_bob",
+        token: "token_bob",
+        userId: "user_2",
+        expiresAt: new Date(now.getTime() + 86_400_000),
+      }),
       db.insert(topic).values({ id: topicId, name: "alerts" }),
       db.insert(topicMember).values({ topicId, userId, role: "owner" }),
       db.insert(message).values({
@@ -56,12 +72,31 @@ describe("notifier schema", () => {
       with: { memberships: true, sessions: true },
     });
     expect(owner?.memberships.map((row) => row.topicId)).toEqual([topicId]);
-    expect(owner?.sessions).toEqual([]);
+    expect(owner?.sessions.map((row) => row.id)).toEqual(["session_ada"]);
 
     await db.delete(topic).where(eq(topic.id, topicId));
 
     expect(await db.select().from(topicMember)).toEqual([]);
     expect(await db.select().from(message)).toEqual([]);
-    expect(await db.select().from(user)).toHaveLength(1);
+    expect(await db.select().from(user)).toHaveLength(2);
+  });
+
+  it("rejects a fractional message priority", async () => {
+    if (!testDb) {
+      throw new Error("test database not created");
+    }
+    const { db } = testDb;
+    const topicId = newId("topic");
+    await db.insert(topic).values({ id: topicId, name: "fractional" });
+    await expect(
+      db.insert(message).values({
+        id: newId("message"),
+        topicId,
+        priority: 2.5,
+        tagsJson: "[]",
+        actionsJson: "[]",
+        expiresAt: new Date(Date.now() + 86_400_000),
+      }),
+    ).rejects.toThrow();
   });
 });

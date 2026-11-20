@@ -120,7 +120,7 @@ export const message = sqliteTable(
   (table) => [
     index("message_topicId_id_idx").on(table.topicId, table.id),
     index("message_expiresAt_idx").on(table.expiresAt),
-    check("message_priority_check", sql`${table.priority} between 1 and 5`),
+    check("message_priority_check", sql`${table.priority} in (1, 2, 3, 4, 5)`),
   ],
 );
 

@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "8256cc41-caf8-4fbf-b0b1-3f45d290b9b0",
+  "id": "483115fc-993e-4b77-8977-5a6993c5bb8b",
   "prevIds": [
     "ae5ab7ad-b11a-4804-954a-a3d63482b514"
   ],
@@ -1688,7 +1688,7 @@
     {
       "table": "message",
       "name": "message_priority_check",
-      "value": "\"priority\" between 1 and 5",
+      "value": "\"priority\" in (1, 2, 3, 4, 5)",
       "entityType": "checks"
     },
     {
