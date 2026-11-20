@@ -3,7 +3,7 @@ import type { Database } from "@notifier/db";
 import { user } from "@notifier/db/schema/auth";
 import { invite, subscription, topic, topicMember } from "@notifier/db/schema/notifier";
 import { sha256Hex } from "@notifier/db/secrets";
-import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 export type InviteRow = typeof invite.$inferSelect;
@@ -37,14 +37,7 @@ export async function findOpenInvite(
   const [row] = await db
     .select()
     .from(invite)
-    .where(
-      and(
-        eq(invite.codeHash, await sha256Hex(parsed.data)),
-        isNull(invite.acceptedAt),
-        isNull(invite.revokedAt),
-        gt(invite.expiresAt, now),
-      ),
-    )
+    .where(and(eq(invite.codeHash, await sha256Hex(parsed.data)), isOpen(now)))
     .limit(1);
   return row ?? null;
 }
@@ -60,20 +53,54 @@ export async function hasNoUsers(db: Database): Promise<boolean> {
   return rows.length === 0;
 }
 
+/** Every SQL condition for an invite that can still be accepted. */
+function isOpen(now: Date) {
+  return and(isNull(invite.acceptedAt), isNull(invite.revokedAt), gt(invite.expiresAt, now));
+}
+
 /**
- * Marks the invite accepted by `userId` and applies its grants (membership with the
- * granted role plus an unmuted subscription, for each granted topic that still exists).
- *
- * Runs as one D1 batch, which is a single transaction. The UPDATE only matches an
- * invite that is still open, and every INSERT is gated on the invite now being
- * accepted by this user, so a code used twice concurrently grants access only once.
- * Returns `false` when the invite could not be claimed.
+ * Atomically claims an open invite before its user exists: sets `accepted_at` only if
+ * the invite is still open, so of two concurrent sign-ups with one code only one gets
+ * `true`. `accepted_by` stays NULL until `finalizeInvite` links the new user.
  */
-export async function consumeInvite(
+export async function claimInvite(
+  db: Database,
+  inviteId: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const claimed = await db
+    .update(invite)
+    .set({ acceptedAt: now })
+    .where(and(eq(invite.id, inviteId), isOpen(now)))
+    .returning({ id: invite.id });
+  return claimed.length > 0;
+}
+
+/**
+ * Gives a claim back after the sign-up that made it failed before creating the user.
+ * Only touches a claim that no user has been linked to yet.
+ */
+export async function releaseInvite(db: Database, inviteId: string): Promise<void> {
+  await db
+    .update(invite)
+    .set({ acceptedAt: null })
+    .where(and(eq(invite.id, inviteId), isNull(invite.acceptedBy)));
+}
+
+/**
+ * Links a claimed invite to the user created with it and applies its grants: a
+ * membership with the granted role plus an unmuted subscription, for each granted
+ * topic that still exists and that the inviter still owns.
+ *
+ * One D1 batch, which is a single transaction. Every INSERT is gated in SQL on the
+ * invite now being accepted by this user and on the inviter's current ownership, so
+ * a stale grant or a second finalize for the same invite inserts nothing.
+ * Returns `false` when the invite was not claimed or is already linked to a user.
+ */
+export async function finalizeInvite(
   db: Database,
   inviteId: string,
   userId: string,
-  now: Date = new Date(),
 ): Promise<boolean> {
   const [current] = await db
     .select({ grantsJson: invite.grantsJson })
@@ -83,10 +110,15 @@ export async function consumeInvite(
   if (!current) {
     return false;
   }
-  const grants = parseGrants(current.grantsJson);
 
-  const claimedByUser = sql`exists (select 1 from ${invite} where ${invite.id} = ${inviteId} and ${invite.acceptedBy} = ${userId})`;
-  const grantInserts = grants.flatMap((grant) => [
+  const grantable = sql`exists (
+    select 1 from ${invite}
+    inner join ${topicMember} as inviter
+      on inviter.user_id = ${invite.createdBy} and inviter.topic_id = ${topic.id}
+    where ${invite.id} = ${inviteId} and ${invite.acceptedBy} = ${userId}
+      and inviter.role = 'owner'
+  )`;
+  const grantInserts = parseGrants(current.grantsJson).flatMap((grant) => [
     db
       .insert(topicMember)
       .select(
@@ -97,7 +129,7 @@ export async function consumeInvite(
             role: sql<InviteGrant["role"]>`${grant.role}`.as("role"),
           })
           .from(topic)
-          .where(and(eq(topic.id, grant.topicId), claimedByUser)),
+          .where(and(eq(topic.id, grant.topicId), grantable)),
       )
       .onConflictDoNothing(),
     db
@@ -110,25 +142,18 @@ export async function consumeInvite(
             muted: sql<boolean>`0`.as("muted"),
           })
           .from(topic)
-          .where(and(eq(topic.id, grant.topicId), claimedByUser)),
+          .where(and(eq(topic.id, grant.topicId), grantable)),
       )
       .onConflictDoNothing(),
   ]);
 
-  const [claimed] = await db.batch([
+  const [linked] = await db.batch([
     db
       .update(invite)
-      .set({ acceptedAt: now, acceptedBy: userId })
-      .where(
-        and(
-          eq(invite.id, inviteId),
-          isNull(invite.acceptedAt),
-          isNull(invite.revokedAt),
-          gt(invite.expiresAt, now),
-        ),
-      )
+      .set({ acceptedBy: userId })
+      .where(and(eq(invite.id, inviteId), isNotNull(invite.acceptedAt), isNull(invite.acceptedBy)))
       .returning({ id: invite.id }),
     ...grantInserts,
   ]);
-  return claimed.length > 0;
+  return linked.length > 0;
 }

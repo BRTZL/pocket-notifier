@@ -1,8 +1,8 @@
 import { createAuth } from "@notifier/auth";
-import { consumeInvite } from "@notifier/auth/invites";
-import { user } from "@notifier/db/schema/auth";
+import { claimInvite, finalizeInvite } from "@notifier/auth/invites";
+import { account, user } from "@notifier/db/schema/auth";
 import { invite, subscription, topicMember } from "@notifier/db/schema/notifier";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestDb, type TestDb } from "./db";
@@ -146,45 +146,70 @@ describe("invite-only sign-up", () => {
     expect(await userCount()).toBe(1);
   });
 
-  it("removes the account when the invite is used up between the checks", async () => {
+  async function credentialCount(email: string) {
+    return await testDb.db.$count(
+      account,
+      inArray(
+        account.userId,
+        testDb.db.select({ id: user.id }).from(user).where(eq(user.email, email)),
+      ),
+    );
+  }
+
+  /** Runs `fn` right before the next `db.update(...).set(...)` statement executes. */
+  function beforeNextUpdate(fn: () => Promise<unknown>) {
+    const realUpdate = testDb.db.update.bind(testDb.db);
+    return vi.spyOn(testDb.db, "update").mockImplementationOnce((table) => {
+      const builder = realUpdate(table);
+      const realSet = builder.set.bind(builder);
+      return Object.assign(builder, {
+        set: (...setArgs: Parameters<typeof realSet>) => {
+          const query = realSet(...setArgs);
+          const realThen = query.then.bind(query);
+          vi.spyOn(query, "then").mockImplementationOnce((onFulfilled, onRejected) =>
+            fn().then(() => realThen(onFulfilled, onRejected)),
+          );
+          return query;
+        },
+      });
+    });
+  }
+
+  it("creates no account when the invite is claimed concurrently", async () => {
     const owner = await bootstrapOwner();
     const { code, invite: created } = await clientFor(testDb.db, owner).invites.create({});
-    // Simulate a concurrent sign-up claiming the code after this request's `before`
-    // hook passed: the first batch (the one in `consumeInvite`) runs after the claim.
-    const racing = createAuth(ENV, testDb.db);
-    const originalBatch = testDb.db.batch.bind(testDb.db);
+    // Another sign-up claims the code after this one found it open, before its claim runs.
     let claimedElsewhere = false;
-    const spy = vi.spyOn(testDb.db, "batch").mockImplementationOnce(async (queries) => {
+    const spy = beforeNextUpdate(async () => {
       claimedElsewhere = true;
       await testDb.db
         .update(invite)
-        .set({ acceptedAt: new Date(), acceptedBy: owner.id })
+        .set({ acceptedAt: new Date() })
         .where(eq(invite.id, created.id));
-      return await originalBatch(queries);
     });
-    // A variable, not a literal: better-auth's body type does not declare `inviteCode`.
     const body = { name: "late", email: "late@example.com", password: PASSWORD, inviteCode: code };
     try {
-      await expect(racing.api.signUpEmail({ body })).rejects.toMatchObject({
+      await expect(auth.api.signUpEmail({ body })).rejects.toMatchObject({
         ...forbidden,
         message: expect.stringContaining("already used"),
       });
+      expect(claimedElsewhere).toBe(true);
     } finally {
       spy.mockRestore();
     }
-    expect(claimedElsewhere).toBe(true);
-    expect(await userCount()).toBe(1);
+    expect(await testDb.db.$count(user, eq(user.email, "late@example.com"))).toBe(0);
+    expect(await credentialCount("late@example.com")).toBe(0);
   });
 
-  it("removes the account when consuming the invite throws", async () => {
+  it("creates no account when claiming the invite throws", async () => {
     const owner = await bootstrapOwner();
     const { code } = await clientFor(testDb.db, owner).invites.create({});
-    const spy = vi
-      .spyOn(testDb.db, "batch")
-      .mockRejectedValueOnce(new Error("D1_ERROR: simulated failure"));
+    const spy = vi.spyOn(testDb.db, "update").mockImplementationOnce(() => {
+      throw new Error("D1_ERROR: simulated failure");
+    });
     const body = { name: "boom", email: "boom@example.com", password: PASSWORD, inviteCode: code };
     try {
-      await expect(auth.api.signUpEmail({ body })).rejects.toMatchObject(forbidden);
+      await expect(auth.api.signUpEmail({ body })).rejects.toMatchObject({ statusCode: 422 });
       expect(spy).toHaveBeenCalledTimes(1);
     } finally {
       spy.mockRestore();
@@ -199,7 +224,65 @@ describe("invite-only sign-up", () => {
     });
   });
 
-  it("grants nothing to a second consumer of the same invite", async () => {
+  it("releases the claim when creating the user fails after it", async () => {
+    const owner = await bootstrapOwner();
+    const { code } = await clientFor(testDb.db, owner).invites.create({});
+    const spy = vi.spyOn(testDb.db, "insert").mockImplementationOnce(() => {
+      throw new Error("D1_ERROR: simulated user insert failure");
+    });
+    const body = {
+      name: "retry",
+      email: "retry@example.com",
+      password: PASSWORD,
+      inviteCode: code,
+    };
+    try {
+      await expect(auth.api.signUpEmail({ body })).rejects.toMatchObject({ statusCode: 422 });
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await testDb.db.$count(user, eq(user.email, "retry@example.com"))).toBe(0);
+    await expect(auth.api.signUpEmail({ body })).resolves.toMatchObject({
+      user: { email: "retry@example.com" },
+    });
+  });
+
+  it("only applies grants for topics the inviter still owns", async () => {
+    const owner = await bootstrapOwner();
+    const helper = await seedUser(testDb.db, "helper");
+    const ownerClient = clientFor(testDb.db, owner);
+    const team = await ownerClient.topics.create({ name: "team" });
+    const ops = await ownerClient.topics.create({ name: "ops" });
+    const created = await ownerClient.invites.create({
+      grants: [
+        { topicId: team.id, role: "publisher" },
+        { topicId: ops.id, role: "subscriber" },
+      ],
+    });
+    // The inviter stops owning `team` before the invite is accepted.
+    await ownerClient.members.add({ topicId: team.id, email: helper.email, role: "publisher" });
+    await ownerClient.members.update({ topicId: team.id, userId: helper.id, role: "owner" });
+    await clientFor(testDb.db, helper).members.update({
+      topicId: team.id,
+      userId: owner.id,
+      role: "subscriber",
+    });
+
+    await expect(
+      clientFor(testDb.db, null).invites.preview({ code: created.code }),
+    ).resolves.toMatchObject({ topics: ["ops"] });
+
+    const { user: newUser } = await signUp("new@example.com", created.code);
+    const memberships = await testDb.db
+      .select({ topicId: topicMember.topicId, role: topicMember.role })
+      .from(topicMember)
+      .where(eq(topicMember.userId, newUser.id));
+    expect(memberships).toEqual([{ topicId: ops.id, role: "subscriber" }]);
+    expect(await testDb.db.$count(subscription, eq(subscription.userId, newUser.id))).toBe(1);
+  });
+
+  it("claims an invite once and links it to one user only", async () => {
     const owner = await bootstrapOwner();
     const ownerClient = clientFor(testDb.db, owner);
     const team = await ownerClient.topics.create({ name: "team" });
@@ -209,8 +292,10 @@ describe("invite-only sign-up", () => {
     const first = await seedUser(testDb.db, "first");
     const second = await seedUser(testDb.db, "second");
 
-    await expect(consumeInvite(testDb.db, created.id, first.id)).resolves.toBe(true);
-    await expect(consumeInvite(testDb.db, created.id, second.id)).resolves.toBe(false);
+    await expect(claimInvite(testDb.db, created.id)).resolves.toBe(true);
+    await expect(claimInvite(testDb.db, created.id)).resolves.toBe(false);
+    await expect(finalizeInvite(testDb.db, created.id, first.id)).resolves.toBe(true);
+    await expect(finalizeInvite(testDb.db, created.id, second.id)).resolves.toBe(false);
     const members = await testDb.db
       .select({ userId: topicMember.userId })
       .from(topicMember)

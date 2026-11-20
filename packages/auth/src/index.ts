@@ -1,11 +1,19 @@
+import { defineRequestState } from "@better-auth/core/context";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import { expo } from "@better-auth/expo";
 import type { Database } from "@notifier/db";
 import * as schema from "@notifier/db/schema/auth";
-import { betterAuth } from "better-auth";
+import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 
-import { consumeInvite, findOpenInvite, hasNoUsers, inviteAllowsEmail } from "./invites";
+import {
+  claimInvite,
+  finalizeInvite,
+  findOpenInvite,
+  hasNoUsers,
+  inviteAllowsEmail,
+  releaseInvite,
+} from "./invites";
 
 export type AuthConfig = {
   BETTER_AUTH_URL: string;
@@ -15,6 +23,7 @@ export type AuthConfig = {
 
 const SIGN_UP_PATH = "/sign-up/email";
 const INVITE_REQUIRED = "Sign-up needs a valid invite code (inviteCode)";
+const INVITE_UNUSABLE = "This invite is invalid, expired or already used";
 
 /** The body's `inviteCode`; `null` and `""` (an empty form field) count as absent. */
 function readInviteCode(body: unknown): unknown {
@@ -23,88 +32,84 @@ function readInviteCode(body: unknown): unknown {
   return code === null || code === "" ? undefined : code;
 }
 
-function readEmail(body: unknown): string {
-  return body && typeof body === "object" && "email" in body && typeof body.email === "string"
-    ? body.email
-    : "";
-}
-
-/** The new user's id from the sign-up endpoint's result, or `null` when it failed. */
-function signedUpUserId(returned: unknown): string | null {
-  if (!returned || typeof returned !== "object" || returned instanceof Error) {
-    return null;
-  }
-  const created = "user" in returned ? returned.user : null;
-  return created && typeof created === "object" && "id" in created && typeof created.id === "string"
-    ? created.id
-    : null;
-}
+/**
+ * The invite this request claimed, if any. better-auth request state is a per-request
+ * store (an AsyncLocalStorage-scoped WeakMap), so concurrent requests never see each
+ * other's claim.
+ */
+type InviteClaim = { inviteId: string; userId: string | null };
+const inviteClaim = defineRequestState<InviteClaim | null>(() => null);
 
 /**
  * Invite-only sign-up. `inviteCode` is an extra field in the `/sign-up/email` body:
  * better-auth's body schema allows unknown keys and only persists configured user
- * fields, so the hooks read it from `ctx.body` and it is never stored on the user.
- * The very first account (empty user table) is the deployment owner and needs none.
+ * fields, so it is read from the endpoint context's body and never stored.
+ *
+ * The invite is claimed atomically in `user.create.before`, before the user row and
+ * its password credential exist, so no account can exist without a claimed invite.
+ * `user.create.after` links the invite to the new user and applies its grants. If
+ * the request fails between the two (the user insert throws), the `after` endpoint
+ * hook releases the claim so the code can be used again.
  */
 function inviteOnlySignUp(database: Database) {
-  const before = createAuthMiddleware(async (ctx) => {
-    if (ctx.path !== SIGN_UP_PATH) {
-      return;
-    }
-    const code = readInviteCode(ctx.body);
-    if (code === undefined && (await hasNoUsers(database))) {
-      return;
-    }
-    const open = await findOpenInvite(database, code);
-    if (!open) {
-      throw new APIError("FORBIDDEN", {
-        message:
-          code === undefined ? INVITE_REQUIRED : "This invite is invalid, expired or already used",
-      });
-    }
-    if (!inviteAllowsEmail(open, readEmail(ctx.body))) {
-      throw new APIError("FORBIDDEN", { message: "This invite is for a different email address" });
-    }
-  });
+  const databaseHooks: BetterAuthOptions["databaseHooks"] = {
+    user: {
+      create: {
+        before: async (newUser, ctx) => {
+          const code = readInviteCode(ctx?.body);
+          if (code === undefined) {
+            // Bootstrap: the first account of a fresh single-owner deployment needs no
+            // invite. Two concurrent first sign-ups could both pass; that is an accepted
+            // residual risk for a deployment nobody else knows about yet.
+            if (await hasNoUsers(database)) {
+              return;
+            }
+            throw new APIError("FORBIDDEN", { message: INVITE_REQUIRED });
+          }
+          const open = await findOpenInvite(database, code);
+          if (!open) {
+            throw new APIError("FORBIDDEN", { message: INVITE_UNUSABLE });
+          }
+          if (!inviteAllowsEmail(open, newUser.email)) {
+            throw new APIError("FORBIDDEN", {
+              message: "This invite is for a different email address",
+            });
+          }
+          if (!(await claimInvite(database, open.id))) {
+            throw new APIError("FORBIDDEN", { message: INVITE_UNUSABLE });
+          }
+          await inviteClaim.set({ inviteId: open.id, userId: null });
+        },
+        after: async (createdUser, ctx) => {
+          const claim = await inviteClaim.get();
+          if (!claim) {
+            return;
+          }
+          await inviteClaim.set({ ...claim, userId: createdUser.id });
+          try {
+            await finalizeInvite(database, claim.inviteId, createdUser.id);
+          } catch (error) {
+            // The account is legitimately invited (the claim held); only the grants are
+            // missing, and an owner can add the memberships by hand. Keep the sign-up.
+            ctx?.context.logger.error("Failed to apply invite grants after sign-up", error);
+          }
+        },
+      },
+    },
+  };
 
   const after = createAuthMiddleware(async (ctx) => {
     if (ctx.path !== SIGN_UP_PATH) {
       return;
     }
-    const userId = signedUpUserId(ctx.context.returned);
-    if (!userId) {
-      return;
-    }
-    const code = readInviteCode(ctx.body);
-    let accepted = false;
-    let failure: unknown;
-    try {
-      if (code === undefined) {
-        // Bootstrap: allowed only if this is still the one and only user.
-        const users = await ctx.context.internalAdapter.countTotalUsers();
-        accepted = users === 1;
-      } else {
-        const open = await findOpenInvite(database, code);
-        accepted = open !== null && (await consumeInvite(database, open.id, userId));
-      }
-    } catch (error) {
-      failure = error;
-    }
-    if (!accepted) {
-      // Lost a race (code used concurrently, or two first sign-ups) or the claim failed:
-      // undo the account (sessions and accounts cascade) so it cannot be used.
-      if (failure !== undefined) {
-        ctx.context.logger.error("Failed to consume the invite after sign-up", failure);
-      }
-      await ctx.context.internalAdapter.deleteUser(userId);
-      throw new APIError("FORBIDDEN", {
-        message:
-          code === undefined ? INVITE_REQUIRED : "This invite is invalid, expired or already used",
-      });
+    const claim = await inviteClaim.get();
+    if (claim && claim.userId === null) {
+      // Claimed, but no user was created with it: give the code back (best effort).
+      await releaseInvite(database, claim.inviteId);
     }
   });
 
-  return { before, after };
+  return { databaseHooks, hooks: { after } };
 }
 
 export function createAuth(
@@ -125,7 +130,7 @@ export function createAuth(
       "http://localhost:8081",
     ],
     emailAndPassword: { enabled: true },
-    hooks: inviteOnlySignUp(database),
+    ...inviteOnlySignUp(database),
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     advanced: {

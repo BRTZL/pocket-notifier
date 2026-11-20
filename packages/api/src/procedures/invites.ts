@@ -95,9 +95,18 @@ const preview = os.invites.preview.handler(async ({ context, input }) => {
   const topics =
     topicIds.length === 0
       ? []
-      : await db
+      : // Same rule as accepting: only topics that exist and the inviter still owns.
+        await db
           .select({ name: topic.name })
           .from(topic)
+          .innerJoin(
+            topicMember,
+            and(
+              eq(topicMember.topicId, topic.id),
+              eq(topicMember.userId, open.createdBy),
+              eq(topicMember.role, "owner"),
+            ),
+          )
           .where(inArray(topic.id, topicIds))
           .orderBy(topic.name);
   return {
