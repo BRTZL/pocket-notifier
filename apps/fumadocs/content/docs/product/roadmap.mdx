@@ -1,0 +1,77 @@
+---
+title: Roadmap
+description: The v1 milestones in build order, with rough estimates.
+---
+
+Each milestone ends with something that can be tried, and ships with tests for the code it adds. Estimates assume that pace; push setup depends on external accounts, so it is the least predictable.
+
+<Steps>
+<Step>
+
+### M1 · Data and access
+
+About a day.
+
+- Drizzle schema and migrations for the [data model](/docs/architecture/data-model).
+- Invite-only sign-up, topics, members, subscriptions, access tokens.
+- `@notifier/api` implements `appContract` from `@notifier/contract`. The server serves the public API under `/v1` instead of the scaffold's `/api-reference` prefix.
+
+**Try it:** create a topic and a token in the dashboard, invite a second account.
+
+</Step>
+<Step>
+
+### M2 · Publishing and history
+
+About a day.
+
+- `POST /v1/topics/{topic}/messages` with token checks, validation and rate limits.
+- Message history: `GET` endpoints and `messages.list` for the inbox.
+
+**Try it:** `curl` a message and see it in the dashboard's history.
+
+</Step>
+<Step>
+
+### M3 · Android push
+
+One to two days, plus the time to set up Firebase. Unknown until the [setup](/docs/mobile/setup) is done once.
+
+- Firebase project, `google-services.json`, a development build.
+- Device registration, the FCM sender in the Worker, handling of stale tokens.
+- Native receiving with the five priority channels and grouping per topic.
+
+**Try it:** `curl` from a laptop, see the notification on the phone with the app closed.
+
+</Step>
+<Step>
+
+### M4 · Apps
+
+About two days.
+
+- Android app built from HeroUI Native components: Inbox, Topics and Settings tabs, message detail.
+- Web dashboard: topics, members, tokens, invites, history.
+
+**Try it:** run through the whole flow from both apps.
+
+</Step>
+<Step>
+
+### M5 · Actions, attachments, retention
+
+About two days.
+
+- View, HTTP and reply actions on notifications, including inline reply.
+- Replies API for publishers.
+- Attachment upload to R2, signed downloads, retention cleanup on a Cron Trigger.
+- Move the existing `agent-notify` script over to notifier.
+
+**Try it:** a CI job asks "deploy?", the phone answers from the notification, the job reads the answer.
+
+</Step>
+</Steps>
+
+## After v1
+
+<Status kind="later" /> Live web view over Durable Objects, iOS, server-side HTTP actions that can hold secrets, an always-on connection for phones without Google services.

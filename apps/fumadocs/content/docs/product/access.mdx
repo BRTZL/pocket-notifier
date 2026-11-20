@@ -1,0 +1,93 @@
+---
+title: Users and access
+description: Invites, topic roles and access tokens, and who can do what.
+---
+
+There are two kinds of credentials:
+
+- **People** sign in to the web dashboard and the app with email and password. That gives them a better-auth session.
+- **Scripts** publish with an **access token** that a person created. A token can never do more than the person who owns it.
+
+## Invites
+
+<Status kind="decided" /> Public sign-up is turned off. New people join through an invite link created in the dashboard.
+
+<Steps>
+<Step>
+
+### Create the invite
+
+An existing user creates an invite. Optionally it is locked to one email address, and it can grant memberships in topics the inviter owns. Invites expire after 7 days by default (at most 30).
+
+</Step>
+<Step>
+
+### Share the link
+
+The link looks like `https://<web>/invite/<code>`. The 24-character code is the only secret; notifier stores a hash of it.
+
+</Step>
+<Step>
+
+### Sign up
+
+The sign-up page shows who sent the invite and which topics it includes (`invites.preview`). Creating the account consumes the invite and applies the topic grants in the same request.
+
+</Step>
+</Steps>
+
+Invites are single use. They can be revoked until they are accepted.
+
+<Callout type="info" title="Implementation note">
+  Sign-up stays a better-auth endpoint. A `before` hook rejects requests without a valid, unused invite code, and an `after` hook marks the invite accepted and creates the memberships.
+</Callout>
+
+## Topic roles
+
+<Status kind="decided" /> Every topic has members, and each member has one role. The person who creates a topic is its `owner`.
+
+| Action | owner | publisher | subscriber |
+| --- | :-: | :-: | :-: |
+| Read history and receive pushes | ✓ | ✓ | ✓ |
+| Reply to and acknowledge messages | ✓ | ✓ | ✓ |
+| Publish messages and upload attachments | ✓ | ✓ | |
+| Read replies through the API | ✓ | ✓ | |
+| Change topic settings and retention | ✓ | | |
+| Add, change and remove members | ✓ | | |
+| Delete messages or the topic | ✓ | | |
+
+A topic can have more than one owner. The last owner cannot leave or be demoted.
+
+Membership controls access. A **subscription** controls pushes: members are subscribed when they join, and each person can unsubscribe or mute a topic. A muted topic still fills the inbox but sends no push.
+
+## Access tokens
+
+<Status kind="decided" /> Tokens are for anything that is not a person: scripts, CI, servers.
+
+```http
+Authorization: Bearer nt_4fK9qL2mXw8RtY1vB6nC3dE7gH0jP5sA9zU2iO4k
+```
+
+- **Format.** `nt_` followed by 40 base62 characters. Only a hash is stored. The secret is shown once, when the token is created, and the list shows only its first characters (`nt_4fK9`).
+- **Scope.** Either `all`, meaning every topic where the owner is `owner` or `publisher` (including topics added later), or a list of topic names.
+- **Effective permission.** A token may publish to a topic only if it is in the token's scope **and** the token's owner is currently an `owner` or `publisher` there. Removing a person from a topic immediately stops their tokens for it.
+- **Expiry.** Optional, from 1 to 365 days. `lastUsedAt` is updated on use so stale tokens are easy to spot.
+
+<Callout type="idea" title="Open: build tokens on better-auth">
+  better-auth has an `api-key` plugin (`@better-auth/api-key`) that already handles hashing, prefixes, expiry and rate limits. The proposal is to use it and store the topic scope in its `permissions` field, with notifier's own `tokens.*` procedures wrapping it. If its permission model does not fit, notifier gets its own `access_token` table with the same contract. <Status kind="open" />
+</Callout>
+
+## What is checked where
+
+```mermaid
+flowchart TD
+  req["Incoming request"] --> kind{"Path"}
+  kind -- "/v1/*" --> bearer["Verify bearer token<br/>(hash lookup, expiry)"]
+  kind -- "/rpc/*" --> session["Verify better-auth session"]
+  bearer --> scope{"Topic in token scope?"}
+  scope -- no --> f403["403 FORBIDDEN"]
+  scope -- yes --> role
+  session --> role{"User's role on the topic<br/>allows the action?"}
+  role -- no --> f403
+  role -- yes --> ok["Run procedure"]
+```

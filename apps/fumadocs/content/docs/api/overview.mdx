@@ -1,0 +1,80 @@
+---
+title: API overview
+description: The two APIs, how to authenticate, and the conventions they share.
+---
+
+notifier has two APIs, both defined as oRPC contracts in `packages/contract` <Status kind="decided" />.
+
+| | Public API | App API |
+| --- | --- | --- |
+| For | Scripts, CI, servers | The web dashboard and the mobile app |
+| Style | REST + JSON, OpenAPI | oRPC over `/rpc` |
+| Auth | `Authorization: Bearer nt_...` | better-auth session cookie |
+| Contract | `publicContract` in `src/public.ts` | `appContract` in `src/app.ts` |
+| Base path | `/v1` | `/rpc` |
+
+<Callout type="warn" title="Not served yet">
+  The server still serves the scaffold's OpenAPI handler under `/api-reference`. Serving the public API at `/v1` is part of [M1](/docs/product/roadmap). Until then, none of these endpoints exist.
+</Callout>
+
+## Authentication
+
+<Tabs items={["curl", "TypeScript", "Python"]}>
+<Tab value="curl">
+
+```bash
+export NOTIFIER_URL=https://notifier.example.com
+export NOTIFIER_TOKEN=nt_...
+
+curl "$NOTIFIER_URL/v1/topics/ci/messages" \
+  -H "Authorization: Bearer $NOTIFIER_TOKEN"
+```
+
+</Tab>
+<Tab value="TypeScript">
+
+```ts
+const res = await fetch(`${process.env.NOTIFIER_URL}/v1/topics/ci/messages`, {
+  headers: { Authorization: `Bearer ${process.env.NOTIFIER_TOKEN}` },
+});
+const page = await res.json();
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os, requests
+
+res = requests.get(
+    f"{os.environ['NOTIFIER_URL']}/v1/topics/ci/messages",
+    headers={"Authorization": f"Bearer {os.environ['NOTIFIER_TOKEN']}"},
+)
+page = res.json()
+```
+
+</Tab>
+</Tabs>
+
+Create tokens in the dashboard under **Settings → Access tokens**. See [Access tokens](/docs/product/access#access-tokens) for scopes.
+
+## Endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/v1/topics/{topic}/messages` | [Publish a message](/docs/api/publish) |
+| `GET` | `/v1/topics/{topic}/messages` | [List a topic's messages](/docs/api/messages#listing) |
+| `GET` | `/v1/messages/{id}` | [Get one message](/docs/api/messages#one-message) |
+| `GET` | `/v1/messages/{id}/responses` | [Read replies and acknowledgements](/docs/api/messages#reading-replies) |
+| `POST` | `/v1/topics/{topic}/attachments` | [Upload an attachment](/docs/api/publish#attachments) |
+
+The OpenAPI document is generated from `publicContract`, so it always matches the code.
+
+## Conventions
+
+- **JSON** request and response bodies. The exception is attachment upload, which uses `multipart/form-data`.
+- **Timestamps** are ISO-8601 strings in UTC: `2026-11-20T12:00:00.000Z`.
+- **IDs** have a type prefix: `top_`, `msg_`, `att_`, `rsp_`, `tok_`, `inv_`, `dev_`. See [Data model](/docs/architecture/data-model#notes).
+- **Pagination.** List endpoints take `limit` (1–100, default 50) and `cursor`, and return `{ items, nextCursor }`. Pass `nextCursor` back as `cursor` to get the next page. `null` means there are no more items. Results are newest first.
+- **Errors** follow one shape, described in [Errors](/docs/api/errors).
+- **Versioning.** Breaking changes get a new prefix (`/v2`). Adding optional fields is not a breaking change, so clients should ignore fields they do not know.

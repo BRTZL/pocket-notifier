@@ -2,14 +2,15 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <div className="flex flex-1 flex-col justify-center text-center">
-      <h1 className="mb-4 text-2xl font-bold">Hello World</h1>
+    <div className="flex flex-1 flex-col justify-center gap-4 text-center">
+      <h1 className="text-2xl font-bold">notifier</h1>
+      <p className="text-fd-muted-foreground">
+        Self-hosted push notifications for scripts, CI and servers.
+      </p>
       <p>
-        You can open{" "}
         <Link href="/docs" className="font-medium underline">
-          /docs
-        </Link>{" "}
-        and see the documentation.
+          Read the docs
+        </Link>
       </p>
     </div>
   );

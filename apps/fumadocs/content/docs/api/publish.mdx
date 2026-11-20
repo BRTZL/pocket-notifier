@@ -1,0 +1,242 @@
+---
+title: Publish
+description: Send a message to a topic, with priority, tags, actions and attachments.
+---
+
+```http
+POST /v1/topics/{topic}/messages
+Authorization: Bearer nt_...
+Content-Type: application/json
+```
+
+The token's owner must be an `owner` or `publisher` of the topic, and the topic must be in the token's scope.
+
+## Examples
+
+<Tabs items={["Minimal", "From an agent", "Urgent with actions", "Ask for a reply"]}>
+<Tab value="Minimal">
+
+```bash
+curl -X POST "$NOTIFIER_URL/v1/topics/backups/messages" \
+  -H "Authorization: Bearer $NOTIFIER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"body":"Nightly backup finished in 4m12s"}'
+```
+
+</Tab>
+<Tab value="From an agent">
+
+```json
+{
+  "title": "Needs your decision",
+  "body": "Which database for the cache layer?",
+  "priority": 4,
+  "tags": ["ask"],
+  "clickUrl": "https://t3.example.com/threads/abc123",
+  "conversation": { "id": "notifier" },
+  "sender": { "id": "claude", "name": "Claude", "iconUrl": "https://github.com/anthropics.png" }
+}
+```
+
+Shows as a conversation for the project `notifier`, with a Claude badge. See [Coding agents](/docs/product/agents).
+
+</Tab>
+<Tab value="Urgent with actions">
+
+```json
+{
+  "title": "main build failed",
+  "body": "3 tests failed in auth.spec.ts",
+  "priority": 5,
+  "tags": ["ci", "failure"],
+  "clickUrl": "https://github.com/acme/app/actions/runs/123",
+  "actions": [
+    { "type": "view", "label": "Open logs", "url": "https://ci.example.com/runs/123" },
+    {
+      "type": "http",
+      "label": "Retry",
+      "url": "https://ci.example.com/hooks/retry/123",
+      "method": "POST",
+      "clear": true
+    }
+  ]
+}
+```
+
+</Tab>
+<Tab value="Ask for a reply">
+
+```json
+{
+  "title": "Deploy v1.42.0 to production?",
+  "body": "Staging checks passed.",
+  "priority": 4,
+  "actions": [
+    { "type": "reply", "key": "yes", "label": "Deploy", "clear": true },
+    {
+      "type": "reply",
+      "key": "note",
+      "label": "Reply",
+      "input": true,
+      "placeholder": "Why not?",
+      "quickReplies": ["Wait 1h", "Skip this one"]
+    }
+  ]
+}
+```
+
+The script then [reads the replies](/docs/api/messages#reading-replies).
+
+</Tab>
+</Tabs>
+
+## Response
+
+`201 Created`
+
+```json
+{
+  "id": "msg_01jd8x5k2m9q7r4t6v8w0y3z5a",
+  "topic": "deploys",
+  "createdAt": "2026-11-20T12:00:00.000Z",
+  "expiresAt": "2026-12-20T12:00:00.000Z"
+}
+```
+
+## Fields
+
+The authoritative schema is `PublishInput` in `packages/contract/src/message.ts`, and limits live in `MESSAGE_LIMITS`.
+
+<TypeTable
+  type={{
+    title: {
+      description: "Bold first line of the notification.",
+      type: "string",
+      typeDescription: "1–250 characters",
+    },
+    body: {
+      description: "Message text. Plain text in v1.",
+      type: "string",
+      typeDescription: "up to 4,096 characters",
+      default: '""',
+    },
+    priority: {
+      description: "1 (min) to 5 (urgent). Picks the Android channel.",
+      type: "1 | 2 | 3 | 4 | 5",
+      default: "the topic's defaultPriority (3 unless changed)",
+    },
+    tags: {
+      description: "Single words shown as chips; useful for filtering.",
+      type: "string[]",
+      typeDescription: "up to 5, each up to 32 characters",
+      default: "[]",
+    },
+    clickUrl: {
+      description: "Opened when the notification is tapped.",
+      type: "string (URL)",
+    },
+    actions: {
+      description: "Buttons on the notification and in the message screen.",
+      type: "Action[]",
+      typeDescription: "up to 5",
+      default: "[]",
+    },
+    conversation: {
+      description: "What the message is about, e.g. a project. Large avatar and stack in the notification shade.",
+      type: "{ id, title?, iconUrl? }",
+      typeDescription: "id up to 64 chars; iconUrl must be HTTPS",
+    },
+    sender: {
+      description: "Who sent it within the conversation, e.g. an agent. Small badge on the avatar.",
+      type: "{ id, name?, iconUrl? }",
+      typeDescription: "id up to 64 chars; iconUrl must be HTTPS",
+    },
+    attachmentId: {
+      description: "ID returned by an attachment upload to the same topic.",
+      type: "string",
+      typeDescription: "att_…",
+    },
+  }}
+/>
+
+## Priority
+
+| Value | Name | On Android |
+| --- | --- | --- |
+| 5 | urgent | Pops up, long vibration, can bypass Do Not Disturb |
+| 4 | high | Pops up on screen |
+| 3 | default | Sound and vibration |
+| 2 | low | Silent, listed in the shade |
+| 1 | min | Silent, collapsed, no status bar icon |
+
+Each level is its own [notification channel](/docs/mobile/notifications#channels), so users can change how it behaves in system settings.
+
+## Actions
+
+Every action has a `label` (up to 40 characters), an optional `key`, and `clear`, which dismisses the notification after the action runs. If `key` is left out, it becomes the action's index (`"0"`, `"1"`, …). Replies refer to it.
+
+<Accordions>
+  <Accordion title="view: open a URL" id="action-view">
+    ```json
+    { "type": "view", "label": "Open PR", "url": "https://github.com/acme/app/pull/42" }
+    ```
+    Opens the URL in the browser, or in another app if it is a deep link.
+  </Accordion>
+  <Accordion title="http: send a request from the phone" id="action-http">
+    ```json
+    { "type": "http", "label": "Approve", "url": "https://hooks.example.com/approve/42", "method": "POST", "body": "{\"ok\":true}" }
+    ```
+    The phone sends the request in the background. `url` must be HTTPS. `method` is `GET`, `POST` (the default), `PUT` or `DELETE`. `body` is up to 1,024 characters.
+
+    <Callout type="warn" title="Open: no secrets">
+      There is no `headers` field. Everything in an action is stored and sent to every subscriber's phone, so a secret in it would leak. Use an unguessable URL, or a server-side action later. <Status kind="open" />
+    </Callout>
+  </Accordion>
+  <Accordion title="reply: acknowledge or answer" id="action-reply">
+    ```json
+    { "type": "reply", "key": "ack", "label": "Got it" }
+    ```
+    With `input: false` (the default), tapping the button records an `ack`. With `input: true`, Android shows a text field in the notification. `placeholder` sets its hint, and up to 3 `quickReplies` appear as one-tap suggestions. Each person can respond to an action once.
+  </Accordion>
+</Accordions>
+
+At most 3 actions fit on an Android notification; the rest appear only in the message screen. <Status kind="open" />
+
+## Topics
+
+The topic in the URL must already exist. Publishing to an unknown topic returns `404 NOT_FOUND` instead of creating it, so a typo cannot create a topic nobody is subscribed to. Topics are created in the dashboard or the app. <Status kind="open" />
+
+## Attachments
+
+Attaching a file takes two steps. First upload the file, then publish with its ID:
+
+<Steps>
+<Step>
+
+### Upload
+
+```bash
+curl -X POST "$NOTIFIER_URL/v1/topics/ci/attachments" \
+  -H "Authorization: Bearer $NOTIFIER_TOKEN" \
+  -F "file=@report.html"
+```
+
+```json
+{ "id": "att_01jd8x7q3n1p5s8u0w2y4a6c8e", "expiresAt": "2026-11-20T13:00:00.000Z" }
+```
+
+</Step>
+<Step>
+
+### Publish
+
+```json
+{ "title": "Coverage report", "attachmentId": "att_01jd8x7q3n1p5s8u0w2y4a6c8e" }
+```
+
+</Step>
+</Steps>
+
+Uploads not used within an hour are deleted. The proposed size cap is 15 MB per file (`ATTACHMENT_MAX_BYTES`); larger files get `413 PAYLOAD_TOO_LARGE`. <Status kind="open" />
+
+Subscribers download through short-lived signed URLs in `message.attachment.url`. The file expires together with its message.

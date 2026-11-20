@@ -1,0 +1,75 @@
+---
+title: Coding agents
+description: The main use case, coding agents in T3 Code telling you when they are done or need you.
+---
+
+Most notifier messages will come from coding agents (Claude, Codex) running in T3 Code. An agent publishes when a task is done, when it is blocked on a decision, or when something fails, so you can step away from the screen and come back only when needed.
+
+## What it looks like
+
+```text
+┌──────────────────────────────────────────────┐
+│ [NO]◖C  notifier · Claude              2m    │
+│         Which database for the cache layer?  │
+│                                              │
+│ [RZ]◖X  rezme · Codex                  9m    │
+│         Build failed: 3 tests in auth.spec   │
+└──────────────────────────────────────────────┘
+  NO / RZ  project avatar (generated, or the project's icon)
+  C / X    agent badge (Claude, Codex)
+```
+
+<Status kind="decided" /> Each project is a **conversation**: its avatar is the large icon, and its messages stack together. The agent is the **sender**: a small badge on the avatar and its name next to the project. See [Conversations and avatars](/docs/mobile/notifications#conversations-and-avatars).
+
+<Status kind="decided" /> Tapping opens the agent's **T3 Code thread**: the agent sends the thread URL as `clickUrl`. You answer the agent in T3 Code, not from the notification. notifier has no path back to the agent.
+
+## Topic layout
+
+All agents publish to one topic, `agents`. The project in `conversation.id` does the grouping, so there is no need for a topic per project, and muting the `agents` topic silences every agent at once.
+
+## Message kinds
+
+The kinds `agent-notify` uses today map onto notifier fields like this:
+
+| Kind | When | Priority | Tag |
+| --- | --- | --- | --- |
+| `done` | Task finished and verified | 3 | `done` |
+| `ask` | Blocked on your decision | 4 | `ask` |
+| `fail` | Failure the agent cannot fix | 4 | `fail` |
+| `urgent` | Production or data at risk | 5 | `urgent` |
+| `build-ok` | Long build or CI run passed | 3 | `build` |
+| `build-fail` | Long build or CI run failed | 4 | `build`, `fail` |
+
+## The request an agent sends
+
+```bash title="What agent-notify sends after the switch"
+curl -X POST "$NOTIFIER_URL/v1/topics/agents/messages" \
+  -H "Authorization: Bearer $NOTIFIER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Needs your decision",
+    "body": "Which database for the cache layer?",
+    "priority": 4,
+    "tags": ["ask"],
+    "clickUrl": "<T3 Code thread URL>",
+    "conversation": { "id": "notifier" },
+    "sender": { "id": "claude", "name": "Claude" }
+  }'
+```
+
+- **`conversation.id`** is the project name, for example the repository folder. Add `iconUrl` (HTTPS) to use the project's real logo instead of the generated avatar.
+- **`sender`** is the agent. `agent-notify` already detects Claude or Codex, so it sets this automatically.
+- **Title.** The project now shows in the conversation header, so the title no longer needs the `<project>: ` prefix.
+
+## Moving `agent-notify` over
+
+The script keeps its interface (`agent-notify <kind> <title> <body> [--url] [--action] [--image]`), its length checks and its 10-minute duplicate check. Only the request changes:
+
+1. Read `NOTIFIER_URL` and `NOTIFIER_TOKEN` instead of `AGENT_NTFY_TOPIC`. The token is a notifier access token scoped to the `agents` topic.
+2. Send the JSON above instead of ntfy headers.
+3. `--image` becomes an [attachment upload](/docs/api/publish#attachments) followed by the publish.
+
+## Open questions
+
+- **Getting the thread URL.** The agent needs its own T3 Code thread URL to pass as `clickUrl`. Whether T3 Code provides it to agents (for example in an environment variable) still needs checking. Until then `--url` stays a manual argument. <Status kind="open" />
+- **Project icons.** Where a project's real icon comes from, for example the repository owner's GitHub avatar or a favicon. The generated avatar works until then. <Status kind="open" />

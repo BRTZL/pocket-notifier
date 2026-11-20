@@ -1,0 +1,38 @@
+---
+title: Mobile overview
+description: Android first, HeroUI Native on both platforms, and how screens are built.
+---
+
+## Principles
+
+1. **Android first** <Status kind="decided" />. Every feature is designed, built and tested on Android first. iOS must stay possible, but it does not block a milestone.
+2. **One component kit** <Status kind="decided" />. All UI comes from [HeroUI Native](https://heroui.com) (`heroui-native`), styled with Tailwind through Uniwind, on both platforms. No `@expo/ui`, no per-platform screen files, no hand-rolled replacements for components HeroUI already has.
+3. **Native where the system draws it.** Notifications are built by the Android system, outside the app's UI ([push delivery](/docs/architecture/push-delivery#receiving-on-android)). Navigation uses Expo Router's native stack and tabs, because HeroUI has no navigation bar.
+4. **The API is the record.** The app shows what the API returns. A push only makes the app refresh sooner.
+
+## Components
+
+Screens are built only from `heroui-native` components. The table maps each part of the app to the component it uses.
+
+| Need | HeroUI Native component |
+| --- | --- |
+| Message rows, settings rows | `ListGroup`, `Card` |
+| Sender and project icons | `Avatar` |
+| Tags, priority markers | `Chip`, `TagGroup` |
+| Unread filter, topic filters | `Tabs`, `Chip` |
+| Forms: sign-in, topic, token, invite | `TextField`, `Input`, `Label`, `FieldError`, `Select`, `Switch` |
+| Buttons and actions | `Button`, `LinkButton`, `Menu` |
+| Confirmations, token secret shown once | `Dialog`, `BottomSheet` |
+| Feedback | `Toast`, `Alert`, `Spinner`, `Skeleton` |
+| Search | `SearchField` |
+
+Rules:
+
+- **Only `heroui-native`.** If a component is missing, compose it from HeroUI parts. Bringing in another UI library needs a decision in the [decision log](/docs/decisions).
+- **Theme in one place.** Colors and radii come from the HeroUI theme in `apps/native/global.css`. Screens use theme tokens such as `text-foreground` and `bg-surface`, never raw colors.
+- **Shared logic stays out of components.** Data fetching, formatting and state live in hooks such as `use-inbox.ts`. Components only render.
+- **Icons.** One icon set on both platforms (`@expo/vector-icons`), used inside HeroUI components.
+
+## What changes in the app
+
+The scaffold's drawer, example tabs and modal screens are replaced by the [three tabs](/docs/mobile/navigation) in M4. HeroUI Native, Uniwind and the theme context stay.

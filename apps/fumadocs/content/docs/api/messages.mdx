@@ -1,0 +1,87 @@
+---
+title: Messages and replies
+description: Read a topic's history, fetch one message, and read what subscribers replied.
+---
+
+## Listing
+
+```http
+GET /v1/topics/{topic}/messages?limit=50&cursor=...&since=2026-11-20T00:00:00.000Z
+```
+
+Returns the topic's messages, newest first, as `{ items, nextCursor }`. `since` limits the results to messages created after that time. Any member of the topic can read it; tokens need the topic in their scope.
+
+## One message
+
+```http
+GET /v1/messages/{id}
+```
+
+```json
+{
+  "id": "msg_01jd8x5k2m9q7r4t6v8w0y3z5a",
+  "topicId": "top_01jd8w2a4c6e8g0j2l4n6q8s0u",
+  "topic": "deploys",
+  "title": "Deploy v1.42.0 to production?",
+  "body": "Staging checks passed.",
+  "priority": 4,
+  "tags": [],
+  "clickUrl": null,
+  "actions": [
+    { "type": "reply", "key": "yes", "label": "Deploy", "clear": true, "input": false }
+  ],
+  "attachment": null,
+  "publishedBy": { "id": "u_123", "name": "CI", "email": "ci@example.com", "image": null },
+  "createdAt": "2026-11-20T12:00:00.000Z",
+  "expiresAt": "2026-12-20T12:00:00.000Z"
+}
+```
+
+In stored messages every action has a `key`, either the one the publisher gave or its index.
+
+## Reading replies
+
+```http
+GET /v1/messages/{id}/responses
+```
+
+```json
+{
+  "items": [
+    {
+      "id": "rsp_01jd8y0b2d4f6h8k0m2p4r6t8v",
+      "messageId": "msg_01jd8x5k2m9q7r4t6v8w0y3z5a",
+      "actionKey": "yes",
+      "kind": "ack",
+      "text": null,
+      "user": { "id": "u_456", "name": "Alex", "email": "alex@example.com", "image": null },
+      "createdAt": "2026-11-20T12:01:07.000Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+Only an `owner` or `publisher` of the topic can read responses. `kind` is `ack` for a one-tap button and `text` for an inline reply.
+
+### Waiting for an answer
+
+v1 has no blocking wait. A script polls until it gets a response or gives up:
+
+```bash title="wait-for-approval.sh"
+id=$(curl -s -X POST "$NOTIFIER_URL/v1/topics/deploys/messages" \
+  -H "Authorization: Bearer $NOTIFIER_TOKEN" -H "Content-Type: application/json" \
+  -d '{"title":"Deploy?","actions":[{"type":"reply","key":"yes","label":"Deploy"}]}' | jq -r .id)
+
+for _ in $(seq 1 60); do
+  key=$(curl -s "$NOTIFIER_URL/v1/messages/$id/responses" \
+    -H "Authorization: Bearer $NOTIFIER_TOKEN" | jq -r '.items[0].actionKey // empty')
+  [ "$key" = "yes" ] && exec ./deploy.sh
+  sleep 5
+done
+echo "No answer within 5 minutes" >&2; exit 1
+```
+
+<Callout type="idea" title="Open: long polling">
+  A later version could add `?wait=30` so the request is held open until the first response arrives. Holding requests open in a Worker is cheap, but waking them up needs a Durable Object, so it comes with the live web view. <Status kind="open" />
+</Callout>

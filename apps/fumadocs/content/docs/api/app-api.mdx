@@ -1,0 +1,46 @@
+---
+title: App API
+description: The oRPC procedures the web dashboard and the mobile app use.
+---
+
+The app API is `appContract` in `packages/contract/src/app.ts`. The apps call it through the typed oRPC client at `/rpc`, signed in with their better-auth session. Every procedure requires a session except `invites.preview`.
+
+```ts title="apps/native/utils/orpc.ts (after M1)"
+import type { ContractRouterClient } from "@orpc/contract";
+import type { AppContract } from "@notifier/contract";
+
+export const client: ContractRouterClient<AppContract> = createORPCClient(link);
+
+const inbox = await client.messages.list({ unreadOnly: true });
+```
+
+## Procedures
+
+| Namespace | Procedure | What it does |
+| --- | --- | --- |
+| `me` | `get` | The signed-in user |
+| `topics` | `list` | Topics the user is a member of, with role, subscription, unread count |
+| | `get` / `create` / `update` / `delete` | Manage one topic (`update` and `delete` need `owner`) |
+| | `setSubscription` | Subscribe, unsubscribe, mute |
+| `members` | `list` / `add` / `update` / `remove` | Manage a topic's members (`owner` only, except `list`) |
+| `messages` | `list` | Inbox, or one topic with `topicId`; `unreadOnly` filter |
+| | `get` | One message with read state |
+| | `markRead` | By IDs, or everything up to a message |
+| | `publish` | Same rules as the public publish, for "send test message" |
+| | `delete` | Remove a message (`owner` only) |
+| `responses` | `create` | Ack or reply from a `reply` action |
+| | `list` | Responses to a message (`owner` or `publisher`) |
+| `tokens` | `list` / `create` / `revoke` | The user's access tokens; `create` returns the secret once |
+| `invites` | `list` / `create` / `revoke` | Invites the user created |
+| | `preview` | Public: what an invite link grants, for the sign-up page |
+| `devices` | `list` / `register` / `rename` / `remove` | The user's phones; `register` upserts by push token |
+
+## Errors
+
+Every procedure can fail with `UNAUTHORIZED`, `FORBIDDEN` and `NOT_FOUND`. Some procedures declare more:
+
+- `topics.create` and `members.add` can return `CONFLICT`.
+- `responses.create` can return `CONFLICT` when the person has already responded to that action.
+- `messages.publish` can return `TOO_MANY_REQUESTS`.
+
+The typed client exposes them as `ORPCError` with a known `code`, so the apps can show a specific message instead of a generic failure. See [Errors](/docs/api/errors).

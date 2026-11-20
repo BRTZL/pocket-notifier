@@ -1,0 +1,75 @@
+---
+title: Android setup
+description: Firebase, development builds and secrets needed before push works.
+---
+
+Remote push does not work in Expo Go on Android, so the app runs as a **development build**. Firebase needs one-time setup.
+
+<Steps>
+<Step>
+
+### Create the Firebase project
+
+In the [Firebase console](https://console.firebase.google.com), create a project and add an Android app with the app's package name. `app.json` still has the scaffold's `com.anonymous.notifier`; pick the real one first, because it cannot change after release. <Status kind="open" />
+
+</Step>
+<Step>
+
+### Add `google-services.json`
+
+Download it, then keep it out of git (it identifies the project but contains no server secret):
+
+- **Local builds:** save it as `apps/native/google-services.json`, which is git-ignored.
+- **EAS builds:** upload it as a file environment variable named `GOOGLE_SERVICES_JSON`.
+
+Expo reads it from `android.googleServicesFile`. For EAS builds that path comes from the variable, which means moving `app.json` to an `app.config.ts`.
+
+</Step>
+<Step>
+
+### Create the server key
+
+In **Project settings → Service accounts**, generate a private key. It becomes a Worker secret the same way `BETTER_AUTH_SECRET` is today, and is never committed:
+
+1. Declare `FCM_SERVICE_ACCOUNT` as a sensitive string in `apps/server/.env.schema`.
+2. Put the JSON, on one line, into the git-ignored `apps/server/.env` (or the deploy environment).
+3. Pass it to the Worker in `packages/infra/alchemy.run.ts` with `Config.Redacted("FCM_SERVICE_ACCOUNT")`.
+
+</Step>
+<Step>
+
+### Build and install the development build
+
+```bash
+cd apps/native
+pnpm android        # expo run:android: local build, needs Android Studio
+# or
+npx eas-cli build --profile development --platform android
+```
+
+</Step>
+<Step>
+
+### Check delivery
+
+Sign in, allow notifications, then publish to a topic you are subscribed to:
+
+```bash
+curl -X POST "$NOTIFIER_URL/v1/topics/test/messages" \
+  -H "Authorization: Bearer $NOTIFIER_TOKEN" -H "Content-Type: application/json" \
+  -d '{"title":"Hello","body":"From curl","priority":4}'
+```
+
+The notification should pop up within seconds, even with the app swiped away.
+
+</Step>
+</Steps>
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+| --- | --- |
+| No notification, app open or closed | Device not registered; check **Settings → Devices** |
+| Notification only when the app is open | Background receiver not set up; see [Receiving on Android](/docs/architecture/push-delivery#receiving-on-android) |
+| Low priority messages arrive late | Expected: priority 1–3 are sent as FCM `NORMAL` and Android may batch them |
+| Nothing after force-stopping the app | Android blocks all delivery to force-stopped apps until they are opened again |

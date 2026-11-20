@@ -1,0 +1,89 @@
+---
+title: Android notifications
+description: Channels per priority, grouping per topic, what a tap does, actions, inline reply and permissions.
+---
+
+## Channels
+
+<Status kind="decided" /> One channel per priority. They are created on first launch and defined as `ANDROID_CHANNELS` in `packages/contract/src/push.ts`.
+
+| Priority | Channel ID | Name | Importance | Behaviour |
+| --- | --- | --- | --- | --- |
+| 5 | `priority-5` | Urgent | `MAX` | Pops up, long vibration, can bypass Do Not Disturb |
+| 4 | `priority-4` | High priority | `HIGH` | Pops up on screen |
+| 3 | `priority-3` | Default priority | `DEFAULT` | Sound and vibration |
+| 2 | `priority-2` | Low priority | `LOW` | Silent, listed in the shade |
+| 1 | `priority-1` | Min priority | `MIN` | Silent, collapsed, no status bar icon |
+
+Users change sound, vibration and popups per channel in **System settings → Apps → notifier → Notifications**. The app links to each channel's page from **Settings → Notifications**.
+
+<Callout type="warn" title="Channel IDs are permanent">
+  Once a channel exists, Android owns its settings and the app cannot change its importance or sound. To change the defaults, a new ID is needed (`priority-5-v2`), and the old channel is deleted.
+</Callout>
+
+**Do Not Disturb.** The urgent channel asks to bypass Do Not Disturb, but Android only allows it after the user grants notification policy access. The app asks for it the first time a topic receives a priority 5 message, never at install.
+
+## Conversations and avatars
+
+<Status kind="decided" /> Messages can carry a `conversation` (what it is about, such as a project) and a `sender` (who sent it, such as an agent). The app then posts them the way chat apps do, with Android's `MessagingStyle`:
+
+```text
+[NO]◖C  notifier · Claude              2m
+        Which database for the cache layer?
+        Tests pass. Ready for review.
+```
+
+| Part | Comes from | Android |
+| --- | --- | --- |
+| Large avatar | `conversation`: icon, or generated | Conversation shortcut icon |
+| Small badge | `sender`: icon, or generated | `Person` icon on the message |
+| Title line | `conversation.title`, then `sender.name` | Conversation title |
+| Stack | Same `conversation.id` in the same topic | One conversation notification |
+
+On Android 11 and later, these show in the **Conversations** section at the top of the shade. Users can also mark a project as a priority conversation there.
+
+### Generated avatars
+
+<Status kind="decided" /> Without an `iconUrl`, the app draws an avatar: up to two initials (`avatarInitials`) in white on a color picked from the id (`avatarColor`, from a fixed 10-color palette). Both helpers are in `packages/contract/src/avatar.ts`, so the web dashboard and the phone draw the same avatar for the same project. No setup is needed for a new project.
+
+With an `iconUrl`, the app downloads the image once, caches it, and crops it to a circle. If the download fails, it falls back to the generated avatar. Icon URLs must be HTTPS. Note that the phone fetches them directly, so the icon's host can see the phone's IP address.
+
+## Grouping
+
+<Status kind="decided" /> Messages without a conversation stack per topic (`notificationGroupKey(topic)`, which returns `topic:<name>`):
+
+```text
+▾ notifier · ci                         3 new
+    main build failed                   3m
+    Flaky test retried                  20m
+    Lint warnings on PR 42              1h
+```
+
+- The group summary shows the topic name and the count, and opens that topic in the app.
+- Each child uses its message ID as the notification tag, so it can be updated or cancelled exactly.
+- A group's channel is the highest priority among its children, so an urgent message is never muted by a quieter group.
+
+## Tapping
+
+<Status kind="decided" /> A tap opens the message's `clickUrl` when it has one. Otherwise it opens `notifier://message/<id>`. Either way the message is marked read and its notification is cleared.
+
+## Actions
+
+The first 3 actions appear as notification buttons <Status kind="open" />. The rest appear only in the message screen.
+
+| Action | On tap | Needs the app open |
+| --- | --- | --- |
+| `view` | Opens the URL | No |
+| `http` | Sends the request from a background worker, then shows a short "Sent" or "Failed" result in the notification | No |
+| `reply`, `input: false` | Sends an `ack` through `responses.create` | No |
+| `reply`, `input: true` | Shows Android's inline reply field, with `quickReplies` as suggestions, then sends the text | No |
+
+Actions with `clear: true` dismiss the notification once they succeed. If the network call fails, the notification stays and shows the error, so nothing is lost silently.
+
+## Permission
+
+Android 13 and later need the `POST_NOTIFICATIONS` permission. The app asks right after sign-in, with a short explanation screen first. If the user declines, the inbox shows a banner with a button that opens system settings. The app does not ask again.
+
+## Read sync
+
+When a message is read in the app or on the web, the server sends a [`dismiss`](/docs/api/push-payload#dismiss) push to the user's other devices, which cancel the matching notifications. <Status kind="open" />

@@ -1,0 +1,15 @@
+{
+  "title": "notifier",
+  "pages": [
+    "index",
+    "decisions",
+    "---Product---",
+    "...product",
+    "---Architecture---",
+    "...architecture",
+    "---API---",
+    "...api",
+    "---Mobile---",
+    "...mobile"
+  ]
+}

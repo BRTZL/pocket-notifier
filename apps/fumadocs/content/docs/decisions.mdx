@@ -1,0 +1,59 @@
+---
+title: Decision log
+description: Every v1 design decision, whether it is settled, and where it is explained.
+---
+
+## Decided
+
+| Area | Decision | Details |
+| --- | --- | --- |
+| Product | Our own ntfy-like service, not a layer on top of ntfy | [Scope](/docs/product/scope) |
+| Audience | You plus invited users on one deployment | [Access](/docs/product/access) |
+| Sign-up | Invite links only; public sign-up is off | [Access](/docs/product/access#invites) |
+| Sharing | Membership per topic with `owner`, `publisher`, `subscriber` roles | [Access](/docs/product/access#topic-roles) |
+| Publish auth | Bearer access tokens, scoped to all topics or a list | [Access](/docs/product/access#access-tokens) |
+| API style | Our own API, not compatible with ntfy | [API overview](/docs/api/overview) |
+| v1 features | HTTP publish and history, phone push, action buttons, attachments | [Scope](/docs/product/scope) |
+| Live web view | Not in v1, so no Durable Objects yet | [Scope](/docs/product/scope#out-of-scope) |
+| Retention | 30 days by default, configurable per topic | [Retention](/docs/architecture/retention) |
+| Actions | Open URL, HTTP request, reply / acknowledge | [Publish](/docs/api/publish#actions) |
+| Platform | Android first; iOS kept possible | [Mobile](/docs/mobile/overview) |
+| App stack | Expo + React Native with native pieces where they matter | [Mobile](/docs/mobile/overview) |
+| UI | HeroUI Native components only, the same on both platforms | [Mobile](/docs/mobile/overview#components) |
+| Push path | The Worker calls FCM HTTP v1 directly with data-only messages | [Push delivery](/docs/architecture/push-delivery) |
+| Background receiving | A small Kotlin `FirebaseMessagingService` in an Expo module, not a JS background task | [Push delivery](/docs/architecture/push-delivery#receiving-on-android) |
+| Channels | One Android channel per priority, five in total | [Notifications](/docs/mobile/notifications#channels) |
+| Grouping | Notifications stack per topic | [Notifications](/docs/mobile/notifications#grouping) |
+| Tap | Opens the click URL if set, otherwise the message in the app | [Notifications](/docs/mobile/notifications#tapping) |
+| Navigation | Three native tabs: Inbox, Topics, Settings | [Navigation](/docs/mobile/navigation) |
+| Main use case | Coding agents in T3 Code notify when done, blocked or failing | [Coding agents](/docs/product/agents) |
+| Agent layout | One `agents` topic; each project is a conversation, each agent a sender | [Coding agents](/docs/product/agents#topic-layout) |
+| Avatars | Project avatar with agent badge, chat-style (`MessagingStyle`) | [Notifications](/docs/mobile/notifications#conversations-and-avatars) |
+| Avatar source | Generated initials and color; an HTTPS `iconUrl` overrides | [Notifications](/docs/mobile/notifications#generated-avatars) |
+| Answering agents | Tap opens the T3 Code thread; no reply path back to agents | [Coding agents](/docs/product/agents) |
+
+## Open
+
+Proposals that are written into the contract or the docs but still need a yes or no.
+
+| Question | Proposal | Details |
+| --- | --- | --- |
+| Attachment size cap | 15 MB per file | [Publish](/docs/api/publish#attachments) |
+| Secrets in HTTP actions | Not supported: HTTPS URL, method and body only, no headers | [Publish](/docs/api/publish#actions) |
+| Waiting for a reply | Not in v1; scripts poll `GET /v1/messages/{id}/responses` | [Messages](/docs/api/messages#reading-replies) |
+| Publishing to a missing topic | Rejected with `404`; topics are created in the app | [Publish](/docs/api/publish#topics) |
+| Topic names | Unique across the whole deployment | [Data model](/docs/architecture/data-model) |
+| Token implementation | better-auth `api-key` plugin, with topic scopes stored as its permissions | [Access](/docs/product/access#access-tokens) |
+| Actions per message | Up to 5; the first 3 appear on the notification | [Notifications](/docs/mobile/notifications#actions) |
+| Read sync | A `dismiss` push clears notifications on other devices after a message is read | [Push payload](/docs/api/push-payload#dismiss) |
+| Rate limits | Per token: 60 messages a minute, 1,000 a day | [Errors](/docs/api/errors#rate-limits) |
+| Agent thread URL | How agents get their T3 Code thread URL for `clickUrl` | [Coding agents](/docs/product/agents#open-questions) |
+| Project icons | Where real project icons come from (GitHub avatar, favicon) | [Coding agents](/docs/product/agents#open-questions) |
+| iOS push | FCM to APNs, or APNs directly, decided when iOS work starts | [Push delivery](/docs/architecture/push-delivery#ios) |
+
+## Later
+
+- Live delivery to the web dashboard (Durable Objects and WebSocket).
+- An always-on connection for phones without Google Play services.
+- Server-side HTTP actions that can hold secrets.
+- Teams or workspaces above topics.

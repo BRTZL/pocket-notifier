@@ -1,0 +1,57 @@
+---
+title: Scope
+description: What notifier v1 does, who it is for, and what is deliberately left out.
+---
+
+## The problem
+
+Scripts, CI jobs, cron tasks and servers need a quick way to tell a person that something happened, ideally on their phone, with enough context to act on it. Email is slow and noisy, chat apps need bots and workspaces, and hosted push services are either public or another account to manage.
+
+notifier is a small service you own: one HTTP request sends a message, and the people subscribed to that topic get a native Android notification within seconds.
+
+## Who it is for
+
+You and a small group of people you invite <Status kind="decided" />. Everyone shares one deployment on your Cloudflare account. There is no public sign-up, no billing and no multi-tenant isolation.
+
+The main sender is **coding agents in T3 Code** <Status kind="decided" />. They tell you when a task is done, when they need a decision, or when something broke. See [Coding agents](/docs/product/agents). Scripts, CI and servers use the same API.
+
+## In scope for v1
+
+<Accordions multiple>
+  <Accordion title="HTTP publish and history" id="publish">
+    Publish with a JSON `POST` and a bearer token. Each message has a title, body, priority from 1 to 5, tags, a click URL and up to five actions. Messages are stored per topic and can be listed from the apps and from the API. <Status kind="decided" />
+  </Accordion>
+  <Accordion title="Phone push" id="push">
+    The Worker sends a data-only message straight to Firebase Cloud Messaging, and the Android app builds the notification itself, so it controls the channel, grouping, actions and inline reply. <Status kind="decided" />
+  </Accordion>
+  <Accordion title="Action buttons" id="actions">
+    Three kinds: open a URL, send an HTTP request from the phone, and reply or acknowledge back to notifier. Publishers can read replies through the API. <Status kind="decided" />
+  </Accordion>
+  <Accordion title="Attachments" id="attachments">
+    Files stored in R2 and linked from a message, downloaded through short-lived signed URLs. The size cap is still open. <Status kind="open" />
+  </Accordion>
+  <Accordion title="Topics, members, invites, tokens" id="admin">
+    Managed from the web dashboard and the app: create topics, add members with a role, invite new people by link, create and revoke access tokens. <Status kind="decided" />
+  </Accordion>
+  <Accordion title="Retention" id="retention">
+    Messages and attachments expire after 30 days by default; each topic can set 1 to 365 days. <Status kind="decided" />
+  </Accordion>
+</Accordions>
+
+## Out of scope
+
+| Feature | Why not now |
+| --- | --- |
+| Live web view | Needs long-lived connections, which on Workers means Durable Objects. The dashboard refreshes instead. <Status kind="later" /> |
+| ntfy API compatibility | Our own API is simpler to keep strict. Scripts that use ntfy need a small change. <Status kind="decided" /> |
+| Phones without Google Play services | Would need an always-on connection and a foreground service. <Status kind="later" /> |
+| Email, SMS or chat delivery | Push to the app is the only channel in v1. |
+| Teams or workspaces | Per-topic membership covers a small group. <Status kind="later" /> |
+| iOS app | Android comes first; the code layout keeps iOS possible. See [Mobile](/docs/mobile/overview). |
+
+## Success criteria
+
+1. A `curl` from a CI job shows up as a notification on an Android phone in under 5 seconds.
+2. Urgent messages (priority 5) pop up and can break through Do Not Disturb if the user allows it.
+3. A subscriber can acknowledge or reply from the notification without opening the app, and the publisher can read that reply through the API.
+4. Nobody can publish or read a topic they are not a member of.

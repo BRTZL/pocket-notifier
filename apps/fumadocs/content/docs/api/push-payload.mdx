@@ -1,0 +1,72 @@
+---
+title: Push payload
+description: The data the server sends to devices through FCM, and how the app reads it.
+---
+
+This is the contract between the server's FCM sender and the Android receiver. It is defined as `PushData` in `packages/contract/src/push.ts`.
+
+## Constraints from FCM
+
+- Every value in `data` is a **string**. Numbers, booleans and lists are encoded.
+- The whole message must stay under **4,096 bytes** (`FCM_MAX_PAYLOAD_BYTES`).
+- Data messages can be delayed or dropped by Android's battery rules, so the inbox in the app, which is loaded from the API, is the real record. The push is only a hint.
+
+## `message`
+
+```json
+{
+  "v": "1",
+  "kind": "message",
+  "id": "msg_01jd8x5k2m9q7r4t6v8w0y3z5a",
+  "topic": "ci",
+  "title": "main build failed",
+  "body": "3 tests failed in auth.spec.ts",
+  "priority": "5",
+  "tags": "ci,failure",
+  "clickUrl": "https://github.com/acme/app/actions/runs/123",
+  "actions": "[{\"type\":\"view\",\"key\":\"0\",\"label\":\"Open logs\",\"url\":\"https://ci.example.com/runs/123\",\"clear\":false}]",
+  "attachment": "",
+  "conversationId": "ci",
+  "conversationTitle": "",
+  "conversationIcon": "",
+  "senderId": "github-actions",
+  "senderName": "GitHub Actions",
+  "senderIcon": "",
+  "truncated": "0",
+  "createdAt": "1795176000000"
+}
+```
+
+| Key | Encoding |
+| --- | --- |
+| `v` | Payload version, `"1"`. The app ignores versions it does not know and shows a generic "New message" notification. |
+| `priority` | `"1"` to `"5"` |
+| `tags` | Comma-separated, `""` when empty |
+| `clickUrl`, `attachment` | `""` when not set; `attachment` is the file name |
+| `conversation*`, `sender*` | Flattened `conversation` and `sender`; each `""` when not set |
+| `actions` | JSON string of the stored actions, or `""` |
+| `createdAt` | Unix milliseconds |
+| `truncated` | `"1"` when something was cut to fit |
+
+### Fitting into 4 KB
+
+The sender fills fields in this order and stops adding once the next field would go over the limit:
+
+1. `v`, `kind`, `id`, `topic`, `priority`, `createdAt`, `truncated`
+2. `title`
+3. `conversationId`, `conversationTitle`, `senderId`, `senderName`
+4. `body`, cut to 1,000 characters (`PUSH_BODY_MAX`)
+5. `actions`, all or nothing
+6. `tags`, `clickUrl`, `attachment`, `conversationIcon`, `senderIcon`
+
+If anything was cut or left out, `truncated` is `"1"`. The app then shows what it has right away and calls `messages.get` to fill in the rest. If that fails, it posts the notification without actions.
+
+## `dismiss`
+
+<Status kind="open" />
+
+```json
+{ "v": "1", "kind": "dismiss", "ids": "msg_01jd8x5k...,msg_01jd8x6m..." }
+```
+
+When someone reads messages on one device, the server sends `dismiss` to their other devices. Those devices then cancel the matching notifications, so the same alert does not have to be cleared on every phone.

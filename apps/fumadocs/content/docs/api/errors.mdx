@@ -1,0 +1,43 @@
+---
+title: Errors
+description: Error format, codes, and rate limits.
+---
+
+Errors use oRPC's error body. The HTTP status matches the code.
+
+```json
+{
+  "defined": true,
+  "code": "FORBIDDEN",
+  "status": 403,
+  "message": "Not allowed for this topic or resource"
+}
+```
+
+`defined: true` means the error is declared in the contract (`ERRORS` in `packages/contract/src/errors.ts`), so clients can rely on its `code` and `data`. An undeclared error is a bug and shows up as `500 INTERNAL_SERVER_ERROR`.
+
+## Codes
+
+| Status | Code | When | `data` |
+| --- | --- | --- | --- |
+| 400 | `BAD_REQUEST` | The input does not match the contract | Validation issues |
+| 401 | `UNAUTHORIZED` | Missing, malformed, revoked or expired token or session | |
+| 403 | `FORBIDDEN` | The topic is not in the token's scope, or the role does not allow the action | |
+| 404 | `NOT_FOUND` | The topic, message or other resource does not exist or has expired | |
+| 409 | `CONFLICT` | The name is taken, or the person already responded to that action | |
+| 413 | `PAYLOAD_TOO_LARGE` | Attachment over the size cap | `{ "maxBytes": 15728640 }` |
+| 429 | `TOO_MANY_REQUESTS` | Rate limit hit | `{ "retryAfterSeconds": 12 }` |
+
+A `404` is returned instead of `403` when the caller is not a member at all, so topic names cannot be discovered by guessing.
+
+## Rate limits
+
+<Status kind="open" /> Proposed limits per access token:
+
+| Limit | Value |
+| --- | --- |
+| Messages per minute | 60 |
+| Messages per day | 1,000 |
+| Attachment uploads per day | 100 |
+
+Responses to `429` also include a `Retry-After` header. The limits are enforced with Cloudflare's Rate Limiting binding, keyed by token ID.

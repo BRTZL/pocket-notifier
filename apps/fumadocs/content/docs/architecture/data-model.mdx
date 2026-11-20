@@ -1,0 +1,111 @@
+---
+title: Data model
+description: Tables in D1, how they relate, and the ID format.
+---
+
+The better-auth tables (`user`, `session`, `account`, `verification`) already exist in `packages/db/src/schema/auth.ts`. v1 adds the tables below.
+
+```mermaid
+erDiagram
+  user ||--o{ topic_member : "is member"
+  topic ||--o{ topic_member : has
+  user ||--o{ subscription : has
+  topic ||--o{ subscription : has
+  topic ||--o{ message : contains
+  message |o--o| attachment : has
+  message ||--o{ message_response : receives
+  message ||--o{ message_read : "read by"
+  user ||--o{ access_token : owns
+  user ||--o{ device : owns
+  user ||--o{ invite : creates
+
+  topic {
+    text id PK "top_..."
+    text name UK
+    text display_name
+    int default_priority
+    int retention_days
+  }
+  topic_member {
+    text topic_id FK
+    text user_id FK
+    text role "owner | publisher | subscriber"
+  }
+  subscription {
+    text topic_id FK
+    text user_id FK
+    int muted
+  }
+  message {
+    text id PK "msg_..."
+    text topic_id FK
+    text title
+    text body
+    int priority
+    text tags_json
+    text click_url
+    text actions_json
+    text conversation_json
+    text sender_json
+    text published_by FK
+    text token_id FK
+    int created_at
+    int expires_at
+  }
+  attachment {
+    text id PK "att_..."
+    text topic_id FK
+    text r2_key
+    int size
+    text content_type
+  }
+  message_response {
+    text id PK "rsp_..."
+    text message_id FK
+    text user_id FK
+    text action_key
+    text kind "ack | text"
+    text text
+  }
+  message_read {
+    text message_id FK
+    text user_id FK
+  }
+  access_token {
+    text id PK "tok_..."
+    text user_id FK
+    text hash UK
+    text start
+    text scope_json
+    int expires_at
+  }
+  device {
+    text id PK "dev_..."
+    text user_id FK
+    text push_token UK
+    text platform
+    int last_seen_at
+  }
+  invite {
+    text id PK "inv_..."
+    text created_by FK
+    text code_hash UK
+    text email
+    text grants_json
+    int expires_at
+  }
+```
+
+## Notes
+
+- **IDs.** notifier IDs are `<prefix>_<26 lowercase base32 chars>`, for example `msg_01jd8x5k2m9q7r4t6v8w0y3z5a`. The characters are a ULID, so IDs sort by creation time and work as pagination cursors. User IDs come from better-auth. The prefixes are defined in `ID_PREFIXES` in `packages/contract/src/common.ts`.
+- **Topic names** are unique across the deployment, because they appear in publish URLs. <Status kind="open" />
+- **Time** is stored as Unix milliseconds in integer columns, like the existing auth tables, and exposed as ISO-8601 strings in the API.
+- **JSON columns** (`tags_json`, `actions_json`, `conversation_json`, `sender_json`, `scope_json`, `grants_json`) are validated with the contract's zod schemas on write and on read. D1 has no JSON column type.
+- **Read state** is one row per user and message in `message_read`. Unread counts come from messages in the user's topics with no row for that user.
+- **Indexes.** `message (topic_id, id desc)` for history, `message (expires_at)` for cleanup, `device (user_id)`, `topic_member (user_id)`.
+- **Deleting.** Removing a topic cascades to members, subscriptions, messages, reads and responses. Attachment files in R2 are deleted by the retention job, not inside the request.
+
+<Callout type="info" title="If tokens use the better-auth plugin">
+  The `access_token` table is replaced by the plugin's `apikey` table, and the topic scope lives in its `permissions` column. See [Access tokens](/docs/product/access#access-tokens).
+</Callout>

@@ -45,3 +45,6 @@ uniwind-types.d.ts
 
 !.env.schema
 /src/env.ts
+
+# Firebase config (see docs: Mobile > Android setup)
+google-services.json
