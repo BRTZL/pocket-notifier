@@ -26,6 +26,14 @@ export const MESSAGE_LIMITS = {
 /** Proposed cap, still open. See the Attachments page in the docs. */
 export const ATTACHMENT_MAX_BYTES = 15 * 1024 * 1024;
 
+/**
+ * Links a subscriber may open from a message: web pages and notifier's own deep
+ * links. Anything else (`javascript:`, `intent:`, `file:` …) is rejected at publish.
+ */
+export const OpenableUrl = z
+  .url({ protocol: /^(?:https?|notifier)$/u })
+  .max(MESSAGE_LIMITS.urlLength);
+
 export const Tag = z
   .string()
   .min(1)
@@ -49,7 +57,7 @@ const ActionBase = z.object({
 /** Opens a URL in the browser or a deep link in another app. */
 export const ViewAction = ActionBase.extend({
   type: z.literal("view"),
-  url: z.url().max(MESSAGE_LIMITS.urlLength),
+  url: OpenableUrl,
 });
 
 /**
@@ -100,7 +108,7 @@ export const PublishInput = z.object({
   priority: Priority.optional(),
   tags: z.array(Tag).max(MESSAGE_LIMITS.tags).default([]),
   /** Opened when the notification is tapped. */
-  clickUrl: z.url().max(MESSAGE_LIMITS.urlLength).optional(),
+  clickUrl: OpenableUrl.optional(),
   actions: z.array(Action).max(MESSAGE_LIMITS.actions).default([]),
   /** From a previous attachment upload to the same topic. */
   attachmentId: AttachmentId.optional(),

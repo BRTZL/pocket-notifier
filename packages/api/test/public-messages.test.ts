@@ -133,6 +133,26 @@ describe("public messages API", () => {
       ).rejects.toMatchObject(codeError("BAD_REQUEST"));
     });
 
+    it("only accepts http(s) and notifier: links", async () => {
+      const api = publicClientFor(testDb.db, adaSecret);
+      for (const url of ["javascript:alert(1)", "intent://x#Intent;end", "file:///etc/hosts"]) {
+        // biome-ignore lint/performance/noAwaitInLoops: each case must fail on its own.
+        await expect(api.messages.publish({ topic: "team", clickUrl: url })).rejects.toMatchObject(
+          codeError("BAD_REQUEST"),
+        );
+        await expect(
+          api.messages.publish({ topic: "team", actions: [{ type: "view", label: "Open", url }] }),
+        ).rejects.toMatchObject(codeError("BAD_REQUEST"));
+      }
+      await expect(
+        api.messages.publish({
+          topic: "team",
+          clickUrl: "notifier://topic/x",
+          actions: [{ type: "view", label: "Open", url: "http://example.com" }],
+        }),
+      ).resolves.toMatchObject({ topic: "team" });
+    });
+
     it("rejects attachments until they are supported", async () => {
       const api = publicClientFor(testDb.db, adaSecret);
       await expect(
