@@ -11,6 +11,7 @@ import { SectionHeader, SettingsRow } from "@/components/settings-row";
 import { UserAvatar } from "@/components/user-avatar";
 import { authClient } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/errors";
+import { unregisterPushDevice } from "@/lib/push-device";
 
 import { ENV } from "@/src/env";
 
@@ -44,6 +45,8 @@ export default function SettingsScreen() {
   async function signOut() {
     setIsSigningOut(true);
     try {
+      // While the session still works: stop this phone getting this user's pushes.
+      await unregisterPushDevice();
       const { error } = await authClient.signOut();
       if (error) {
         toast.show({ variant: "danger", label: errorMessage(error, "Could not sign out") });

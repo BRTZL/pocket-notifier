@@ -78,8 +78,8 @@ export default function DevicesScreen() {
     if (devices.data.length === 0) {
       return (
         <EmptyState title="No devices yet" pose="thinking">
-          Push notifications arrive in a later version. Once they do, each phone you sign in on
-          shows up here so you can rename or remove it.
+          Each phone you sign in on with the notifier app shows up here, so you can rename or remove
+          it.
         </EmptyState>
       );
     }

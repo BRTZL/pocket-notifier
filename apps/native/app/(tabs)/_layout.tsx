@@ -1,5 +1,6 @@
 import { NativeTabs } from "expo-router/native-tabs";
 
+import { PushRegistration } from "@/components/push-registration";
 import { UserQueryProvider } from "@/components/user-query-provider";
 import { useTokenColors } from "@/hooks/use-token-color";
 import { authClient } from "@/lib/auth-client";
@@ -55,6 +56,7 @@ export default function TabsLayout() {
   return (
     <UserQueryProvider key={userId}>
       <Tabs />
+      <PushRegistration />
     </UserQueryProvider>
   );
 }
