@@ -1,6 +1,7 @@
 import type { UserSummary } from "@notifier/contract/common";
+import type { AccessToken, TokenScope } from "@notifier/contract/token";
 import type { MyTopic, TopicMember, TopicRole } from "@notifier/contract/topic";
-import type { topic } from "@notifier/db/schema/notifier";
+import type { accessToken, topic } from "@notifier/db/schema/notifier";
 
 type UserRow = {
   id: string;
@@ -59,5 +60,20 @@ export function toTopicMember(row: {
     user: toUserSummary(row.user),
     role: row.role,
     addedAt: row.addedAt.toISOString(),
+  };
+}
+
+export function toAccessToken(
+  row: typeof accessToken.$inferSelect,
+  scope: TokenScope,
+): AccessToken {
+  return {
+    id: row.id,
+    name: row.name,
+    start: row.start,
+    scope,
+    expiresAt: row.expiresAt?.toISOString() ?? null,
+    lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
   };
 }
