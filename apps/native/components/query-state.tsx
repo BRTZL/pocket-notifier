@@ -18,19 +18,24 @@ export function LoadingState() {
   );
 }
 
-/** Full-screen error for a failed query, with the mascot and a retry button. */
+/**
+ * Error for a failed query with a retry button. Full screen with the mascot by default;
+ * `inline` for a section of a screen that has other content.
+ */
 export function ErrorState({
   error,
   title = "Could not load",
   onRetry,
+  inline = false,
 }: {
   error: unknown;
   title?: string;
   onRetry?: () => void;
+  inline?: boolean;
 }) {
   return (
-    <View className="flex-1 items-center justify-center gap-4 p-6">
-      <Mascot pose="error" size={150} />
+    <View className={inline ? "gap-3" : "flex-1 items-center justify-center gap-4 p-6"}>
+      {inline ? null : <Mascot pose="error" size={150} />}
       <Alert status="danger" className="self-stretch">
         <Alert.Indicator />
         <Alert.Content>

@@ -46,3 +46,8 @@ export function messageHeadline({ conversation, sender, topic }: Headline): stri
 export function isHighPriority(priority: number): boolean {
   return priority >= 4;
 }
+
+/** Local date without the time, for expiry and "last used" lines. */
+export function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString();
+}
