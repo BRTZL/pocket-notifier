@@ -10,19 +10,35 @@ import { authClient } from "@/lib/auth-client";
 
 import { ENV } from "../src/env";
 
-/** Query errors are shown by the screens (inline error states and toasts), not logged. */
-export const queryClient = new QueryClient();
+/**
+ * Cache for signed-out screens only (the invite preview). Signed-in screens get their
+ * own client per user from `UserQueryProvider`, so no account ever reads another's cache.
+ * Query errors are shown by the screens (inline error states and toasts), not logged.
+ */
+export const publicQueryClient = new QueryClient();
+
+/** A request that hangs (e.g. opened while the server restarts) fails after this, so it can be retried. */
+const REQUEST_TIMEOUT_MS = 20_000;
 
 async function expoFetch(request: Request, init?: RequestInit) {
   const { fetch } = await import("expo/fetch");
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timeout = setTimeout(abort, REQUEST_TIMEOUT_MS);
+  request.signal.addEventListener("abort", abort);
 
-  return fetch(request.url, {
-    body: await request.blob(),
-    headers: request.headers,
-    method: request.method,
-    signal: request.signal,
-    ...init,
-  });
+  try {
+    return await fetch(request.url, {
+      body: await request.blob(),
+      headers: request.headers,
+      method: request.method,
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+    request.signal.removeEventListener("abort", abort);
+  }
 }
 
 export const link = new RPCLink({

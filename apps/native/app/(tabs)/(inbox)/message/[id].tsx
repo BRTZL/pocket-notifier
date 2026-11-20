@@ -20,7 +20,7 @@ export default function MessageScreen() {
   if (query.isPending) {
     return <LoadingState />;
   }
-  if (query.isError) {
+  if (query.isError && !query.data) {
     return (
       <ErrorState
         error={query.error}
@@ -30,6 +30,7 @@ export default function MessageScreen() {
     );
   }
 
+  // A failed background refetch keeps the cached message on screen.
   const message = query.data;
   const priorityName = PRIORITY_NAMES[message.priority as keyof typeof PRIORITY_NAMES];
 

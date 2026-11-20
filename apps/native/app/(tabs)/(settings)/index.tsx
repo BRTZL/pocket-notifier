@@ -5,7 +5,6 @@ import { ScrollView, View } from "react-native";
 
 import { authClient } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/errors";
-import { queryClient } from "@/utils/orpc";
 
 export default function SettingsScreen() {
   const { data: session } = authClient.useSession();
@@ -19,10 +18,8 @@ export default function SettingsScreen() {
       const { error } = await authClient.signOut();
       if (error) {
         toast.show({ variant: "danger", label: errorMessage(error, "Could not sign out") });
-        return;
       }
-      // The root layout also clears on the user change; clearing here drops data at once.
-      queryClient.clear();
+      // Signing out unmounts the tabs and with them this user's query cache.
     } catch (error) {
       toast.show({ variant: "danger", label: errorMessage(error, "Could not sign out") });
     } finally {

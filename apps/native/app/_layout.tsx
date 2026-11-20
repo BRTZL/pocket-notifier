@@ -3,7 +3,6 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { ThemeProvider } from "expo-router/react-navigation";
 import { HeroUINativeProvider, Spinner } from "heroui-native";
-import { useEffect, useRef } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -12,26 +11,11 @@ import { AppThemeProvider } from "@/contexts/app-theme-provider";
 import { useNavigationTheme } from "@/hooks/use-navigation-theme";
 import { useAppStateFocus } from "@/hooks/use-refresh-on-focus";
 import { authClient } from "@/lib/auth-client";
-import { queryClient } from "@/utils/orpc";
-
-/**
- * Drops every cached query whenever the signed-in user changes (sign-in, sign-out,
- * switching accounts), so one account never sees another account's data.
- */
-function useClearCacheOnUserChange(userId: string | null) {
-  const previous = useRef<string | null>(userId);
-  useEffect(() => {
-    if (previous.current !== userId) {
-      previous.current = userId;
-      queryClient.clear();
-    }
-  }, [userId]);
-}
+import { publicQueryClient } from "@/utils/orpc";
 
 function AuthGate() {
   const { data: session, isPending } = authClient.useSession();
   const userId = session?.user.id ?? null;
-  useClearCacheOnUserChange(userId);
   useAppStateFocus();
 
   if (isPending) {
@@ -66,7 +50,7 @@ function ThemedApp() {
 
 export default function Layout() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={publicQueryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <KeyboardProvider>
           <AppThemeProvider>

@@ -1,5 +1,8 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "heroui-native";
 import { useEffect, useRef } from "react";
+
+import { errorMessage } from "@/lib/errors";
 
 import { orpc } from "@/utils/orpc";
 
@@ -29,11 +32,15 @@ export function useInvalidateInbox() {
   };
 }
 
-/** One message; marks it read the first time it is shown unread. */
+/**
+ * One message; marks it read the first time it is shown unread. If marking fails, a
+ * toast offers "Try again", and the next time the message is shown it tries again.
+ */
 export function useMessage(id: string) {
   const query = useQuery(orpc.messages.get.queryOptions({ input: { id } }));
   const invalidateInbox = useInvalidateInbox();
-  const markRead = useMutation(
+  const { toast } = useToast();
+  const { mutate } = useMutation(
     orpc.messages.markRead.mutationOptions({
       onSuccess: async () => {
         await invalidateInbox();
@@ -42,15 +49,36 @@ export function useMessage(id: string) {
   );
   const markedId = useRef<string | null>(null);
   const isUnread = query.data?.read === false;
-  const { mutate } = markRead;
 
   useEffect(() => {
     if (!isUnread || markedId.current === id) {
       return;
     }
     markedId.current = id;
-    mutate({ ids: [id] });
-  }, [id, isUnread, mutate]);
+    const markAsRead = () => {
+      mutate(
+        { ids: [id] },
+        {
+          onError: (error) => {
+            // Not suppressed for good: showing the message again retries.
+            markedId.current = null;
+            toast.show({
+              variant: "danger",
+              label: "Could not mark as read",
+              description: errorMessage(error),
+              actionLabel: "Try again",
+              onActionPress: ({ hide }) => {
+                hide();
+                markedId.current = id;
+                markAsRead();
+              },
+            });
+          },
+        },
+      );
+    };
+    markAsRead();
+  }, [id, isUnread, mutate, toast]);
 
   return query;
 }

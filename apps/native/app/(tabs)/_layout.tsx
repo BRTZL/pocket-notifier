@@ -1,7 +1,10 @@
 import { NativeTabs } from "expo-router/native-tabs";
 import { useThemeColor } from "heroui-native";
 
-export default function TabsLayout() {
+import { UserQueryProvider } from "@/components/user-query-provider";
+import { authClient } from "@/lib/auth-client";
+
+function Tabs() {
   const [background, accent, muted, accentSoft] = useThemeColor([
     "background",
     "accent",
@@ -30,5 +33,20 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
+  );
+}
+
+export default function TabsLayout() {
+  const { data: session } = authClient.useSession();
+  const userId = session?.user.id;
+  // Signed out: the root guard is about to swap to the auth screens. Render nothing so no
+  // query runs without a session.
+  if (!userId) {
+    return null;
+  }
+  return (
+    <UserQueryProvider key={userId}>
+      <Tabs />
+    </UserQueryProvider>
   );
 }

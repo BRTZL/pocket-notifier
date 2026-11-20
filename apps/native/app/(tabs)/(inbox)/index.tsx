@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { Chip, Separator, Spinner, useThemeColor } from "heroui-native";
+import { Alert, Button, Chip, Separator, Spinner, useThemeColor } from "heroui-native";
 import { useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 
@@ -7,6 +7,7 @@ import { MessageRow } from "@/components/message-row";
 import { EmptyState, ErrorState, LoadingState } from "@/components/query-state";
 import { useInbox } from "@/hooks/use-inbox";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
+import { errorMessage } from "@/lib/errors";
 
 type Filter = "all" | "unread";
 
@@ -37,6 +38,35 @@ function FilterChips({ value, onChange }: { value: Filter; onChange: (filter: Fi
   );
 }
 
+/**
+ * Shown above rows that are already on screen when a refresh or the next page fails;
+ * "Try again" repeats the operation that failed.
+ */
+function LoadErrorBanner({
+  title,
+  description,
+  onRetry,
+}: {
+  title: string;
+  description: string;
+  onRetry: () => void;
+}) {
+  return (
+    <View className="gap-2 px-4 pb-3">
+      <Alert status="danger">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>{title}</Alert.Title>
+          <Alert.Description>{description}</Alert.Description>
+        </Alert.Content>
+      </Alert>
+      <Button size="sm" variant="secondary" onPress={onRetry}>
+        <Button.Label>Try again</Button.Label>
+      </Button>
+    </View>
+  );
+}
+
 export default function InboxScreen() {
   const [filter, setFilter] = useState<Filter>("all");
   const { query: inbox, messages } = useInbox({ unreadOnly: filter === "unread" });
@@ -51,6 +81,26 @@ export default function InboxScreen() {
     } finally {
       setIsManualRefresh(false);
     }
+  }
+
+  function renderFooter() {
+    if (inbox.isFetchingNextPage) {
+      return (
+        <View className="items-center py-4">
+          <Spinner />
+        </View>
+      );
+    }
+    if (messages.length > 0 && inbox.isFetchNextPageError) {
+      return (
+        <LoadErrorBanner
+          title="Could not load more"
+          description={errorMessage(inbox.error)}
+          onRetry={() => void inbox.fetchNextPage()}
+        />
+      );
+    }
+    return null;
   }
 
   function renderEmpty() {
@@ -82,17 +132,24 @@ export default function InboxScreen() {
         />
       )}
       ItemSeparatorComponent={() => <Separator className="ml-20" />}
-      ListHeaderComponent={<FilterChips value={filter} onChange={setFilter} />}
-      ListEmptyComponent={renderEmpty}
-      ListFooterComponent={
-        inbox.isFetchingNextPage ? (
-          <View className="items-center py-4">
-            <Spinner />
-          </View>
-        ) : null
+      ListHeaderComponent={
+        <>
+          <FilterChips value={filter} onChange={setFilter} />
+          {messages.length > 0 && inbox.isRefetchError ? (
+            <LoadErrorBanner
+              title="Could not refresh"
+              description={errorMessage(inbox.error)}
+              onRetry={() => void refresh()}
+            />
+          ) : null}
+        </>
       }
+      ListEmptyComponent={renderEmpty}
+      ListFooterComponent={renderFooter()}
       onEndReached={() => {
-        if (inbox.hasNextPage && !inbox.isFetchingNextPage) {
+        // After a failed page the footer's "Try again" retries; reaching the end again must
+        // not, or the error footer itself re-triggers the fetch in a loop.
+        if (inbox.hasNextPage && !inbox.isFetchingNextPage && !inbox.isFetchNextPageError) {
           void inbox.fetchNextPage();
         }
       }}
