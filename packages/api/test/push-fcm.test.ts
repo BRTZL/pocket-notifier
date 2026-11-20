@@ -5,7 +5,7 @@ import { clearTokenCache } from "../src/push/oauth";
 import { fcmError, mockFetch, testServiceAccount, UNREGISTERED } from "./push-helpers";
 
 const NOW = Date.UTC(2026, 10, 20, 12, 0, 0);
-const DATA = { v: "1", kind: "dismiss", ids: "msg_1" };
+const DATA = { v: "2", kind: "dismiss", ids: "msg_1" };
 
 function options(priority: "HIGH" | "NORMAL" = "NORMAL", limit = 40) {
   return { priority, budget: createSendBudget(limit) };

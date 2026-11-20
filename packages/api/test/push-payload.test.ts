@@ -2,6 +2,8 @@ import type { Message } from "@notifier/contract/message";
 import {
   FCM_MAX_PAYLOAD_BYTES,
   PUSH_BODY_MAX,
+  PUSH_VERSION,
+  PushData,
   PushDismissData,
   PushMessageData,
 } from "@notifier/contract/push";
@@ -46,7 +48,7 @@ describe("toPushData", () => {
   it("encodes every field as a string, per the payload contract", () => {
     const data = toPushData(message());
     expect(data).toEqual({
-      v: "1",
+      v: "2",
       kind: "message",
       id: ID,
       project: "ci",
@@ -196,11 +198,21 @@ describe("toPushData", () => {
   });
 });
 
+describe("PUSH_VERSION", () => {
+  it("is 2, and a version 1 payload no longer parses", () => {
+    const data = toPushData(message());
+    expect(PUSH_VERSION).toBe("2");
+    expect(PushData.safeParse(data).success).toBe(true);
+    expect(PushData.safeParse({ ...data, v: "1" }).success).toBe(false);
+    expect(PushData.safeParse({ v: "1", kind: "dismiss", ids: ID }).success).toBe(false);
+  });
+});
+
 describe("toDismissData", () => {
   it("is empty for no ids and one push for a few", () => {
     expect(toDismissData([])).toEqual([]);
     expect(toDismissData(["msg_a", "msg_b"])).toEqual([
-      { v: "1", kind: "dismiss", ids: "msg_a,msg_b" },
+      { v: "2", kind: "dismiss", ids: "msg_a,msg_b" },
     ]);
   });
 

@@ -12,7 +12,13 @@ import { ProjectId, ProjectName } from "./project";
  * bytes, so long fields are cut and `truncated` is set. The app then fetches the
  * full message with `messages.get` before showing actions or attachments.
  */
-export const PUSH_VERSION = "1";
+/**
+ * Bumped whenever a field is renamed or its meaning changes, so an older app drops a
+ * payload it cannot read instead of misreading it. `"2"`: the message is named by
+ * `project` / `projectId` / `conversationKey` (`p:<project id>` for the project-level
+ * thread) instead of the earlier fields.
+ */
+export const PUSH_VERSION = "2";
 export const FCM_MAX_PAYLOAD_BYTES = 4096;
 export const PUSH_BODY_MAX = 1000;
 

@@ -15,7 +15,7 @@ This is the contract between the server's FCM sender and the Android receiver. I
 
 ```json
 {
-  "v": "1",
+  "v": "2",
   "kind": "message",
   "id": "msg_01jd8x5k2m9q7r4t6v8w0y3z5a",
   "project": "ci",
@@ -41,7 +41,7 @@ This is the contract between the server's FCM sender and the Android receiver. I
 
 | Key | Encoding |
 | --- | --- |
-| `v` | Payload version, `"1"`. The app ignores versions it does not know and shows a generic "New message" notification. |
+| `v` | Payload version (`PUSH_VERSION`), now `"2"`. The app drops a push whose version it does not know instead of guessing at its fields; the message is still in the inbox. Version `"2"` names the message by `project`, `projectId` and `conversationKey`, so an app build that only reads `"1"` ignores it. |
 | `project`, `projectId` | The project's name and id |
 | `conversationKey` | The message's thread: `c:<conversation id>`, or `p:<projectId>` for the project-level thread. With `projectId` it is the tap target, `notifier://conversation/<projectId>/<conversationKey>` |
 | `priority` | `"1"` to `"5"` |
@@ -72,7 +72,7 @@ If anything was cut or left out, `truncated` is `"1"`. The app then shows what i
 <Status kind="decided" /> The server sends it. Handling it on Android is still to be built in the push module.
 
 ```json
-{ "v": "1", "kind": "dismiss", "ids": "msg_01jd8x5k...,msg_01jd8x6m..." }
+{ "v": "2", "kind": "dismiss", "ids": "msg_01jd8x5k...,msg_01jd8x6m..." }
 ```
 
 When someone reads messages on one device, the server sends `dismiss` to their devices. Those devices then cancel the matching notifications, so the same alert does not have to be cleared on every phone. `ids` holds only the messages that were newly marked as read. When the list would go over 4,096 bytes, it is split into several `dismiss` pushes.
