@@ -34,10 +34,18 @@ export default function SignInScreen() {
   const [password, setPassword] = useState("");
   const [errors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLock = useRef(false);
 
   async function submit() {
+    // Synchronous lock: the keyboard's "Go" and the button can both fire before the
+    // `isSubmitting` state re-renders.
+    if (submitLock.current) {
+      return;
+    }
+    submitLock.current = true;
     const parsed = SignInInput.safeParse({ email, password });
     if (!parsed.success) {
+      submitLock.current = false;
       setFieldErrors(fieldErrors(parsed.error));
       return;
     }
@@ -52,6 +60,7 @@ export default function SignInScreen() {
     } catch (error) {
       toast.show({ variant: "danger", label: errorMessage(error, "Could not sign in") });
     } finally {
+      submitLock.current = false;
       setIsSubmitting(false);
     }
   }

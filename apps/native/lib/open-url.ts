@@ -1,13 +1,42 @@
 import * as WebBrowser from "expo-web-browser";
 import { Linking } from "react-native";
 
-const WEB_URL = /^https?:\/\//iu;
+/** Web links open in the in-app browser. */
+const WEB_PROTOCOLS = new Set(["https:", "http:"]);
 
-/** Opens web links in the in-app browser and anything else (deep links) with the system. */
+/**
+ * Deep-link schemes the app may hand to the system. Everything else (`javascript:`,
+ * `intent:`, `file:`, `content:`, `data:`, unknown schemes) comes from message
+ * publishers and is refused.
+ */
+const DEEP_LINK_PROTOCOLS = new Set(["notifier:"]);
+
+/** A message link that is malformed or uses a scheme the app does not open. */
+export class UnopenableLinkError extends Error {
+  constructor() {
+    super("This link can't be opened");
+    this.name = "UnopenableLinkError";
+  }
+}
+
+function parseUrl(url: string): URL {
+  try {
+    return new URL(url);
+  } catch {
+    throw new UnopenableLinkError();
+  }
+}
+
+/** Opens a message link (click URL or `view` action) if its scheme is allowed. */
 export async function openUrl(url: string): Promise<void> {
-  if (WEB_URL.test(url)) {
-    await WebBrowser.openBrowserAsync(url);
+  const parsed = parseUrl(url);
+  if (WEB_PROTOCOLS.has(parsed.protocol)) {
+    await WebBrowser.openBrowserAsync(parsed.href);
     return;
   }
-  await Linking.openURL(url);
+  if (DEEP_LINK_PROTOCOLS.has(parsed.protocol)) {
+    await Linking.openURL(parsed.href);
+    return;
+  }
+  throw new UnopenableLinkError();
 }

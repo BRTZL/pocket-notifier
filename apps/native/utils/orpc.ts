@@ -24,6 +24,9 @@ async function expoFetch(request: Request, init?: RequestInit) {
   const { fetch } = await import("expo/fetch");
   const controller = new AbortController();
   const abort = () => controller.abort();
+  if (request.signal.aborted) {
+    controller.abort();
+  }
   const timeout = setTimeout(abort, REQUEST_TIMEOUT_MS);
   request.signal.addEventListener("abort", abort);
 

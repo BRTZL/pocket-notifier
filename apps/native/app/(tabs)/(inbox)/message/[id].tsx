@@ -1,24 +1,32 @@
 import { PRIORITY_NAMES } from "@notifier/contract/priority";
 import { Stack, useLocalSearchParams } from "expo-router";
-import { Button, Card, Separator, Typography, useToast } from "heroui-native";
+import { Button, Card, Separator, Typography } from "heroui-native";
 import { ScrollView, View } from "react-native";
 
 import { MessageActions } from "@/components/message-actions";
 import { PriorityChip, TagChips } from "@/components/message-row";
-import { ErrorState, LoadingState } from "@/components/query-state";
+import { EmptyState, ErrorState, LoadingState } from "@/components/query-state";
 import { SenderAvatar } from "@/components/sender-avatar";
 import { useMessage } from "@/hooks/use-inbox";
-import { errorMessage } from "@/lib/errors";
+import { useOpenLink } from "@/hooks/use-open-link";
+import { isAccessError } from "@/lib/errors";
 import { fullTime, messageHeadline } from "@/lib/format";
-import { openUrl } from "@/lib/open-url";
 
 export default function MessageScreen() {
   const { id = "" } = useLocalSearchParams<{ id: string }>();
   const query = useMessage(id);
-  const { toast } = useToast();
+  const openLink = useOpenLink();
 
   if (query.isPending) {
     return <LoadingState />;
+  }
+  // Gone or no longer ours: never keep showing a cached copy or its actions.
+  if (isAccessError(query.error)) {
+    return (
+      <EmptyState title="Message not available">
+        It was deleted, expired, or you no longer have access to its topic.
+      </EmptyState>
+    );
   }
   if (query.isError && !query.data) {
     return (
@@ -30,7 +38,7 @@ export default function MessageScreen() {
     );
   }
 
-  // A failed background refetch keeps the cached message on screen.
+  // A transient failure (network, 5xx) of a background refetch keeps the cached message.
   const message = query.data;
   const priorityName = PRIORITY_NAMES[message.priority as keyof typeof PRIORITY_NAMES];
 
@@ -85,16 +93,9 @@ export default function MessageScreen() {
         <Button
           variant="outline"
           onPress={() => {
-            const url = message.clickUrl;
-            if (!url) {
-              return;
+            if (message.clickUrl) {
+              openLink(message.clickUrl);
             }
-            openUrl(url).catch((error: unknown) => {
-              toast.show({
-                variant: "danger",
-                label: errorMessage(error, "Could not open the link"),
-              });
-            });
           }}
         >
           <Button.Label>Open link</Button.Label>

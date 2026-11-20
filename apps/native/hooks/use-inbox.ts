@@ -2,8 +2,8 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useToast } from "heroui-native";
 import { useEffect, useRef } from "react";
 
-import { errorMessage } from "@/lib/errors";
-
+import { authClient, currentUserId } from "@/lib/auth-client";
+import { errorMessage, isAccessError } from "@/lib/errors";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
@@ -32,29 +32,56 @@ export function useInvalidateInbox() {
   };
 }
 
+/** Per-message key, so marks of the same message can be found while in flight. */
+function markReadMutationKey(id: string) {
+  return [...orpc.messages.markRead.mutationKey(), id];
+}
+
 /**
- * One message; marks it read the first time it is shown unread. If marking fails, a
- * toast offers "Try again", and the next time the message is shown it tries again.
+ * One message; marks it read the first time it is shown unread.
+ *
+ * - On success the cached message becomes `read: true`, so it is not marked again.
+ * - Marks are deduped per message id within this user's query client: a mark already
+ *   in flight (e.g. from a quick back-and-forward) is not sent twice.
+ * - On failure a toast offers "Try again". The toast is dismissed when this screen
+ *   unmounts (which includes a user change, since the cache is per user), and its retry
+ *   does nothing if the signed-in user is no longer the one who opened the message.
  */
 export function useMessage(id: string) {
-  const query = useQuery(orpc.messages.get.queryOptions({ input: { id } }));
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    ...orpc.messages.get.queryOptions({ input: { id } }),
+    // Retrying "not found" or "forbidden" only delays the not-available state.
+    retry: (failureCount, error) => !isAccessError(error) && failureCount < 3,
+  });
   const invalidateInbox = useInvalidateInbox();
   const { toast } = useToast();
-  const { mutate } = useMutation(
-    orpc.messages.markRead.mutationOptions({
+  const { data: session } = authClient.useSession();
+  const userId = session?.user.id ?? null;
+  const { mutate } = useMutation({
+    ...orpc.messages.markRead.mutationOptions({
       onSuccess: async () => {
+        queryClient.setQueryData(orpc.messages.get.queryKey({ input: { id } }), (message) =>
+          message ? { ...message, read: true } : message,
+        );
         await invalidateInbox();
       },
     }),
-  );
+    mutationKey: markReadMutationKey(id),
+  });
   const markedId = useRef<string | null>(null);
+  const toastId = useRef<string | null>(null);
   const isUnread = query.data?.read === false;
 
   useEffect(() => {
-    if (!isUnread || markedId.current === id) {
+    if (!isUnread || markedId.current === id || userId === null) {
+      return;
+    }
+    if (queryClient.isMutating({ mutationKey: markReadMutationKey(id) }) > 0) {
       return;
     }
     markedId.current = id;
+    const openedBy = userId;
     const markAsRead = () => {
       mutate(
         { ids: [id] },
@@ -62,13 +89,17 @@ export function useMessage(id: string) {
           onError: (error) => {
             // Not suppressed for good: showing the message again retries.
             markedId.current = null;
-            toast.show({
+            toastId.current = toast.show({
               variant: "danger",
               label: "Could not mark as read",
               description: errorMessage(error),
               actionLabel: "Try again",
               onActionPress: ({ hide }) => {
                 hide();
+                toastId.current = null;
+                if (currentUserId() !== openedBy) {
+                  return;
+                }
                 markedId.current = id;
                 markAsRead();
               },
@@ -78,7 +109,18 @@ export function useMessage(id: string) {
       );
     };
     markAsRead();
-  }, [id, isUnread, mutate, toast]);
+  }, [id, isUnread, mutate, toast, userId, queryClient]);
+
+  // The failure toast belongs to this screen: it must not outlive it.
+  useEffect(
+    () => () => {
+      if (toastId.current) {
+        toast.hide(toastId.current);
+        toastId.current = null;
+      }
+    },
+    [toast],
+  );
 
   return query;
 }

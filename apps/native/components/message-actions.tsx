@@ -15,15 +15,14 @@ import {
 import { useState } from "react";
 import { View } from "react-native";
 
+import { useOpenLink } from "@/hooks/use-open-link";
 import { errorMessage, hasErrorCode } from "@/lib/errors";
-import { openUrl } from "@/lib/open-url";
+import { runHttpAction } from "@/lib/http-action";
 import { orpc } from "@/utils/orpc";
 
 type MessageAction = InboxMessage["actions"][number];
 type ReplyAction = Extract<MessageAction, { type: "reply" }>;
 type HttpAction = Extract<MessageAction, { type: "http" }>;
-
-const HTTP_TIMEOUT_MS = 15_000;
 
 /** Sends a `reply` action's response; CONFLICT means it was already answered, which counts as done. */
 function useReply(messageId: string, actionKey: string) {
@@ -143,31 +142,16 @@ function HttpButton({ action }: { action: HttpAction }) {
 
   async function run() {
     setIsRunning(true);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
     try {
-      const response = await fetch(action.url, {
-        method: action.method,
-        body: action.method === "GET" ? undefined : action.body,
-        signal: controller.signal,
-      });
-      if (response.ok) {
-        toast.show({ variant: "success", label: `${action.label}: done` });
-      } else {
-        toast.show({
-          variant: "danger",
-          label: `${action.label} failed`,
-          description: `The server answered ${response.status}.`,
-        });
-      }
+      await runHttpAction(action);
+      toast.show({ variant: "success", label: `${action.label}: done` });
     } catch (error) {
       toast.show({
         variant: "danger",
         label: `${action.label} failed`,
-        description: controller.signal.aborted ? "The request timed out." : errorMessage(error),
+        description: errorMessage(error),
       });
     } finally {
-      clearTimeout(timeout);
       setIsRunning(false);
     }
   }
@@ -180,16 +164,9 @@ function HttpButton({ action }: { action: HttpAction }) {
 }
 
 function ViewButton({ action }: { action: Extract<MessageAction, { type: "view" }> }) {
-  const { toast } = useToast();
+  const openLink = useOpenLink();
   return (
-    <Button
-      variant="secondary"
-      onPress={() => {
-        openUrl(action.url).catch((error: unknown) => {
-          toast.show({ variant: "danger", label: errorMessage(error, "Could not open the link") });
-        });
-      }}
-    >
+    <Button variant="secondary" onPress={() => openLink(action.url)}>
       <Button.Label>{action.label}</Button.Label>
     </Button>
   );

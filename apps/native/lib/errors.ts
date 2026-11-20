@@ -21,3 +21,13 @@ export function errorMessage(error: unknown, fallback = "Something went wrong"):
 export function hasErrorCode(error: unknown, code: string): boolean {
   return error instanceof ORPCError && error.code === code;
 }
+
+const ACCESS_ERROR_CODES = new Set(["NOT_FOUND", "UNAUTHORIZED", "FORBIDDEN"]);
+
+/**
+ * The resource is gone or no longer this user's to see. Unlike network or 5xx errors,
+ * retrying will not help and cached copies must not stay on screen.
+ */
+export function isAccessError(error: unknown): boolean {
+  return error instanceof ORPCError && ACCESS_ERROR_CODES.has(error.code);
+}

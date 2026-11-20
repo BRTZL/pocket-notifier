@@ -96,7 +96,7 @@ export default function InboxScreen() {
         <LoadErrorBanner
           title="Could not load more"
           description={errorMessage(inbox.error)}
-          onRetry={() => void inbox.fetchNextPage()}
+          onRetry={() => void inbox.fetchNextPage({ cancelRefetch: false })}
         />
       );
     }
@@ -149,8 +149,10 @@ export default function InboxScreen() {
       onEndReached={() => {
         // After a failed page the footer's "Try again" retries; reaching the end again must
         // not, or the error footer itself re-triggers the fetch in a loop.
-        if (inbox.hasNextPage && !inbox.isFetchingNextPage && !inbox.isFetchNextPageError) {
-          void inbox.fetchNextPage();
+        // Not while any fetch runs (a refresh refetches every loaded page), and without
+        // cancelling one that is already running.
+        if (inbox.hasNextPage && !inbox.isFetching && !inbox.isFetchNextPageError) {
+          void inbox.fetchNextPage({ cancelRefetch: false });
         }
       }}
       onEndReachedThreshold={0.5}

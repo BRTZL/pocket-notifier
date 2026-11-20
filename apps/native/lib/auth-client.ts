@@ -15,3 +15,11 @@ export const authClient = createAuthClient({
     }),
   ],
 });
+
+/**
+ * The signed-in user's id right now, read outside React (e.g. in a toast callback that
+ * may run after the screen or the session changed). `null` when signed out.
+ */
+export function currentUserId(): string | null {
+  return authClient.$store.atoms.session?.get()?.data?.user.id ?? null;
+}

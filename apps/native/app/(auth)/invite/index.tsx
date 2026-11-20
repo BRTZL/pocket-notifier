@@ -12,23 +12,15 @@ import { useState } from "react";
 import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
-const CODE_PATTERN = /^[0-9A-Za-z]{24}$/u;
-const TRAILING_SLASHES = /\/+$/u;
-
-/** Accepts the bare code or a whole invite link, and returns the code. */
-function extractCode(value: string): string {
-  const trimmed = value.trim().replace(TRAILING_SLASHES, "");
-  const lastSegment = trimmed.split("/").pop() ?? "";
-  return lastSegment.split("?")[0] ?? "";
-}
+import { inviteCodeFromInput } from "@/lib/invite";
 
 export default function InviteEntryScreen() {
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   function submit() {
-    const code = extractCode(value);
-    if (!CODE_PATTERN.test(code)) {
+    const code = inviteCodeFromInput(value);
+    if (code === null) {
       setError("Paste the invite link or its 24-character code");
       return;
     }
