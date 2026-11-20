@@ -32,7 +32,7 @@ export const PushMessageData = z.object({
   project: ProjectName,
   /** With `conversationKey`, names the thread a tap opens: `notifier://conversation/<projectId>/<key>`. */
   projectId: ProjectId,
-  /** `c:<conversation id>`, or `p:<project id>` for the project-level thread. */
+  /** `c:<feature slug>`, or `p:<project id>` for the project-level thread (no feature). */
   conversationKey: ConversationKey,
   title: z.string(),
   body: z.string().max(PUSH_BODY_MAX),

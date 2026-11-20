@@ -43,10 +43,10 @@ This is the contract between the server's FCM sender and the Android receiver. I
 | --- | --- |
 | `v` | Payload version (`PUSH_VERSION`), now `"2"`. The app drops a push whose version it does not know instead of guessing at its fields; the message is still in the inbox. Version `"2"` names the message by `project`, `projectId` and `conversationKey`, so an app build that only reads `"1"` ignores it. |
 | `project`, `projectId` | The project's name and id |
-| `conversationKey` | The message's thread: `c:<conversation id>`, or `p:<projectId>` for the project-level thread. With `projectId` it is the tap target, `notifier://conversation/<projectId>/<conversationKey>` |
+| `conversationKey` | The message's thread: `c:<feature slug>`, or `p:<projectId>` for the project-level thread (a message sent without a feature). With `projectId` it is the tap target, `notifier://conversation/<projectId>/<conversationKey>` |
 | `priority` | `"1"` to `"5"` |
 | `tags` | Comma-separated, `""` when empty |
-| `clickUrl`, `attachment` | `""` when not set; `attachment` is the file name |
+| `clickUrl`, `attachment` | `""` when not set; `attachment` is the file name. `clickUrl` is not the tap target (a tap opens the thread): the app shows it as an Open action on the notification and an Open button on the message in the thread |
 | `conversation*`, `sender*` | Flattened `conversation` and `sender`; each `""` when not set |
 | `actions` | JSON string of the stored actions, or `""` |
 | `createdAt` | Unix milliseconds |
