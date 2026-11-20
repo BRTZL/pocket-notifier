@@ -1,10 +1,14 @@
 import { defineRequestState } from "@better-auth/core/context";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import { expo } from "@better-auth/expo";
+import { mcp, requireMcpAuth } from "@better-auth/mcp";
+import { verifyOAuthQueryParams } from "@better-auth/oauth-provider";
 import type { Database } from "@notifier/db";
-import * as schema from "@notifier/db/schema/auth";
+import * as authSchema from "@notifier/db/schema/auth";
+import * as oauthSchema from "@notifier/db/schema/oauth";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
+import { jwt } from "better-auth/plugins";
 
 import {
   claimInvite,
@@ -21,7 +25,49 @@ export type AuthConfig = {
   CORS_ORIGIN: string;
 };
 
+const schema = { ...authSchema, ...oauthSchema };
+
 const SIGN_UP_PATH = "/sign-up/email";
+
+const TRAILING_SLASHES = /\/+$/u;
+
+/** Scopes of the notifier MCP server. `notifier:write` sends notifications and edits features. */
+export const MCP_SCOPES = ["notifier:read", "notifier:write"] as const;
+
+/** Paths of the Worker's own sign-in and consent pages for MCP clients (`apps/server`). */
+export const OAUTH_LOGIN_PATH = "/oauth/login";
+export const OAUTH_CONSENT_PATH = "/oauth/consent";
+
+/** The MCP endpoint, which is the OAuth protected resource: `<BETTER_AUTH_URL>/mcp`. */
+export function mcpResourceUrl(env: Pick<AuthConfig, "BETTER_AUTH_URL">): string {
+  return `${env.BETTER_AUTH_URL.replace(TRAILING_SLASHES, "")}/mcp`;
+}
+
+/**
+ * OAuth 2.1 provider for MCP clients (Claude Code, Codex, any MCP client): dynamic client
+ * registration for public clients with PKCE, tokens audience-bound to the MCP endpoint
+ * and signed with the `jwt` plugin's keys. Sign-in and consent happen on the Worker's own
+ * pages; sign-up stays invite-only and is not offered there.
+ */
+function mcpProvider(env: AuthConfig) {
+  return [
+    // Only signs OAuth access tokens: no `set-auth-jwt` header, and `/token` is disabled.
+    jwt({ disableSettingJwtHeader: true }),
+    mcp({
+      resource: mcpResourceUrl(env),
+      loginPage: OAUTH_LOGIN_PATH,
+      consentPage: OAUTH_CONSENT_PATH,
+      scopes: ["openid", "profile", "email", "offline_access", ...MCP_SCOPES],
+      // CLI clients register themselves on first use (RFC 7591), without a session.
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      // Clients that omit application_type with a loopback callback register as native.
+      clientRegistrationDefaultApplicationType: "infer",
+      accessTokenExpiresIn: 60 * 60,
+      refreshTokenExpiresIn: 30 * 24 * 60 * 60,
+    }),
+  ];
+}
 const INVITE_REQUIRED = "Sign-up needs a valid invite code (inviteCode)";
 const INVITE_UNUSABLE = "This invite is invalid, expired or already used";
 const EMAIL_MISMATCH = "This invite is for a different email address";
@@ -160,6 +206,7 @@ export function createAuth(
       provider: "sqlite",
       schema,
     }),
+    disabledPaths: ["/token"],
     trustedOrigins: [
       env.CORS_ORIGIN,
       ...desktopOrigins,
@@ -178,8 +225,40 @@ export function createAuth(
         httpOnly: true,
       },
     },
-    plugins: [expo()],
+    plugins: [expo(), ...mcpProvider(env)],
   });
 }
 
 export type Session = ReturnType<typeof createAuth>["$Infer"]["Session"];
+
+export type Auth = ReturnType<typeof createAuth>;
+
+/** Verified access-token claims: `sub` is the user id, `azp` the OAuth client id. */
+export type McpAccessClaims = { sub?: string; azp?: unknown; client_id?: unknown; scope?: unknown };
+
+/**
+ * Protects the MCP endpoint: verifies the bearer access token (signature, issuer, the
+ * `/mcp` audience, expiry, both notifier scopes) and passes its claims to `handler`.
+ * Without a usable token it answers 401 with
+ * `WWW-Authenticate: Bearer resource_metadata="<server>/.well-known/oauth-protected-resource/mcp"`.
+ * The challenge also asks for `offline_access`, so clients get a refresh token.
+ */
+export function protectMcp(
+  auth: Auth,
+  env: Pick<AuthConfig, "BETTER_AUTH_URL">,
+  handler: (request: Request, claims: McpAccessClaims) => Promise<Response>,
+) {
+  return requireMcpAuth(auth, handler, {
+    resource: mcpResourceUrl(env),
+    requiredScopes: MCP_SCOPES,
+    challengeScopes: [...MCP_SCOPES, "offline_access"],
+  });
+}
+
+/** True when `oauthQuery` (from the sign-in or consent page URL) has a valid, unexpired signature. */
+export function verifyOAuthQuery(
+  env: Pick<AuthConfig, "BETTER_AUTH_SECRET">,
+  oauthQuery: string,
+): Promise<boolean> {
+  return verifyOAuthQueryParams(oauthQuery, env.BETTER_AUTH_SECRET);
+}
