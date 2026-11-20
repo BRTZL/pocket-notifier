@@ -73,7 +73,7 @@ export default Alchemy.Stack(
   Effect.gen(function* () {
     const serverWorker = yield* server;
     // The docs site (apps/fumadocs) is a static export. Its small Worker only runs for
-    // `/docs/*`, to serve the Markdown versions of the pages.
+    // `/docs` and `/docs/*`, to serve the Markdown versions of the pages.
     const docsWorker = yield* Cloudflare.Website.StaticSite("docs", {
       cwd: "../../apps/fumadocs",
       command: "pnpm run build",
@@ -84,7 +84,7 @@ export default Alchemy.Stack(
       assets: {
         htmlHandling: "auto-trailing-slash",
         notFoundHandling: "404-page",
-        runWorkerFirst: ["/docs/*"],
+        runWorkerFirst: ["/docs", "/docs/*"],
       },
       domain: { name: DOMAIN, zoneName: ZONE },
       workersDev: false,

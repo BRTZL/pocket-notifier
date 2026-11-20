@@ -1,6 +1,6 @@
 /**
  * The docs site's Worker. The site itself is a static export (`out/`) served from
- * Workers static assets; this Worker only runs for `/docs/*` and serves the Markdown
+ * Workers static assets; this Worker only runs for `/docs` and `/docs/*` and serves the Markdown
  * version of a page, which the build writes to `/llms.mdx/docs/<page>.md`:
  *
  * - `/docs/<page>.md` always gets the Markdown file.
