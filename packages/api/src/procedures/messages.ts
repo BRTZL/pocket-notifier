@@ -1,6 +1,7 @@
+import type { ConversationRef } from "@notifier/contract/conversation";
 import { MessageId } from "@notifier/contract/message";
 import { message, messageRead, topic, topicMember } from "@notifier/db/schema/notifier";
-import { and, eq, lt, lte, sql } from "drizzle-orm";
+import { and, eq, lt, lte, type SQL, sql } from "drizzle-orm";
 
 import { authed } from "../base";
 import { appError } from "../lib/errors";
@@ -18,15 +19,25 @@ import {
 } from "../lib/messages";
 import { requireMember, requireMemberOf } from "../lib/topic-access";
 
+/** Messages of one conversation; matches `message_topicId_conversationKey_id_idx`. */
+function inConversation(ref: ConversationRef) {
+  return and(eq(message.topicId, ref.topicId), eq(message.conversationKey, ref.key));
+}
+
 const list = authed.messages.list.handler(async ({ context, input }) => {
   const { db } = context;
   const userId = context.session.user.id;
   if (input.topicId) {
     await requireMember(db, input.topicId, userId);
   }
+  const { conversation } = input;
+  if (conversation && conversation.topicId !== input.topicId) {
+    await requireMember(db, conversation.topicId, userId);
+  }
   const cursor = parseCursor(MessageId, input.cursor);
   const rows = await selectInbox(db, userId, [
     input.topicId ? eq(message.topicId, input.topicId) : undefined,
+    conversation ? inConversation(conversation) : undefined,
     input.unreadOnly ? unreadOnly() : undefined,
     cursor ? lt(message.id, cursor) : undefined,
   ]).limit(input.limit + 1);
@@ -46,14 +57,18 @@ const get = authed.messages.get.handler(async ({ context, input }) => {
 const markRead = authed.messages.markRead.handler(async ({ context, input }) => {
   const { db } = context;
   const userId = context.session.user.id;
-  const filter =
-    "ids" in input
-      ? // One JSON parameter instead of one per id: D1 allows 100 bound parameters per query.
-        sql`${message.id} in (select value from json_each(${JSON.stringify(input.ids)}))`
-      : and(
-          lte(message.id, input.upTo),
-          input.topicId ? eq(message.topicId, input.topicId) : undefined,
-        );
+  let filter: SQL | undefined;
+  if ("ids" in input) {
+    // One JSON parameter instead of one per id: D1 allows 100 bound parameters per query.
+    filter = sql`${message.id} in (select value from json_each(${JSON.stringify(input.ids)}))`;
+  } else if ("upTo" in input) {
+    filter = and(
+      lte(message.id, input.upTo),
+      input.topicId ? eq(message.topicId, input.topicId) : undefined,
+    );
+  } else {
+    filter = inConversation(input.conversation);
+  }
 
   const inserted = await db
     .insert(messageRead)

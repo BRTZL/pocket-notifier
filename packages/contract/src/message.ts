@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { Conversation, Sender } from "./avatar";
 import { idSchema, PageInput, Timestamp, UserSummary } from "./common";
+import { ConversationRef } from "./conversation";
 import { Priority } from "./priority";
 import { TopicId, TopicName } from "./topic";
 
@@ -155,12 +156,16 @@ export type InboxMessage = z.infer<typeof InboxMessage>;
 export const ListMessagesInput = PageInput.extend({
   topicId: TopicId.optional(),
   unreadOnly: z.boolean().default(false),
+  /** Only this conversation's messages. Still newest first; the app reverses a thread. */
+  conversation: ConversationRef.optional(),
 });
 
 export const MarkReadInput = z.union([
   z.object({ ids: z.array(MessageId).min(1).max(100) }),
   /** Marks everything up to and including this message, optionally within one topic. */
   z.object({ upTo: MessageId, topicId: TopicId.optional() }),
+  /** Marks every message of one conversation. */
+  z.object({ conversation: ConversationRef }),
 ]);
 
 export const UploadAttachmentOutput = z.object({

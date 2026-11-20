@@ -2,6 +2,7 @@ import { oc } from "@orpc/contract";
 import { z } from "zod";
 
 import { PageInput, pageOf, UserSummary } from "./common";
+import { ConversationSummary, ListConversationsInput } from "./conversation";
 import { Device, DeviceId, RegisterDeviceInput, RenameDeviceInput } from "./device";
 import { ERRORS } from "./errors";
 import {
@@ -68,8 +69,19 @@ export const appContract = {
     remove: authed.input(z.object({ topicId: TopicId, userId: z.string().min(1) })).output(Ok),
   },
 
+  conversations: {
+    /**
+     * The chat-style inbox: one row per conversation in the caller's topics, ordered by
+     * last message, newest first.
+     */
+    list: authed.input(ListConversationsInput).output(pageOf(ConversationSummary)),
+  },
+
   messages: {
-    /** The combined inbox, or one topic when `topicId` is set. Newest first. */
+    /**
+     * The combined inbox, or one topic when `topicId` is set, or one conversation when
+     * `conversation` is set. Newest first.
+     */
     list: authed.input(ListMessagesInput).output(pageOf(InboxMessage)),
     get: authed.input(ById(MessageId)).output(InboxMessage),
     markRead: authed.input(MarkReadInput).output(z.object({ updated: z.number().int() })),

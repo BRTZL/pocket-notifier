@@ -88,7 +88,8 @@ export async function publishMessage(
   return row;
 }
 
-function parseStored<T extends z.ZodType>(
+/** Parses a stored JSON column with a contract schema; a bad row throws (a 500). */
+export function parseStored<T extends z.ZodType>(
   schema: T,
   json: string | null,
   field: string,

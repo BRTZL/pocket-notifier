@@ -2,6 +2,7 @@ import type { AppContract } from "@notifier/contract/app";
 import type { Router, RouterClient } from "@orpc/server";
 
 import type { Context } from "./context";
+import { conversationsRouter } from "./procedures/conversations";
 import { devicesRouter } from "./procedures/devices";
 import { invitesRouter } from "./procedures/invites";
 import { meRouter } from "./procedures/me";
@@ -16,6 +17,7 @@ export const appRouter = {
   me: meRouter,
   topics: topicsRouter,
   members: membersRouter,
+  conversations: conversationsRouter,
   messages: messagesRouter,
   responses: responsesRouter,
   tokens: tokensRouter,

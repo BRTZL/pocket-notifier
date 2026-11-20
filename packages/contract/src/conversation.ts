@@ -1,0 +1,55 @@
+import { z } from "zod";
+
+import { idSchema, PageInput, Timestamp } from "./common";
+import { Priority } from "./priority";
+import { TopicId, TopicName } from "./topic";
+
+/**
+ * Conversations group a topic's messages for the chat-style inbox. Each is scoped to
+ * one topic: the same conversation id in two topics is two conversations.
+ *
+ * - `c:<conversation.id>`: messages published with that `conversation`.
+ * - `t:<topic id>`: the topic's messages without a conversation.
+ */
+export const ConversationKey = z
+  .string()
+  .regex(/^(?:c:.{1,64}|t:top_[0-9a-z]{26})$/u, "Expected a conversation key");
+
+export const ConversationRef = z
+  .object({ topicId: TopicId, key: ConversationKey })
+  .refine((ref) => !ref.key.startsWith("t:") || ref.key === `t:${ref.topicId}`, {
+    message: "A topic conversation key must name its own topic",
+    path: ["key"],
+  });
+export type ConversationRef = z.infer<typeof ConversationRef>;
+
+/** Longest `lastMessage.body` preview, in UTF-16 code units. */
+export const CONVERSATION_PREVIEW_LENGTH = 140;
+
+/** A row of the conversation inbox, described by its latest non-expired message. */
+export const ConversationSummary = z.object({
+  topicId: TopicId,
+  topic: TopicName,
+  key: ConversationKey,
+  /** `conversation.title`, else `conversation.id`, else the topic's display name or name. */
+  title: z.string().min(1),
+  iconUrl: z.url().nullable(),
+  kind: z.enum(["conversation", "topic"]),
+  lastMessage: z.object({
+    id: idSchema("message"),
+    title: z.string().nullable(),
+    /** The body on one line, cut to `CONVERSATION_PREVIEW_LENGTH`. */
+    body: z.string().max(CONVERSATION_PREVIEW_LENGTH),
+    /** `sender.name`, else `sender.id`; `null` without a sender. */
+    senderName: z.string().nullable(),
+    priority: Priority,
+    createdAt: Timestamp,
+  }),
+  unreadCount: z.number().int().min(0),
+  /** The caller's subscription to the topic is muted. */
+  muted: z.boolean(),
+});
+export type ConversationSummary = z.infer<typeof ConversationSummary>;
+
+/** `cursor` is the `lastMessage.id` of the previous page's last item. */
+export const ListConversationsInput = PageInput;
