@@ -65,8 +65,12 @@ Without a valid open invite, every sign-up gets the same `403`, whether or not t
 | Change topic settings and retention | ✓ | | |
 | Add, change and remove members | ✓ | | |
 | Delete messages or the topic | ✓ | | |
+| Create features (projects' workstreams) | ✓ | ✓ | |
+| Change a feature's status | ✓ | | |
 
 A topic can have more than one owner. The last owner cannot leave or be demoted.
+
+<Status kind="decided" /> Each user also has a private **General** project (a topic with `personal: true`) that takes notifications sent without a project. Only its owner is ever a member: adding members, granting it in an invite and deleting it are refused.
 
 Membership controls access. A **subscription** controls pushes: members are subscribed when they join, and each person can unsubscribe or mute a topic. A muted topic still fills the inbox but sends no push.
 
@@ -82,6 +86,8 @@ Authorization: Bearer nt_4fK9qL2mXw8RtY1vB6nC3dE7gH0jP5sA9zU2iO4k
 - **Scope.** Either `all`, meaning every topic where the owner is `owner` or `publisher` (including topics added later), or a list of topic names.
 - **Effective permission.** A token may publish to a topic only if it is in the token's scope **and** the token's owner is currently an `owner` or `publisher` there. Removing a person from a topic immediately stops their tokens for it.
 - **Expiry.** Optional, from 1 to 365 days. `lastUsedAt` is updated on use so stale tokens are easy to spot.
+
+<Status kind="decided" /> **MCP clients** (Claude Code, Codex) do not use access tokens. They sign in through the browser with OAuth and act as the signed-in user, with that user's roles. See [MCP server](/docs/api/mcp#oauth).
 
 <Status kind="decided" /> Tokens live in notifier's own `access_token` table rather than the better-auth `api-key` plugin, so the topic scope and the contract stay in one place.
 

@@ -19,9 +19,12 @@ const inbox = await client.messages.list({ unreadOnly: true });
 | Namespace | Procedure | What it does |
 | --- | --- | --- |
 | `me` | `get` | The signed-in user |
-| `topics` | `list` | Topics the user is a member of, with role, subscription, unread count |
+| `topics` | `list` | Topics the user is a member of, with role, subscription, unread count; includes the private General project (`personal: true`) |
 | | `get` / `create` / `update` / `delete` | Manage one topic (`update` and `delete` need `owner`) |
 | | `setSubscription` | Subscribe, unsubscribe, mute |
+| `features` | `list` | A project's features, optionally one `status`, most recent activity first |
+| | `create` | New feature, idempotent by slug (`owner` or `publisher`) |
+| | `updateStatus` | `active`, `done` or `archived` (`owner` only) |
 | `members` | `list` / `add` / `update` / `remove` | Manage a topic's members (`owner` only, except `list`) |
 | `messages` | `list` | Inbox, or one topic with `topicId`; `unreadOnly` filter |
 | | `get` | One message with read state |

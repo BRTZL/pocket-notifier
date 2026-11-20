@@ -1,0 +1,96 @@
+---
+title: MCP server
+description: The remote MCP server AI agents use to notify your phone, with OAuth sign-in.
+---
+
+<Status kind="decided" /> The primary way agents (Claude Code, Codex, any MCP client) send notifications is the notifier **MCP server** at `<server>/mcp`. Agents sign in through the browser with your notifier account (OAuth 2.1 with PKCE), so there is no token to copy.
+
+## Connect
+
+```bash title="Claude Code"
+claude mcp add --transport http pocket-notifier https://<server>/mcp
+# then, inside a session: /mcp  →  pocket-notifier  →  Authenticate
+```
+
+```bash title="Codex"
+codex mcp add pocket-notifier --url https://<server>/mcp
+codex mcp login pocket-notifier
+```
+
+The client opens the sign-in page in your browser. Sign in with your notifier email and password, allow access, and the client stores the tokens. Access tokens last 1 hour and refresh tokens 30 days, so you sign in again about once a month.
+
+Sign-up stays invite-only: the sign-in page has no sign-up. Create your account from an invite link first.
+
+## Projects and features
+
+Agents and the app say **project** and **feature**:
+
+- A **project** is a product or repository, for example `rezme`. In the API and database a project is a **topic**, so all topic rules apply: unique names, roles, retention.
+- A **feature** is a workstream inside a project, for example "Improving performance". In the app a feature is a **conversation** (a chat thread): its messages carry `conversation = { id: <feature slug>, title: <feature name> }`.
+- A notification **without a project** goes to your personal **General** project. It is created on first need, is private (no members, no invites, cannot be deleted) and shows up in your topic list with `personal: true`.
+
+Feature slugs are unique per project: lowercase letters, digits and `-`, up to 63 characters, derived from the name when not given (`"Çok hızlı"` becomes `cok-hizli`). A feature has a status, `active`, `done` or `archived`; only owners change it, and sending never changes it.
+
+## Tools
+
+| Tool | Input | What it does |
+| --- | --- | --- |
+| `list_projects` | none | Your projects with `name`, `displayName`, `description`, `role`, `isGeneral` and feature counts by status. Creates General if needed. |
+| `create_project` | `name`, `displayName?`, `description?` | Creates a project owned by you. Idempotent: an existing project you own or publish to is returned. A name taken by someone else is an error: pick another name. |
+| `list_features` | `project`, `status?` (`active` default, `done`, `archived`, `all`) | A project's features, most recent activity first. |
+| `create_feature` | `project`, `name`, `slug?`, `description?` | Creates a feature. Idempotent by slug. Owners and publishers. |
+| `update_feature_status` | `project`, `feature`, `status` | Sets `active`, `done` or `archived`. Owners only. |
+| `send_notification` | `project?`, `feature?`, `title`, `body?`, `priority?`, `tags?`, `url?`, `ask?`, `actions?` | Sends a push. See below. Owners and publishers. |
+
+`project` is a project name as `list_projects` shows it. `general` also names your General project, unless you have a project actually called `general`. `feature` is a slug or a name (any case).
+
+### send_notification
+
+- **Where it goes.** `project` omitted: General. `feature` omitted: the project itself, no thread.
+- **Feature auto-create rule.** `feature` is matched by slug, then by name (any case), then by the slug of the given text. If nothing matches, a feature with that text as its name is created, and the result says `created: true`. Agents can send to their current workstream without creating it first.
+- **`title`** is the outcome, at most 32 characters by convention (the API allows 250). **`body`** is one line.
+- **`priority`** 1 to 5: 2 low (FYI), 3 normal (the default for done), 4 high (blocked on a decision), 5 urgent (production or data at risk). Omitted: the project's default priority.
+- **`url`** is opened when the notification is tapped.
+- **`ask`** `{ question?, quickReplies? (up to 3), allowText? (default true) }` adds a `reply` action, and the question is appended to the body. The app's thread composer answers it. Agents cannot read the reply through MCP in this version.
+- **`actions`** up to 2 link buttons `{ label, url }`.
+- **Sender.** The message's `sender` is the OAuth client: `{ id: <client_id>, name: <client_name> }`, for example "Claude Code". `publishedBy` is you.
+
+The result has `messageId`, `project`, `isGeneral`, `feature` (`slug`, `name`, `created`) and `deliveredTo`, the number of subscribed, unmuted devices of the project.
+
+Tool errors are written for agents, for example `Project 'x' not found. Call list_projects to see your projects, or create_project to add it.`
+
+## Protocol
+
+- **Transport.** Streamable HTTP, stateless: every `POST /mcp` is answered on its own (one JSON body or a one-event SSE stream). `GET` and `DELETE` return `405`. No sessions, no Durable Objects.
+- **Auth.** `Authorization: Bearer <access token>` on every request. Without a valid token the answer is `401` with
+
+  ```http
+  WWW-Authenticate: Bearer resource_metadata="https://<server>/.well-known/oauth-protected-resource/mcp", scope="notifier:read notifier:write offline_access"
+  ```
+
+- **Instructions.** The server sends a short guide (when to notify, how to pick project and feature, priorities) as MCP `instructions`. The full version is the `pocket-notifier` agent skill at `skills/pocket-notifier/SKILL.md` in the repository.
+
+## OAuth
+
+The authorization server is better-auth's OAuth 2.1 provider (`@better-auth/mcp`), issuer `https://<server>/api/auth`.
+
+| What | Where |
+| --- | --- |
+| Protected-resource metadata (RFC 9728) | `/.well-known/oauth-protected-resource/mcp` (also without `/mcp`) |
+| Authorization-server metadata (RFC 8414) | `/.well-known/oauth-authorization-server/api/auth`, `/api/auth/.well-known/openid-configuration` |
+| Dynamic client registration (RFC 7591) | `POST /api/auth/oauth2/register` |
+| Authorize | `GET /api/auth/oauth2/authorize` |
+| Token | `POST /api/auth/oauth2/token` |
+| Signing keys | `GET /api/auth/jwks` |
+| Sign-in and consent pages | `/oauth/login`, `/oauth/consent` |
+
+- **Clients** register themselves without a session as public clients (`token_endpoint_auth_method: "none"`) and must use PKCE with `S256`. A client that omits `application_type` and uses a loopback or custom-scheme redirect registers as a native app.
+- **Redirects.** `http://127.0.0.1:<port>/…`, `http://localhost:<port>/…` and `http://[::1]:<port>/…` are accepted; the port may differ from the registered one (RFC 8252). Other `http:` redirects are refused.
+- **Scopes.** `notifier:read` and `notifier:write` (both required by `/mcp`), `offline_access` for a refresh token, plus `openid`, `profile`, `email`.
+- **Tokens.** Access tokens are JWTs signed with the server's Ed25519 key, with the `/mcp` URL as audience, `sub` = user id, `azp` = client id; they last 1 hour. Refresh tokens last 30 days and rotate on use.
+- **Consent** is asked once per client and scope set. The page shows the client's name and where it returns to.
+- **Pages.** The sign-in and consent pages are plain HTML forms served by the Worker. Their posts must come from the same origin, and they cannot be framed.
+
+## Fallback: REST and agent-notify
+
+Scripts without MCP keep using [`POST /v1/topics/{topic}/messages`](/docs/api/publish) with an access token, for example `agent-notify`. See [Coding agents](/docs/product/agents).

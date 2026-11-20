@@ -29,10 +29,15 @@ description: Every v1 design decision, whether it is settled, and where it is ex
 | Tap | Opens the click URL if set, otherwise the message in the app | [Notifications](/docs/mobile/notifications#tapping) |
 | Navigation | Three native tabs: Inbox, Topics, Settings | [Navigation](/docs/mobile/navigation) |
 | Main use case | Coding agents in T3 Code notify when done, blocked or failing | [Coding agents](/docs/product/agents) |
-| Agent layout | One `agents` topic; each project is a conversation, each agent a sender | [Coding agents](/docs/product/agents#topic-layout) |
+| Agent entry point | A remote MCP server at `/mcp` is the primary path; `agent-notify` over REST stays as the fallback | [MCP server](/docs/api/mcp) |
+| Project and feature | Agents say project (a topic) and feature (a workstream, shown as a conversation); feature status `active`, `done`, `archived` | [MCP server](/docs/api/mcp#projects-and-features) |
+| General project | Notifications without a project go to a private, per-user General project, created on first need | [MCP server](/docs/api/mcp#projects-and-features) |
+| Feature auto-create | Sending to a feature that does not exist creates it from the given name | [MCP server](/docs/api/mcp#send_notification) |
+| MCP sign-in | OAuth 2.1 with PKCE and dynamic client registration, from better-auth's MCP provider; sign-in and consent pages served by the Worker | [MCP server](/docs/api/mcp#oauth) |
+| Agent layout | With MCP each project is a topic and each feature a conversation; with REST, one `agents` topic | [Coding agents](/docs/product/agents#topic-layout) |
 | Avatars | Project avatar with agent badge, chat-style (`MessagingStyle`) | [Notifications](/docs/mobile/notifications#conversations-and-avatars) |
 | Avatar source | Generated initials and color; an HTTPS `iconUrl` overrides | [Notifications](/docs/mobile/notifications#generated-avatars) |
-| Answering agents | Tap opens the T3 Code thread; no reply path back to agents | [Coding agents](/docs/product/agents) |
+| Answering agents | Agents can ask with a `reply` action; they cannot read replies through MCP yet | [MCP server](/docs/api/mcp#send_notification) |
 
 ## Open
 

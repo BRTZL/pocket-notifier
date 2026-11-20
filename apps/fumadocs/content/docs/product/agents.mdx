@@ -5,6 +5,28 @@ description: The main use case, coding agents in T3 Code telling you when they a
 
 Most notifier messages will come from coding agents (Claude, Codex) running in T3 Code. An agent publishes when a task is done, when it is blocked on a decision, or when something fails, so you can step away from the screen and come back only when needed.
 
+## How agents connect
+
+<Status kind="decided" /> The primary path is the notifier **[MCP server](/docs/api/mcp)**. You add it once per agent and sign in through the browser:
+
+```bash
+claude mcp add --transport http pocket-notifier https://<server>/mcp
+codex mcp add pocket-notifier --url https://<server>/mcp && codex mcp login pocket-notifier
+```
+
+The agent then calls `list_projects`, `list_features` and `send_notification`. The [`pocket-notifier` skill](#the-agent-skill) tells it when and how.
+
+<Status kind="decided" /> `agent-notify` over the REST API stays as the **fallback** for scripts and agents without MCP. See [Fallback: agent-notify over REST](#fallback-agent-notify-over-rest).
+
+## Projects and features
+
+<Status kind="decided" /> Agents and the app use two words:
+
+- **Project**: the product or repository, for example `rezme`. A project is a topic underneath.
+- **Feature**: the workstream inside a project, for example "Improving performance". In the app each feature is a chat thread (a conversation).
+
+Agents check that the project and feature exist and create them if not. A notification without a project goes to your private **General** project. See [Projects and features](/docs/api/mcp#projects-and-features).
+
 ## What it looks like
 
 ```text
@@ -19,15 +41,23 @@ Most notifier messages will come from coding agents (Claude, Codex) running in T
   C / X    agent badge (Claude, Codex)
 ```
 
-<Status kind="decided" /> Each project is a **conversation**: its avatar is the large icon, and its messages stack together. The agent is the **sender**: a small badge on the avatar and its name next to the project. See [Conversations and avatars](/docs/mobile/notifications#conversations-and-avatars).
+<Status kind="decided" /> Each feature is a **conversation**: its avatar is the large icon, and its messages stack together. The agent is the **sender**: a small badge on the avatar and its name (the OAuth client name, for example "Claude Code") next to the title. See [Conversations and avatars](/docs/mobile/notifications#conversations-and-avatars).
 
-<Status kind="decided" /> Tapping opens the agent's **T3 Code thread**: the agent sends the thread URL as `clickUrl`. You answer the agent in T3 Code, not from the notification. notifier has no path back to the agent.
+<Status kind="decided" /> Tapping opens the `url` the agent sent, for example its T3 Code thread. Agents can ask a question with `ask` and you can answer in the app, but agents cannot read replies through MCP yet.
 
 ## Topic layout
 
-All agents publish to one topic, `agents`. The project in `conversation.id` does the grouping, so there is no need for a topic per project, and muting the `agents` topic silences every agent at once.
+<Status kind="decided" /> With MCP, each project is its own topic, and each feature a conversation in it. Muting a project silences its agents.
 
-## Message kinds
+With the REST fallback, agents publish to one topic, `agents`, and the project in `conversation.id` does the grouping.
+
+## The agent skill
+
+`skills/pocket-notifier/SKILL.md` at the repository root is an agent skill: how to connect, when to notify, how to name project and feature, title and body style, priorities, and to never send secrets. The MCP server sends a short version of it as its `instructions`.
+
+## Fallback: agent-notify over REST
+
+### Message kinds
 
 The kinds `agent-notify` uses today map onto notifier fields like this:
 
@@ -40,7 +70,7 @@ The kinds `agent-notify` uses today map onto notifier fields like this:
 | `build-ok` | Long build or CI run passed | 3 | `build` |
 | `build-fail` | Long build or CI run failed | 4 | `build`, `fail` |
 
-## The request an agent sends
+### The request an agent sends
 
 ```bash title="What agent-notify sends after the switch"
 curl -X POST "$NOTIFIER_URL/v1/topics/agents/messages" \
@@ -61,7 +91,7 @@ curl -X POST "$NOTIFIER_URL/v1/topics/agents/messages" \
 - **`sender`** is the agent. `agent-notify` already detects Claude or Codex, so it sets this automatically.
 - **Title.** The project now shows in the conversation header, so the title no longer needs the `<project>: ` prefix.
 
-## Moving `agent-notify` over
+### Moving `agent-notify` over
 
 The script keeps its interface (`agent-notify <kind> <title> <body> [--url] [--action] [--image]`), its length checks and its 10-minute duplicate check. Only the request changes:
 
