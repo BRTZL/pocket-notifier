@@ -87,17 +87,24 @@ export function conversationsQuery(
 const WHITESPACE = /\s+/gu;
 const ELLIPSIS = "…";
 
-/** The body on one line, cut to the preview length without splitting a surrogate pair. */
+const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+/**
+ * The body on one line, cut to the preview length (ellipsis included) at a grapheme
+ * boundary, so a flag or a ZWJ emoji is kept whole or left out, never split.
+ */
 export function previewOf(body: string) {
   const line = body.replace(WHITESPACE, " ").trim();
   if (line.length <= CONVERSATION_PREVIEW_LENGTH) {
     return line;
   }
-  let cut = CONVERSATION_PREVIEW_LENGTH - ELLIPSIS.length;
-  const last = line.charCodeAt(cut - 1);
-  // A high surrogate at the end would be half a character.
-  if (last >= 0xd8_00 && last <= 0xdb_ff) {
-    cut -= 1;
+  const room = CONVERSATION_PREVIEW_LENGTH - ELLIPSIS.length;
+  let cut = 0;
+  for (const { index, segment } of graphemes.segment(line)) {
+    if (index + segment.length > room) {
+      break;
+    }
+    cut = index + segment.length;
   }
   return `${line.slice(0, cut).trimEnd()}${ELLIPSIS}`;
 }

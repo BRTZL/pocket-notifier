@@ -114,9 +114,11 @@ export const message = sqliteTable(
     senderJson: text("sender_json"),
     /**
      * Which conversation of its topic the message belongs to: `c:<conversation.id>`, or
-     * `t:<topic id>` for messages without a conversation. Set at publish.
+     * `t:<topic id>` for messages without a conversation. Set at publish. The `''`
+     * default matches the column the migration added; the
+     * `message_conversation_key_default` trigger replaces it with the derived key.
      */
-    conversationKey: text("conversation_key").notNull(),
+    conversationKey: text("conversation_key").default("").notNull(),
     publishedBy: text("published_by").references(() => user.id, { onDelete: "set null" }),
     tokenId: text("token_id").references(() => accessToken.id, { onDelete: "set null" }),
     createdAt: createdAt(),

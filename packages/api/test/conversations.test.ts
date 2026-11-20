@@ -3,7 +3,7 @@ import { message } from "@notifier/db/schema/notifier";
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { conversationsQuery } from "../src/lib/conversations";
+import { conversationsQuery, previewOf } from "../src/lib/conversations";
 import { selectInbox } from "../src/lib/messages";
 import { createTestDb, type TestDb } from "./db";
 import {
@@ -234,6 +234,27 @@ describe("conversations", () => {
     });
   });
 
+  describe("preview", () => {
+    it("cuts at grapheme boundaries within 140 UTF-16 units, ellipsis included", () => {
+      const ascii = "a".repeat(137);
+      // The flag (4 units) would end at 141 > 139, so it is left out whole.
+      expect(previewOf(`${ascii}🇹🇷xyz`)).toBe(`${ascii}…`);
+      const fitsFlag = "a".repeat(135);
+      expect(previewOf(`${fitsFlag}🇹🇷xyz`)).toBe(`${fitsFlag}🇹🇷…`);
+
+      const family = "👨‍👩‍👧‍👦"; // 11 UTF-16 units, one grapheme
+      const before = "b".repeat(130);
+      const cutFamily = previewOf(`${before}${family}tail`);
+      expect(cutFamily).toBe(`${before}…`);
+      const keepFamily = previewOf(`${"b".repeat(128)}${family}tail`);
+      expect(keepFamily).toBe(`${"b".repeat(128)}${family}…`);
+      for (const preview of [cutFamily, keepFamily]) {
+        expect(preview.length).toBeLessThanOrEqual(140);
+      }
+      expect(previewOf("short\n text")).toBe("short text");
+    });
+  });
+
   describe("messages.list by conversation", () => {
     it("walks the conversation index in id order", async () => {
       const query = selectInbox(testDb.db, bob.id, [
@@ -352,6 +373,39 @@ describe("conversations", () => {
 });
 
 describe("conversation_key migration", () => {
+  it("derives the key for an insert that leaves it out", async () => {
+    const testDb = await createTestDb();
+    try {
+      const { db, d1 } = testDb;
+      const ada = await seedUser(db, "ada");
+      const owner = clientFor(db, ada);
+      const { id: topicId } = await owner.topics.create({ name: "raw" });
+      const later = Date.now() + 86_400_000;
+      const insert = d1.prepare(
+        `insert into message (id, topic_id, body, priority, tags_json, actions_json, conversation_json, expires_at)
+         values (?, ?, ?, 3, '[]', '[]', ?, ?)`,
+      );
+      await d1.batch([
+        insert.bind("msg_01jd8x5k2m9q7r4t6v8w0y0001", topicId, "plain", null, later),
+        insert.bind("msg_01jd8x5k2m9q7r4t6v8w0y0002", topicId, "conv", '{"id":"alpha"}', later),
+      ]);
+
+      const rows = await db
+        .select({ id: message.id, key: message.conversationKey })
+        .from(message)
+        .where(eq(message.topicId, topicId))
+        .orderBy(message.id);
+      expect(rows.map((row) => row.key)).toEqual([`t:${topicId}`, "c:alpha"]);
+      const { items } = await owner.conversations.list({});
+      expect(items.map((item) => [item.key, item.lastMessage.body])).toEqual([
+        ["c:alpha", "conv"],
+        [`t:${topicId}`, "plain"],
+      ]);
+    } finally {
+      await testDb.dispose();
+    }
+  });
+
   it("backfills existing messages from conversation_json or the topic", async () => {
     const testDb = await createTestDb({ stopBefore: CONVERSATION_KEY_MIGRATION });
     try {
