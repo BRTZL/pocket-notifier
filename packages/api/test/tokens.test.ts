@@ -48,6 +48,21 @@ describe("tokens", () => {
     expect(JSON.stringify(listed)).not.toContain(secret);
   });
 
+  it("lists expired tokens that are not revoked", async () => {
+    const client = clientFor(testDb.db, ada);
+    const { token } = await client.tokens.create({
+      name: "old",
+      scope: { kind: "all" },
+      expiresInDays: 1,
+    });
+    const past = new Date(Date.now() - 1000);
+    await testDb.db
+      .update(accessToken)
+      .set({ expiresAt: past })
+      .where(eq(accessToken.id, token.id));
+    expect(await client.tokens.list()).toEqual([{ ...token, expiresAt: past.toISOString() }]);
+  });
+
   it("lists only the caller's non-revoked tokens, newest first", async () => {
     const client = clientFor(testDb.db, ada);
     const first = await client.tokens.create({ name: "one", scope: { kind: "all" } });

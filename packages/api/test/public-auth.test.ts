@@ -3,7 +3,7 @@ import { accessToken } from "@notifier/db/schema/notifier";
 import { randomBase62 } from "@notifier/db/secrets";
 import { call } from "@orpc/server";
 import { eq } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { authenticateToken, tokenCanPublish, tokenCanRead } from "../src/public/auth";
 import { tokenAuthed } from "../src/public/base";
@@ -67,6 +67,24 @@ describe("bearer token auth", () => {
     await expect(authenticateToken(testDb.db, "Bearer nt_short")).rejects.toMatchObject(
       unauthorized,
     );
+    const badHeaders = [
+      `Bearer\n${secret}`,
+      `Bearer\t${secret}`,
+      `Bearer\u00a0${secret}`,
+      `Bearer  ${secret}`,
+      `Bearer ${secret} `,
+      `Bearer ${secret}\n`,
+    ];
+    const results = await Promise.allSettled(
+      badHeaders.map((header) => authenticateToken(testDb.db, header)),
+    );
+    for (const result of results) {
+      expect(result).toMatchObject({ status: "rejected", reason: unauthorized });
+    }
+    // The scheme is case-insensitive.
+    await expect(authenticateToken(testDb.db, `bearer ${secret}`)).resolves.toMatchObject({
+      user: { id: ada.id },
+    });
     await expect(
       authenticateToken(testDb.db, `Bearer ${TOKEN_PREFIX}${randomBase62(40)}`),
     ).rejects.toMatchObject(unauthorized);
@@ -88,6 +106,41 @@ describe("bearer token auth", () => {
       ...unauthorized,
       message: expect.stringContaining("revoked"),
     });
+  });
+
+  it("rejects a token revoked between the lookup and the last_used_at write", async () => {
+    const { token, secret } = await tokenFor(ada, { kind: "all" });
+    const realUpdate = testDb.db.update.bind(testDb.db);
+    const revokeNow = () =>
+      realUpdate(accessToken).set({ revokedAt: new Date() }).where(eq(accessToken.id, token.id));
+    // The lookup has already passed when `update` is called; revoke before the write runs.
+    const spy = vi.spyOn(testDb.db, "update").mockImplementationOnce((table) => {
+      const builder = realUpdate(table);
+      const realSet = builder.set.bind(builder);
+      return Object.assign(builder, {
+        set: (...setArgs: Parameters<typeof realSet>) => {
+          const query = realSet(...setArgs);
+          const realThen = query.then.bind(query);
+          vi.spyOn(query, "then").mockImplementationOnce((onFulfilled, onRejected) =>
+            revokeNow().then(() => realThen(onFulfilled, onRejected)),
+          );
+          return query;
+        },
+      });
+    });
+    try {
+      await expect(authenticateToken(testDb.db, `Bearer ${secret}`)).rejects.toMatchObject(
+        codeError("UNAUTHORIZED"),
+      );
+    } finally {
+      spy.mockRestore();
+    }
+    const [stored] = await testDb.db
+      .select({ lastUsedAt: accessToken.lastUsedAt, revokedAt: accessToken.revokedAt })
+      .from(accessToken)
+      .where(eq(accessToken.id, token.id));
+    expect(stored?.revokedAt).toBeInstanceOf(Date);
+    expect(stored?.lastUsedAt).toBeNull();
   });
 
   it("checks scope, membership and role for publish and read", async () => {

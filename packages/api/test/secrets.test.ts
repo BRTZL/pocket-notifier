@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { randomBase62, sha256Hex } from "@notifier/db/secrets";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const LOWER_HEX_64 = /^[0-9a-f]{64}$/u;
 
@@ -25,6 +25,27 @@ describe("randomBase62", () => {
       expect(randomBase62(length)).toMatch(new RegExp(`^[0-9A-Za-z]{${length}}$`, "u"));
     }
     expect(randomBase62(24)).not.toBe(randomBase62(24));
+  });
+
+  it("discards bytes 248-255 instead of mapping them with a modulo", () => {
+    // 255 % 62 = 7 and 248 % 62 = 0, so kept biased bytes would show up as "7" or "0".
+    const pattern = [255, 248, 10, 250, 61, 249, 251, 252, 253, 254, 0, 247];
+    let next = 0;
+    const spy = vi.spyOn(crypto, "getRandomValues").mockImplementation((array) => {
+      const bytes = array as Uint8Array;
+      bytes.forEach((_, index) => {
+        bytes[index] = pattern[next % pattern.length] ?? 0;
+        next += 1;
+      });
+      return array;
+    });
+    try {
+      // Kept bytes in order: 10 -> "A", 61 -> "z", 0 -> "0", 247 -> 247 % 62 = 61 -> "z".
+      expect(randomBase62(4)).toBe("Az0z");
+      expect(spy).toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("rejects invalid lengths", () => {

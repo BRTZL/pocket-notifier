@@ -3,12 +3,13 @@ import type { Database } from "@notifier/db";
 import { user } from "@notifier/db/schema/auth";
 import { accessToken, topic, topicMember } from "@notifier/db/schema/notifier";
 import { sha256Hex } from "@notifier/db/secrets";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt, isNull, or } from "drizzle-orm";
 
 import { appError } from "../lib/errors";
 import { parseTokenScope } from "../lib/token-scope";
 
-const BEARER = /^Bearer\s+(?<secret>\S+)\s*$/iu;
+/** RFC 6750 shape: scheme, exactly one ASCII space, the token. No other whitespace. */
+const BEARER = /^Bearer (?<secret>nt_[0-9A-Za-z]{40})$/iu;
 
 export type TokenRow = typeof accessToken.$inferSelect;
 export type TokenUser = typeof user.$inferSelect;
@@ -63,7 +64,21 @@ export async function authenticateToken(
     throw unauthorized("This access token has an unreadable scope");
   }
 
-  await db.update(accessToken).set({ lastUsedAt: now }).where(eq(accessToken.id, row.token.id));
+  // Re-checked in the write: a token revoked or expired since the lookup must not pass.
+  const [used] = await db
+    .update(accessToken)
+    .set({ lastUsedAt: now })
+    .where(
+      and(
+        eq(accessToken.id, row.token.id),
+        isNull(accessToken.revokedAt),
+        or(isNull(accessToken.expiresAt), gt(accessToken.expiresAt, now)),
+      ),
+    )
+    .returning({ id: accessToken.id });
+  if (!used) {
+    throw unauthorized("This access token was revoked or has expired");
+  }
   return { token: { ...row.token, lastUsedAt: now }, scope, user: row.user };
 }
 
