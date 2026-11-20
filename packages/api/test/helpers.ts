@@ -43,7 +43,10 @@ export function fakeSession(testUser: TestUser): Session {
   };
 }
 
-export const noopDispatch: Dispatch = { messagePublished: () => undefined };
+export const noopDispatch: Dispatch = {
+  messagePublished: () => undefined,
+  messagesRead: () => undefined,
+};
 
 export function clientFor(
   db: Database,

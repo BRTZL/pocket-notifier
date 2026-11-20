@@ -10,6 +10,7 @@ import {
   codeError,
   definedError,
   nextMillisecond,
+  noopDispatch,
   publicClientFor,
   seedUser,
   type TestUser,
@@ -183,7 +184,7 @@ describe("public messages API", () => {
 
     it("hands the stored message to dispatch once", async () => {
       const messagePublished = vi.fn<Dispatch["messagePublished"]>();
-      const api = publicClientFor(testDb.db, adaSecret, { messagePublished });
+      const api = publicClientFor(testDb.db, adaSecret, { ...noopDispatch, messagePublished });
       const out = await api.messages.publish({ topic: "team", body: "hello", tags: ["ci"] });
       expect(messagePublished).toHaveBeenCalledTimes(1);
       expect(messagePublished).toHaveBeenCalledWith(await api.messages.get({ id: out.id }));
@@ -192,6 +193,7 @@ describe("public messages API", () => {
     it("still succeeds when dispatch throws", async () => {
       const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
       const api = publicClientFor(testDb.db, adaSecret, {
+        ...noopDispatch,
         messagePublished: () => {
           throw new Error("push down");
         },
@@ -331,7 +333,7 @@ describe("public messages API", () => {
           context: {
             db: testDb.db,
             authorization: request.headers.get("Authorization"),
-            dispatch: { messagePublished },
+            dispatch: { ...noopDispatch, messagePublished },
           },
         });
 

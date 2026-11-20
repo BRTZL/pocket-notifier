@@ -4,7 +4,7 @@ import { type BetterAuthInstance, createAuthMiddleware } from "evlog/better-auth
 import { createApp } from "./app";
 import { createContext } from "./context";
 import { ENV } from "./env.server";
-import { createAuth, getDb } from "./services";
+import { createAuth, getDb, requestDispatch } from "./services";
 
 initLogger({
   env: { service: "notifier-server" },
@@ -20,6 +20,7 @@ const app = createApp({
   identifyUser,
   authHandler: async (request) => (await createAuth()).handler(request),
   getDb,
+  createDispatch: requestDispatch,
   createContext: (c) => createContext({ context: c }),
 });
 
