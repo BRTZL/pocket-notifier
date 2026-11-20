@@ -102,10 +102,7 @@ erDiagram
 - **Topic names** are unique across the deployment, because they appear in publish URLs. <Status kind="open" />
 - **Time** is stored as Unix milliseconds in integer columns, like the existing auth tables, and exposed as ISO-8601 strings in the API.
 - **JSON columns** (`tags_json`, `actions_json`, `conversation_json`, `sender_json`, `scope_json`, `grants_json`) are validated with the contract's zod schemas on write and on read. D1 has no JSON column type.
+- **Integrity.** Enum-like columns (`role`, `kind`, `platform`) and `message.priority` have SQL `CHECK` constraints, and `access_token.hash` must be 64 lowercase hex characters, so bad rows fail in the database too.
 - **Read state** is one row per user and message in `message_read`. Unread counts come from messages in the user's topics with no row for that user.
 - **Indexes.** `message (topic_id, id desc)` for history, `message (expires_at)` for cleanup, `device (user_id)`, `topic_member (user_id)`.
 - **Deleting.** Removing a topic cascades to members, subscriptions, messages, reads and responses. Attachment files in R2 are deleted by the retention job, not inside the request.
-
-<Callout type="info" title="If tokens use the better-auth plugin">
-  The `access_token` table is replaced by the plugin's `apikey` table, and the topic scope lives in its `permissions` column. See [Access tokens](/docs/product/access#access-tokens).
-</Callout>

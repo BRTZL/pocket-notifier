@@ -73,9 +73,7 @@ Authorization: Bearer nt_4fK9qL2mXw8RtY1vB6nC3dE7gH0jP5sA9zU2iO4k
 - **Effective permission.** A token may publish to a topic only if it is in the token's scope **and** the token's owner is currently an `owner` or `publisher` there. Removing a person from a topic immediately stops their tokens for it.
 - **Expiry.** Optional, from 1 to 365 days. `lastUsedAt` is updated on use so stale tokens are easy to spot.
 
-<Callout type="idea" title="Open: build tokens on better-auth">
-  better-auth has an `api-key` plugin (`@better-auth/api-key`) that already handles hashing, prefixes, expiry and rate limits. The proposal is to use it and store the topic scope in its `permissions` field, with notifier's own `tokens.*` procedures wrapping it. If its permission model does not fit, notifier gets its own `access_token` table with the same contract. <Status kind="open" />
-</Callout>
+<Status kind="decided" /> Tokens live in notifier's own `access_token` table rather than the better-auth `api-key` plugin, so the topic scope and the contract stay in one place.
 
 ## What is checked where
 
