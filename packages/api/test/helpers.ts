@@ -3,6 +3,8 @@ import type { Database } from "@notifier/db";
 import { user } from "@notifier/db/schema/auth";
 import { createRouterClient } from "@orpc/server";
 
+import type { Dispatch } from "../src/dispatch";
+import { publicRouter } from "../src/public/router";
 import { appRouter } from "../src/router";
 
 export const TEST_APP_URL = "http://web.test";
@@ -41,13 +43,43 @@ export function fakeSession(testUser: TestUser): Session {
   };
 }
 
-export function clientFor(db: Database, testUser: TestUser | null) {
+export const noopDispatch: Dispatch = { messagePublished: () => undefined };
+
+export function clientFor(
+  db: Database,
+  testUser: TestUser | null,
+  dispatch: Dispatch = noopDispatch,
+) {
   return createRouterClient(appRouter, {
-    context: { db, session: testUser ? fakeSession(testUser) : null, appUrl: TEST_APP_URL },
+    context: {
+      db,
+      session: testUser ? fakeSession(testUser) : null,
+      appUrl: TEST_APP_URL,
+      dispatch,
+    },
   });
+}
+
+/** The public `/v1` router, called directly with `Authorization: Bearer <secret>`. */
+export function publicClientFor(db: Database, secret: string, dispatch: Dispatch = noopDispatch) {
+  return createRouterClient(publicRouter, {
+    context: { db, authorization: `Bearer ${secret}`, dispatch },
+  });
+}
+
+/** Matches an `ORPCError` with `code` that is not in the contract's error map. */
+export function codeError(code: string) {
+  return { code };
 }
 
 /** Matches a contract-defined `ORPCError` with `code`, for `rejects.toMatchObject`. */
 export function definedError(code: string) {
   return { code, defined: true };
+}
+
+/** Waits into the next millisecond, so ids (ULIDs) created after it sort after earlier ones. */
+export function nextMillisecond(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 2);
+  });
 }

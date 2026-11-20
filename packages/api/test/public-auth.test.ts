@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { authenticateToken, tokenCanPublish, tokenCanRead } from "../src/public/auth";
 import { tokenAuthed } from "../src/public/base";
 import { createTestDb, type TestDb } from "./db";
-import { clientFor, definedError, seedUser, type TestUser } from "./helpers";
+import { clientFor, definedError, noopDispatch, seedUser, type TestUser } from "./helpers";
 
 /** Errors thrown outside a procedure are not marked `defined`; match on the code. */
 function codeError(code: string) {
@@ -210,11 +210,15 @@ describe("bearer token auth", () => {
       call(
         probe,
         { topic: "team" },
-        { context: { db: testDb.db, authorization: `Bearer ${secret}` } },
+        { context: { db: testDb.db, authorization: `Bearer ${secret}`, dispatch: noopDispatch } },
       ),
     ).resolves.toEqual({ items: [], nextCursor: null });
     await expect(
-      call(probe, { topic: "team" }, { context: { db: testDb.db, authorization: null } }),
+      call(
+        probe,
+        { topic: "team" },
+        { context: { db: testDb.db, authorization: null, dispatch: noopDispatch } },
+      ),
     ).rejects.toMatchObject(definedError("UNAUTHORIZED"));
   });
 });

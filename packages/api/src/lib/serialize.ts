@@ -1,8 +1,16 @@
 import type { UserSummary } from "@notifier/contract/common";
+import type { Device } from "@notifier/contract/device";
 import type { Invite } from "@notifier/contract/invite";
+import type { MessageResponse } from "@notifier/contract/response";
 import type { AccessToken, TokenScope } from "@notifier/contract/token";
 import type { MyTopic, TopicMember, TopicRole } from "@notifier/contract/topic";
-import type { accessToken, invite, topic } from "@notifier/db/schema/notifier";
+import type {
+  accessToken,
+  device,
+  invite,
+  messageResponse,
+  topic,
+} from "@notifier/db/schema/notifier";
 
 type UserRow = {
   id: string;
@@ -92,6 +100,32 @@ export function toInvite(
     acceptedAt: row.acceptedAt?.toISOString() ?? null,
     acceptedBy: row.acceptor ? toUserSummary(row.acceptor) : null,
     revokedAt: row.revokedAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export function toMessageResponse(
+  row: typeof messageResponse.$inferSelect,
+  responder: UserRow,
+): MessageResponse {
+  return {
+    id: row.id,
+    messageId: row.messageId,
+    actionKey: row.actionKey,
+    kind: row.kind,
+    text: row.text,
+    user: toUserSummary(responder),
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export function toDevice(row: typeof device.$inferSelect): Device {
+  return {
+    id: row.id,
+    name: row.name,
+    platform: row.platform,
+    appVersion: row.appVersion,
+    lastSeenAt: row.lastSeenAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
   };
 }

@@ -25,3 +25,11 @@ export function isUniqueViolation(error: unknown): boolean {
   }
   return false;
 }
+
+/**
+ * oRPC's built-in `BAD_REQUEST` (400), for input that passes the schema but breaks a
+ * rule the schema cannot express. Not part of any contract error map, so it is not `defined`.
+ */
+export function badRequest(message: string) {
+  return new ORPCError("BAD_REQUEST", { status: 400, message });
+}

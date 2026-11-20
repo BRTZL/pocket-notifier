@@ -1,12 +1,15 @@
 import type { Context as ApiContext } from "@notifier/api/context";
+import type { EvlogVariables } from "evlog/hono";
 import type { Context as HonoContext } from "hono";
+
+import { createDispatch } from "./dispatch";
 import { ENV } from "./env.server";
 import { createAuth, getDb } from "./services";
 
 const TRAILING_SLASHES = /\/+$/u;
 
 export type CreateContextOptions = {
-  context: HonoContext;
+  context: HonoContext<EvlogVariables>;
 };
 
 export async function createContext({ context }: CreateContextOptions): Promise<ApiContext> {
@@ -19,6 +22,7 @@ export async function createContext({ context }: CreateContextOptions): Promise<
     session,
     // CORS_ORIGIN is the web app's origin, where invite links are opened.
     appUrl: ENV.CORS_ORIGIN.replace(TRAILING_SLASHES, ""),
+    dispatch: createDispatch(context.get("log")),
   };
 }
 

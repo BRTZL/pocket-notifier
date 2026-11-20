@@ -2,12 +2,14 @@ import { publicContract } from "@notifier/contract/public";
 import type { Database } from "@notifier/db";
 import { implement } from "@orpc/server";
 
+import type { Dispatch } from "../dispatch";
 import { authenticateToken } from "./auth";
 
 export type PublicContext = {
   db: Database;
   /** The raw `Authorization` header, or `null` when the request has none. */
   authorization: string | null;
+  dispatch: Dispatch;
 };
 
 /** Implements `publicContract` (the `/v1` API for scripts). */

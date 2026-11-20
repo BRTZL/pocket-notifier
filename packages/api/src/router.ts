@@ -2,26 +2,26 @@ import type { AppContract } from "@notifier/contract/app";
 import type { Router, RouterClient } from "@orpc/server";
 
 import type { Context } from "./context";
+import { devicesRouter } from "./procedures/devices";
 import { invitesRouter } from "./procedures/invites";
 import { meRouter } from "./procedures/me";
 import { membersRouter } from "./procedures/members";
+import { messagesRouter } from "./procedures/messages";
+import { responsesRouter } from "./procedures/responses";
 import { tokensRouter } from "./procedures/tokens";
 import { topicsRouter } from "./procedures/topics";
 
-type ImplementedNamespaces = "me" | "topics" | "members" | "tokens" | "invites";
-
-/**
- * The implemented part of `appContract`. The remaining namespaces (messages, responses,
- * devices) are added by later tasks; until then the RPC handler answers
- * their paths with its unmatched-route 404.
- */
+/** Implements all of `appContract`; the `satisfies` check fails if a procedure is missing. */
 export const appRouter = {
   me: meRouter,
   topics: topicsRouter,
   members: membersRouter,
+  messages: messagesRouter,
+  responses: responsesRouter,
   tokens: tokensRouter,
   invites: invitesRouter,
-} satisfies Router<Pick<AppContract, ImplementedNamespaces>, Context>;
+  devices: devicesRouter,
+} satisfies Router<AppContract, Context>;
 
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<AppRouter>;
