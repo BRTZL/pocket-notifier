@@ -26,6 +26,21 @@ export type ConversationRef = z.infer<typeof ConversationRef>;
 /** Longest `lastMessage.body` preview, in UTF-16 code units. */
 export const CONVERSATION_PREVIEW_LENGTH = 140;
 
+/**
+ * The question the caller can still answer in writing: the newest non-expired message
+ * of the conversation with a `reply` action that takes text (`input: true`) and that
+ * the caller has not answered yet. The app's composer answers it.
+ */
+export const OpenAsk = z.object({
+  messageId: idSchema("message"),
+  /** The first unanswered text reply action of that message. */
+  actionKey: z.string(),
+  /** `sender.name`, else `sender.id`; `null` without a sender. */
+  senderName: z.string().nullable(),
+  title: z.string().nullable(),
+});
+export type OpenAsk = z.infer<typeof OpenAsk>;
+
 /** A row of the conversation inbox, described by its latest non-expired message. */
 export const ConversationSummary = z.object({
   topicId: TopicId,
@@ -48,8 +63,11 @@ export const ConversationSummary = z.object({
   unreadCount: z.number().int().min(0),
   /** The caller's subscription to the topic is muted. */
   muted: z.boolean(),
+  openAsk: OpenAsk.nullable(),
 });
 export type ConversationSummary = z.infer<typeof ConversationSummary>;
 
 /** `cursor` is the `lastMessage.id` of the previous page's last item. */
 export const ListConversationsInput = PageInput;
+
+export const GetConversationInput = z.object({ conversation: ConversationRef });

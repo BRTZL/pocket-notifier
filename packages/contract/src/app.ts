@@ -2,7 +2,7 @@ import { oc } from "@orpc/contract";
 import { z } from "zod";
 
 import { PageInput, pageOf, UserSummary } from "./common";
-import { ConversationSummary, ListConversationsInput } from "./conversation";
+import { ConversationSummary, GetConversationInput, ListConversationsInput } from "./conversation";
 import { Device, DeviceId, RegisterDeviceInput, RenameDeviceInput } from "./device";
 import { ERRORS } from "./errors";
 import {
@@ -75,6 +75,8 @@ export const appContract = {
      * last message, newest first.
      */
     list: authed.input(ListConversationsInput).output(pageOf(ConversationSummary)),
+    /** One conversation's row; NOT_FOUND when it has no visible message for the caller. */
+    get: authed.input(GetConversationInput).output(ConversationSummary),
   },
 
   messages: {

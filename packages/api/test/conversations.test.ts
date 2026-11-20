@@ -326,6 +326,109 @@ describe("conversations", () => {
     });
   });
 
+  describe("open ask", () => {
+    const codex = { id: "codex", name: "Codex" };
+    const textReply = { type: "reply" as const, key: "say", label: "Reply", input: true };
+    const ack = { type: "reply" as const, key: "ok", label: "OK" };
+
+    it("is the newest message with an unanswered text reply, per caller", async () => {
+      const older = await publish({
+        topic: "team",
+        title: "Older ask",
+        conversation: alpha,
+        sender: codex,
+        actions: [textReply],
+      });
+      const newer = await publish({
+        topic: "team",
+        title: "Newer ask",
+        conversation: alpha,
+        sender: codex,
+        actions: [ack, { ...textReply, key: "first" }, { ...textReply, key: "second" }],
+      });
+      // A later message without a text reply does not hide the ask.
+      await publish({ topic: "team", body: "status", conversation: alpha, actions: [ack] });
+      await publish({ topic: "team", body: "plain" });
+      const bobClient = clientFor(testDb.db, bob);
+      const conversation = { topicId: teamId, key: "c:alpha" };
+
+      const openAsk = async (client: typeof bobClient) =>
+        (await client.conversations.get({ conversation })).openAsk;
+      // The first unanswered text action of the newest such message; acks do not count.
+      expect(await openAsk(bobClient)).toEqual({
+        messageId: newer,
+        actionKey: "first",
+        senderName: "Codex",
+        title: "Newer ask",
+      });
+
+      await bobClient.responses.create({ messageId: newer, actionKey: "first", text: "a" });
+      expect(await openAsk(bobClient)).toMatchObject({ messageId: newer, actionKey: "second" });
+      await bobClient.responses.create({ messageId: newer, actionKey: "second", text: "b" });
+      // Older pages count too: the composer must not depend on what the app loaded.
+      expect(await openAsk(bobClient)).toEqual({
+        messageId: older,
+        actionKey: "say",
+        senderName: "Codex",
+        title: "Older ask",
+      });
+      // Answers are per user: Ada still has the newest one open.
+      expect(await openAsk(clientFor(testDb.db, ada))).toMatchObject({
+        messageId: newer,
+        actionKey: "first",
+      });
+
+      await bobClient.responses.create({ messageId: older, actionKey: "say", text: "c" });
+      expect(await openAsk(bobClient)).toBeNull();
+
+      // The list carries the same open ask; other conversations have none.
+      const { items } = await clientFor(testDb.db, ada).conversations.list({});
+      const byKey = new Map(items.map((item) => [`${item.topic}/${item.key}`, item.openAsk]));
+      expect(byKey.get("team/c:alpha")).toMatchObject({ messageId: newer, actionKey: "first" });
+      expect(byKey.get(`team/t:${teamId}`)).toBeNull();
+    });
+
+    it("leaves out expired asks", async () => {
+      const ask = await publish({ topic: "team", conversation: alpha, actions: [textReply] });
+      await publish({ topic: "team", body: "later", conversation: alpha });
+      await expire([ask]);
+      const summary = await clientFor(testDb.db, bob).conversations.get({
+        conversation: { topicId: teamId, key: "c:alpha" },
+      });
+      expect(summary.openAsk).toBeNull();
+    });
+  });
+
+  describe("get", () => {
+    it("is the conversation's list row", async () => {
+      await publish({ topic: "team", body: "a1", conversation: alpha });
+      await publish({ topic: "team", body: "b1", conversation: { id: "beta" } });
+      const bobClient = clientFor(testDb.db, bob);
+      const { items } = await bobClient.conversations.list({});
+      const alphaRow = items.find((item) => item.key === "c:alpha");
+      expect(
+        await bobClient.conversations.get({ conversation: { topicId: teamId, key: "c:alpha" } }),
+      ).toEqual(alphaRow);
+    });
+
+    it("is NOT_FOUND outside the caller's topics or without visible messages", async () => {
+      const a1 = await publish({ topic: "team", body: "a1", conversation: alpha });
+      const conversation = { topicId: teamId, key: "c:alpha" };
+      await expect(
+        clientFor(testDb.db, cid).conversations.get({ conversation }),
+      ).rejects.toMatchObject(definedError("NOT_FOUND"));
+      await expect(
+        clientFor(testDb.db, bob).conversations.get({
+          conversation: { topicId: teamId, key: "c:nothing" },
+        }),
+      ).rejects.toMatchObject(definedError("NOT_FOUND"));
+      await expire([a1]);
+      await expect(
+        clientFor(testDb.db, bob).conversations.get({ conversation }),
+      ).rejects.toMatchObject(definedError("NOT_FOUND"));
+    });
+  });
+
   describe("markRead by conversation", () => {
     it("marks every visible message of that conversation only", async () => {
       const a1 = await publish({ topic: "team", body: "a1", conversation: alpha });
