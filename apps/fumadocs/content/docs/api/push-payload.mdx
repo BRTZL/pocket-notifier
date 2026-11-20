@@ -59,6 +59,8 @@ The sender fills fields in this order and stops adding once the next field would
 5. `actions`, all or nothing
 6. `tags`, `clickUrl`, `attachment`, `conversationIcon`, `senderIcon`
 
+The size is measured on the JSON-encoded `data` object as UTF-8. If the body does not fit in the space that is left, it is cut further to fit, always on a whole character (grapheme), and nothing after it is added.
+
 If anything was cut or left out, `truncated` is `"1"`. The app then shows what it has right away and calls `messages.get` to fill in the rest. If that fails, it posts the notification without actions.
 
 ## `dismiss`
@@ -69,4 +71,4 @@ If anything was cut or left out, `truncated` is `"1"`. The app then shows what i
 { "v": "1", "kind": "dismiss", "ids": "msg_01jd8x5k...,msg_01jd8x6m..." }
 ```
 
-When someone reads messages on one device, the server sends `dismiss` to their other devices. Those devices then cancel the matching notifications, so the same alert does not have to be cleared on every phone.
+When someone reads messages on one device, the server sends `dismiss` to their devices. Those devices then cancel the matching notifications, so the same alert does not have to be cleared on every phone. `ids` holds only the messages that were newly marked as read. When the list would go over 4,096 bytes, it is split into several `dismiss` pushes.
