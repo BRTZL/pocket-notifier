@@ -111,7 +111,9 @@ const update = authed.members.update.handler(async ({ context, input }) => {
     .where(
       and(
         memberWhere(input.topicId, input.userId),
-        demotesOwner ? notLastOwner(input.topicId) : undefined,
+        // Guard every demotion, not just ones that looked like an owner when read:
+        // the target may have become the sole owner since.
+        input.role === "owner" ? undefined : notLastOwner(input.topicId),
       ),
     )
     .returning();
