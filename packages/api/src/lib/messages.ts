@@ -174,6 +174,21 @@ export function announcePublished(dispatch: Dispatch, published: Message): void 
   }
 }
 
+/**
+ * Hands newly read message ids to the post-read hook (dismiss pushes). The read state is
+ * already saved, so a failing hook is logged instead of failing the request.
+ */
+export function announceRead(dispatch: Dispatch, userId: string, messageIds: string[]): void {
+  if (messageIds.length === 0) {
+    return;
+  }
+  try {
+    dispatch.messagesRead(userId, messageIds);
+  } catch (error) {
+    console.error("dispatch.messagesRead failed", error);
+  }
+}
+
 /** Not past its `expiresAt`. Expired messages are never shown, even before cleanup runs. */
 export function notExpired(now: Date = new Date()): SQL {
   return gt(message.expiresAt, now);

@@ -1,4 +1,5 @@
 import type { Context as ApiContext } from "@notifier/api/context";
+import type { Dispatch } from "@notifier/api/dispatch";
 import { createPublicHandler } from "@notifier/api/public/handler";
 import { appRouter } from "@notifier/api/router";
 import type { Database } from "@notifier/db";
@@ -10,7 +11,6 @@ import { Hono, type Context as HonoContext } from "hono";
 import { cors } from "hono/cors";
 
 import { isPublicApiPath } from "./boundary";
-import { createDispatch } from "./dispatch";
 
 export type AppDeps = {
   /** Origin of the web app; the only origin allowed credentialed CORS. */
@@ -19,6 +19,8 @@ export type AppDeps = {
   identifyUser: (log: RequestLogger, headers: Headers, path: string) => Promise<unknown>;
   authHandler: (request: Request) => Promise<Response>;
   getDb: () => Database;
+  /** Post-request side effects (push fan-out) for one request. */
+  createDispatch: (c: HonoContext<EvlogVariables>, db: Database) => Promise<Dispatch>;
   createContext: (c: HonoContext<EvlogVariables>) => Promise<ApiContext>;
 };
 
@@ -55,11 +57,12 @@ export function createApp(deps: AppDeps) {
     if (!isPublicApiPath(c.req.path)) {
       return next();
     }
+    const db = deps.getDb();
     const result = await publicHandler.handle(c.req.raw, {
       context: {
-        db: deps.getDb(),
+        db,
         authorization: c.req.header("Authorization") ?? null,
-        dispatch: createDispatch(c.get("log")),
+        dispatch: await deps.createDispatch(c, db),
       },
     });
     if (result.matched) {

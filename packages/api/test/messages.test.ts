@@ -9,6 +9,7 @@ import {
   codeError,
   definedError,
   nextMillisecond,
+  noopDispatch,
   seedUser,
   type TestUser,
 } from "./helpers";
@@ -220,7 +221,7 @@ describe("app messages", () => {
 
     it("lets owners and publishers publish, and dispatches the stored message", async () => {
       const messagePublished = vi.fn<Dispatch["messagePublished"]>();
-      const bobClient = clientFor(testDb.db, bob, { messagePublished });
+      const bobClient = clientFor(testDb.db, bob, { ...noopDispatch, messagePublished });
       const out = await bobClient.messages.publish({ topic: "team", title: "test" });
       expect(out).toMatchObject({ topic: "team" });
       const stored = await bobClient.messages.get({ id: out.id });
@@ -236,13 +237,19 @@ describe("app messages", () => {
     it("is FORBIDDEN for subscribers and NOT_FOUND for non-members", async () => {
       const messagePublished = vi.fn<Dispatch["messagePublished"]>();
       await expect(
-        clientFor(testDb.db, bob, { messagePublished }).messages.publish({ topic: "ops" }),
+        clientFor(testDb.db, bob, { ...noopDispatch, messagePublished }).messages.publish({
+          topic: "ops",
+        }),
       ).rejects.toMatchObject(definedError("FORBIDDEN"));
       await expect(
-        clientFor(testDb.db, cid, { messagePublished }).messages.publish({ topic: "team" }),
+        clientFor(testDb.db, cid, { ...noopDispatch, messagePublished }).messages.publish({
+          topic: "team",
+        }),
       ).rejects.toMatchObject(definedError("NOT_FOUND"));
       await expect(
-        clientFor(testDb.db, ada, { messagePublished }).messages.publish({ topic: "missing" }),
+        clientFor(testDb.db, ada, { ...noopDispatch, messagePublished }).messages.publish({
+          topic: "missing",
+        }),
       ).rejects.toMatchObject(definedError("NOT_FOUND"));
       expect(messagePublished).not.toHaveBeenCalled();
     });

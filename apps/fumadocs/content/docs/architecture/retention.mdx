@@ -21,7 +21,9 @@ Changing a topic's retention affects only new messages. Existing messages keep t
 
 ## Cleanup job
 
-A Cron Trigger runs the cleanup every hour:
+A Cron Trigger (`0 * * * *`) runs the cleanup every hour. It is set in `apps/server/wrangler.jsonc` for local dev and in `packages/infra/alchemy.run.ts` for deploys, and calls the `scheduled` export of the server Worker. The cleanup itself is `runRetention(db, { now })` in `packages/api/src/retention.ts`.
+
+<Status kind="open" /> Attachments do not exist yet, so the file steps below are not implemented. The job deletes expired messages, old invites and stale devices only.
 
 <Steps>
 <Step>
@@ -42,14 +44,14 @@ Delete their R2 objects. If deleting a file fails, its message stays and the nex
 
 ### Delete rows
 
-Delete the messages; responses and read state cascade. Repeat until nothing is expired or the run's time budget is used up.
+Delete the messages; responses and read state cascade. Repeat until nothing is expired or the run's time budget (20 seconds) is used up; the next run continues where this one stopped.
 
 </Step>
 <Step>
 
 ### Sweep the rest
 
-Delete orphaned uploads, old invites and stale devices.
+Delete orphaned uploads, old invites and stale devices, also 500 at a time and within the same 20-second budget. Invites and devices are found without an index: there are only a few per user.
 
 </Step>
 </Steps>

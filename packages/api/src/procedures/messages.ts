@@ -7,6 +7,7 @@ import { authed } from "../base";
 import { appError } from "../lib/errors";
 import {
   announcePublished,
+  announceRead,
   notExpired,
   parseCursor,
   publishMessage,
@@ -99,6 +100,12 @@ const markRead = authed.messages.markRead.handler(async ({ context, input }) => 
     )
     .onConflictDoNothing()
     .returning({ messageId: messageRead.messageId });
+  // Only the newly marked ids: messages read before already had their dismiss sent.
+  announceRead(
+    context.dispatch,
+    userId,
+    inserted.map((row) => row.messageId),
+  );
   return { updated: inserted.length };
 });
 

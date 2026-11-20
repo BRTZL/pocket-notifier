@@ -2,9 +2,8 @@ import type { Context as ApiContext } from "@notifier/api/context";
 import type { EvlogVariables } from "evlog/hono";
 import type { Context as HonoContext } from "hono";
 
-import { createDispatch } from "./dispatch";
 import { ENV } from "./env.server";
-import { createAuth, getDb } from "./services";
+import { createAuth, getDb, requestDispatch } from "./services";
 
 const TRAILING_SLASHES = /\/+$/u;
 
@@ -22,7 +21,7 @@ export async function createContext({ context }: CreateContextOptions): Promise<
     session,
     // CORS_ORIGIN is the web app's origin, where invite links are opened.
     appUrl: ENV.CORS_ORIGIN.replace(TRAILING_SLASHES, ""),
-    dispatch: createDispatch(context.get("log")),
+    dispatch: await requestDispatch(context, db),
   };
 }
 

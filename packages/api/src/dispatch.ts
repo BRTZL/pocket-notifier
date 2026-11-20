@@ -8,4 +8,9 @@ import type { Message } from "@notifier/contract/message";
 export type Dispatch = {
   /** A message was stored. Called once per published message, after the insert. */
   messagePublished: (message: Message) => void;
+  /**
+   * `userId` read `messageIds` (only the ones newly marked, never empty), so their
+   * other devices can drop those notifications.
+   */
+  messagesRead: (userId: string, messageIds: string[]) => void;
 };

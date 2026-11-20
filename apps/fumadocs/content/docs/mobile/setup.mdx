@@ -26,11 +26,10 @@ Expo reads it from `android.googleServicesFile` in the app config.
 
 ### Create the server key
 
-In **Project settings → Service accounts**, generate a private key. It becomes a Worker secret the same way `BETTER_AUTH_SECRET` is today, and is never committed:
+In **Project settings → Service accounts**, generate a private key. It becomes the Worker secret `FCM_SERVICE_ACCOUNT` and is never committed. The secret is already declared as optional and sensitive in `apps/server/.env.schema`, and `packages/infra/alchemy.run.ts` passes it to the Worker when it is set.
 
-1. Declare `FCM_SERVICE_ACCOUNT` as a sensitive string in `apps/server/.env.schema`.
-2. Put the JSON, on one line, into the git-ignored `apps/server/.env` (or the deploy environment).
-3. Pass it to the Worker in `packages/infra/alchemy.run.ts` with `Config.Redacted("FCM_SERVICE_ACCOUNT")`.
+1. Put the JSON, on one line and in single quotes, into the git-ignored `apps/server/.env` (or the deploy environment): `FCM_SERVICE_ACCOUNT='{"type":"service_account",...}'`. With double quotes, the `\n`s in the key may be expanded; the server copes with that, but single quotes are safer.
+2. Restart the server or deploy again. Without the secret, the server runs with push disabled and logs `push disabled`.
 
 </Step>
 <Step>

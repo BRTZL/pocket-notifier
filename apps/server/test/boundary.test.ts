@@ -14,6 +14,7 @@ function setup() {
     identifyUser: vi.fn(async () => false),
     authHandler: vi.fn(async () => new Response(null, { status: 204 })),
     getDb: vi.fn(() => ({}) as Database),
+    createDispatch: vi.fn(async () => ({ messagePublished: vi.fn(), messagesRead: vi.fn() })),
     createContext: vi.fn(async () => ({}) as ApiContext),
   };
   return { app: createApp(deps), deps };
