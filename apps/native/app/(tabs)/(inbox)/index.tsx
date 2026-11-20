@@ -2,12 +2,12 @@ import type { ConversationSummary } from "@notifier/contract/conversation";
 import { router } from "expo-router";
 import { Button, Menu, SearchField, Spinner, useThemeColor } from "heroui-native";
 import { useState } from "react";
-import { FlatList, RefreshControl, View } from "react-native";
-
+import { FlatList, View } from "react-native";
 import { ConversationRow } from "@/components/conversation-row";
 import { Icon } from "@/components/icon";
 import { EmptyState, ErrorState, LoadErrorBanner, LoadingState } from "@/components/query-state";
 import { ScreenHeader } from "@/components/screen-header";
+import { ThemedRefreshControl } from "@/components/themed-refresh-control";
 import { useConversations, useMarkAllRead } from "@/hooks/use-conversations";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { errorMessage } from "@/lib/errors";
@@ -170,12 +170,7 @@ export default function InboxScreen() {
         }}
         onEndReachedThreshold={0.5}
         refreshControl={
-          <RefreshControl
-            refreshing={isManualRefresh}
-            onRefresh={() => void refresh()}
-            colors={[accent]}
-            tintColor={accent}
-          />
+          <ThemedRefreshControl refreshing={isManualRefresh} onRefresh={() => void refresh()} />
         }
       />
     </View>

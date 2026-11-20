@@ -3,10 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Button, cn, PressableFeedback, Typography, useThemeColor } from "heroui-native";
 import { useState } from "react";
-import { RefreshControl, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { ChatAvatar } from "@/components/chat-avatar";
 import { EmptyState, ErrorState, LoadingState } from "@/components/query-state";
 import { HeaderIconButton, ScreenHeader } from "@/components/screen-header";
+import { ThemedRefreshControl } from "@/components/themed-refresh-control";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { topicGlyph } from "@/lib/chat-avatar";
 import { orpc } from "@/utils/orpc";
@@ -122,12 +123,7 @@ export default function TopicsScreen() {
         className="flex-1"
         contentContainerClassName="grow pt-1 pb-6"
         refreshControl={
-          <RefreshControl
-            refreshing={isManualRefresh}
-            onRefresh={() => void refresh()}
-            colors={[accent]}
-            tintColor={accent}
-          />
+          <ThemedRefreshControl refreshing={isManualRefresh} onRefresh={() => void refresh()} />
         }
       >
         {renderContent()}

@@ -1,10 +1,10 @@
 import type { InboxMessage } from "@notifier/contract/message";
 import { Separator, Spinner, useThemeColor } from "heroui-native";
 import { type ReactElement, useState } from "react";
-import { FlatList, RefreshControl, View } from "react-native";
-
+import { FlatList, View } from "react-native";
 import { MessageRow } from "@/components/message-row";
 import { EmptyState, ErrorState, LoadErrorBanner, LoadingState } from "@/components/query-state";
+import { ThemedRefreshControl } from "@/components/themed-refresh-control";
 import { useInbox } from "@/hooks/use-inbox";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { errorMessage, isAccessError } from "@/lib/errors";
@@ -125,12 +125,7 @@ export function MessageList({
       }}
       onEndReachedThreshold={0.5}
       refreshControl={
-        <RefreshControl
-          refreshing={isManualRefresh}
-          onRefresh={() => void refresh()}
-          colors={[accent]}
-          tintColor={accent}
-        />
+        <ThemedRefreshControl refreshing={isManualRefresh} onRefresh={() => void refresh()} />
       }
     />
   );
