@@ -2,18 +2,23 @@ import { Alert, Button, Spinner, Typography } from "heroui-native";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 
+import { Mascot, type MascotPose } from "@/components/mascot";
 import { errorMessage } from "@/lib/errors";
 
-/** Centered spinner for a screen whose first load is still running. */
+/**
+ * A screen whose first load is still running and has nothing to show yet: the mascot
+ * thinking above a spinner. Inline loading (a list footer, a button) keeps a bare spinner.
+ */
 export function LoadingState() {
   return (
-    <View className="flex-1 items-center justify-center p-6">
+    <View className="flex-1 items-center justify-center gap-4 p-6">
+      <Mascot pose="thinking" size={140} />
       <Spinner size="lg" />
     </View>
   );
 }
 
-/** Inline error with a retry button for a failed query. */
+/** Full-screen error for a failed query, with the mascot and a retry button. */
 export function ErrorState({
   error,
   title = "Could not load",
@@ -24,8 +29,9 @@ export function ErrorState({
   onRetry?: () => void;
 }) {
   return (
-    <View className="gap-3 p-4">
-      <Alert status="danger">
+    <View className="flex-1 items-center justify-center gap-4 p-6">
+      <Mascot pose="error" size={150} />
+      <Alert status="danger" className="self-stretch">
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Title>{title}</Alert.Title>
@@ -33,7 +39,7 @@ export function ErrorState({
         </Alert.Content>
       </Alert>
       {onRetry ? (
-        <Button variant="secondary" onPress={onRetry}>
+        <Button variant="secondary" className="self-stretch" onPress={onRetry}>
           <Button.Label>Try again</Button.Label>
         </Button>
       ) : null}
@@ -41,10 +47,23 @@ export function ErrorState({
   );
 }
 
-/** Empty list placeholder. */
-export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
+/** Empty list placeholder, optionally with a mascot pose above the title. */
+export function EmptyState({
+  title,
+  pose,
+  children,
+}: {
+  title: string;
+  pose?: MascotPose;
+  children?: ReactNode;
+}) {
   return (
-    <View className="items-center gap-2 px-8 py-16">
+    <View className="items-center gap-2 px-8 py-12">
+      {pose ? (
+        <View className="pb-2">
+          <Mascot pose={pose} size={160} />
+        </View>
+      ) : null}
       <Typography type="h5" align="center">
         {title}
       </Typography>

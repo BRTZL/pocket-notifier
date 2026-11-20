@@ -111,10 +111,12 @@ export default function InboxScreen() {
       return <ErrorState error={inbox.error} onRetry={() => void inbox.refetch()} />;
     }
     return filter === "unread" ? (
-      <EmptyState title="All caught up">No unread messages.</EmptyState>
+      <EmptyState title="All caught up" pose="inbox-empty">
+        No unread messages.
+      </EmptyState>
     ) : (
-      <EmptyState title="No messages yet">
-        Messages published to your topics show up here.
+      <EmptyState title="All caught up" pose="inbox-empty">
+        Nothing here yet. Messages published to your topics show up here.
       </EmptyState>
     );
   }
@@ -122,6 +124,7 @@ export default function InboxScreen() {
   return (
     <FlatList
       className="bg-background flex-1"
+      contentContainerClassName="grow"
       contentInsetAdjustmentBehavior="automatic"
       data={messages}
       keyExtractor={(message) => message.id}

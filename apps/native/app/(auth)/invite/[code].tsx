@@ -1,13 +1,14 @@
 import type { InvitePreview } from "@notifier/contract/invite";
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { Alert, Button, Card, Chip, Spinner } from "heroui-native";
+import { Alert, Button, Card, Chip } from "heroui-native";
 import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import type { z } from "zod";
 
 import { InviteSignUpForm } from "@/components/invite-sign-up-form";
-import { EmptyState } from "@/components/query-state";
+import { Mascot } from "@/components/mascot";
+import { EmptyState, LoadingState } from "@/components/query-state";
 import { errorMessage, hasErrorCode } from "@/lib/errors";
 import { parseInviteCode } from "@/lib/invite";
 import { orpc } from "@/utils/orpc";
@@ -16,7 +17,7 @@ import { orpc } from "@/utils/orpc";
 function InvalidInvite() {
   return (
     <View className="bg-background flex-1 justify-center gap-4 p-6">
-      <EmptyState title="Invalid invite link">
+      <EmptyState title="Invalid invite link" pose="error">
         This link is not a valid invite, or the invite expired, was revoked or was already used. Ask
         for a new link.
       </EmptyState>
@@ -61,8 +62,8 @@ function InviteSignUp({ code }: { code: string }) {
 
   if (preview.isPending) {
     return (
-      <View className="bg-background flex-1 items-center justify-center">
-        <Spinner />
+      <View className="bg-background flex-1">
+        <LoadingState />
       </View>
     );
   }
@@ -76,6 +77,9 @@ function InviteSignUp({ code }: { code: string }) {
       contentContainerClassName="gap-6 p-6"
       keyboardShouldPersistTaps="handled"
     >
+      <View className="items-center">
+        <Mascot pose="invite" size={140} />
+      </View>
       {preview.isError ? (
         // Network or server trouble: the invite may still be fine, and sign-up checks it.
         <Alert status="warning">

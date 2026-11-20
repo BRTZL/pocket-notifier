@@ -12,6 +12,7 @@ import { useState } from "react";
 import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
+import { Mascot } from "@/components/mascot";
 import { inviteCodeFromInput } from "@/lib/invite";
 
 export default function InviteEntryScreen() {
@@ -34,9 +35,10 @@ export default function InviteEntryScreen() {
       contentContainerClassName="gap-6 p-6"
       keyboardShouldPersistTaps="handled"
     >
-      <View className="gap-1">
+      <View className="items-center gap-1">
+        <Mascot pose="invite" size={150} />
         <Typography type="h3">Join with an invite</Typography>
-        <Typography color="muted">
+        <Typography color="muted" align="center">
           Someone on this notifier server sent you an invite link.
         </Typography>
       </View>

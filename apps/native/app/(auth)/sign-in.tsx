@@ -16,6 +16,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import z from "zod";
 
+import { Mascot } from "@/components/mascot";
 import { authClient } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/errors";
 import { fieldErrors } from "@/lib/form";
@@ -71,9 +72,12 @@ export default function SignInScreen() {
         contentContainerClassName="grow justify-center gap-6 p-6"
         keyboardShouldPersistTaps="handled"
       >
-        <View className="gap-1">
+        <View className="items-center gap-1">
+          <Mascot pose="wave" size={150} />
           <Typography type="h2">notifier</Typography>
-          <Typography color="muted">Sign in to see your notifications.</Typography>
+          <Typography color="muted" align="center">
+            Sign in to see your notifications.
+          </Typography>
         </View>
 
         <View className="gap-4">

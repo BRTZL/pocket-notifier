@@ -73,7 +73,7 @@ export default function TopicsScreen() {
     }
     if (topics.data.length === 0) {
       return (
-        <EmptyState title="No topics yet">
+        <EmptyState title="No topics yet" pose="topics-empty">
           Topics you create or are invited to show up here.
         </EmptyState>
       );
