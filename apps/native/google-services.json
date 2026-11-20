@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "55579976344",
+    "project_id": "pocket-notifier-app",
+    "storage_bucket": "pocket-notifier-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:55579976344:android:aa7ffb18b49561df9926ed",
+        "android_client_info": {
+          "package_name": "com.bartuozel.pocketnotifier"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLBkd7Ff_LK7JRdv-rr-7OwHHoqyFZE14"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

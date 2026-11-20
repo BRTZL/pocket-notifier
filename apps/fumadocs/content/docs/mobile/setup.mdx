@@ -17,12 +17,9 @@ In the [Firebase console](https://console.firebase.google.com), create a project
 
 ### Add `google-services.json`
 
-Download it, then keep it out of git (it identifies the project but contains no server secret):
+Download it and save it as `apps/native/google-services.json`. It is committed: it is the Firebase *client* config that ships inside every app build, and its API key is restricted to this app's package, so it is not a secret. The server key in the next step is.
 
-- **Local builds:** save it as `apps/native/google-services.json`, which is git-ignored.
-- **EAS builds:** upload it as a file environment variable named `GOOGLE_SERVICES_JSON`.
-
-Expo reads it from `android.googleServicesFile`. For EAS builds that path comes from the variable, which means moving `app.json` to an `app.config.ts`.
+Expo reads it from `android.googleServicesFile` in the app config.
 
 </Step>
 <Step>
