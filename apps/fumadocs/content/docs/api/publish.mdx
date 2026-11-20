@@ -38,7 +38,7 @@ curl -X POST "$NOTIFIER_URL/v1/projects/backups/messages" \
 }
 ```
 
-Shows as a conversation for the project `notifier`, with a Claude badge. See [Coding agents](/docs/product/agents).
+Goes to the feature `notifier` in the project (created if missing) and shows as its thread, with a Claude badge. See [Coding agents](/docs/product/agents).
 
 </Tab>
 <Tab value="Urgent with actions">
@@ -132,7 +132,7 @@ The authoritative schema is `PublishInput` in `packages/contract/src/message.ts`
       default: "[]",
     },
     clickUrl: {
-      description: "Opened when the notification is tapped.",
+      description: "Where to look, e.g. the PR or CI run. Shown as an Open button on the message in its thread and as an action on the notification. A tap on the notification opens the thread, not this URL.",
       type: "string (URL)",
     },
     actions: {
@@ -142,7 +142,7 @@ The authoritative schema is `PublishInput` in `packages/contract/src/message.ts`
       default: "[]",
     },
     conversation: {
-      description: "What the message is about, e.g. a project. Large avatar and stack in the notification shade.",
+      description: "The feature the message belongs to: its thread in the app, large avatar and stack in the notification shade. The project's feature for id is found or created (see Conversations and features below). Omitted: the project-level thread.",
       type: "{ id, title?, iconUrl? }",
       typeDescription: "id up to 64 chars; iconUrl must be HTTPS",
     },
@@ -201,6 +201,16 @@ Every action has a `label` (up to 40 characters), an optional `key`, and `clear`
 </Accordions>
 
 At most 3 actions fit on an Android notification; the rest appear only in the message screen. <Status kind="open" />
+
+## Conversations and features
+
+Every conversation is a feature. A message with `conversation` is filed under the project's feature for `conversation.id`, which is created on first use; a message without one goes to the project-level thread, `p:<projectId>`. The same rule applies to the REST API, the app API and MCP, so all three put the same conversation in the same thread.
+
+- **Slug.** An `id` that is a valid feature slug once lowercased (`[a-z0-9][a-z0-9-]{0,62}`) is the slug, and an existing feature with it is reused as it is. Any other `id` is turned into one: accents removed, lowercased, everything else becomes `-`, cut to 63 characters (`org/repo` becomes `org-repo`). If that slug already belongs to a feature with a different name, `-2`, `-3` and so on is appended.
+- **Name.** A new feature is named `conversation.title`, else `id`. An existing feature keeps its name.
+- **Stored as** `conversation = { id: <feature slug>, title: <feature name> }`, in the thread `c:<slug>`. Each message moves the feature's `lastMessageAt`, which orders `features.list`.
+
+A tap on the notification opens that thread. The `clickUrl` is an Open button on the message there, and an action on the notification.
 
 ## Projects
 

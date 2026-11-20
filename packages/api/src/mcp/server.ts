@@ -304,7 +304,7 @@ const SendInput = z.object({
   ),
   tags: z.array(Tag).max(MESSAGE_LIMITS.tags).optional().describe('Single-word tags, e.g. ["ci"].'),
   url: OpenableUrl.optional().describe(
-    "Opened when the notification is tapped, e.g. the PR or deploy URL.",
+    "Where to look, e.g. the PR or deploy URL. Shown as an Open button on the message in its thread and as an action on the notification. A tap on the notification itself opens the thread (the feature's, or the project-level thread when feature is omitted).",
   ),
   ask: z
     .object({
@@ -344,7 +344,7 @@ function registerSendTool(server: McpServer, caller: McpCaller) {
     {
       title: "Send notification",
       description:
-        "Send a push notification to the user's phone: when a task is done and verified, when you are blocked on a decision (use ask), on a failure you cannot fix, or when a long task finished. Not for progress updates. Never include secrets. Goes to the project's feature thread; without project it goes to General.",
+        "Send a push notification to the user's phone: when a task is done and verified, when you are blocked on a decision (use ask), on a failure you cannot fix, or when a long task finished. Not for progress updates. Never include secrets. Goes to the feature's thread in the project; without feature it goes to the project-level thread, and without project to General. Tapping the notification opens that thread.",
       inputSchema: SendInput,
     },
     (input) =>

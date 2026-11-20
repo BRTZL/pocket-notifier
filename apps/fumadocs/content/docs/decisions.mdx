@@ -10,7 +10,7 @@ description: Every v1 design decision, whether it is settled, and where it is ex
 | Product | Our own ntfy-like service, not a layer on top of ntfy | [Scope](/docs/product/scope) |
 | Audience | You plus invited users on one deployment | [Access](/docs/product/access) |
 | Sign-up | Invite links only; public sign-up is off | [Access](/docs/product/access#invites) |
-| Model | Topics removed; Project → Feature → Notification everywhere: database, API, push payload, app and docs | [Data model](/docs/architecture/data-model) |
+| Model | Project → Feature → Notification model everywhere: database, API, push payload (version 2), app and docs. Every conversation is a feature; messages without one go to the project-level thread | [Data model](/docs/architecture/data-model) |
 | Sharing | Membership per project with `owner`, `publisher`, `subscriber` roles | [Access](/docs/product/access#project-roles) |
 | Publish auth | Bearer access tokens, scoped to all projects or a list | [Access](/docs/product/access#access-tokens) |
 | Token storage | notifier's own `access_token` table, not the better-auth `api-key` plugin | [Access](/docs/product/access#access-tokens) |

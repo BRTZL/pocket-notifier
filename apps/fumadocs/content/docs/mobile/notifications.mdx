@@ -65,7 +65,7 @@ With an `iconUrl`, the app downloads the image once, caches it, and crops it to 
 
 ## Tapping
 
-<Status kind="decided" /> A tap opens the message's thread, `notifier://conversation/<projectId>/<conversationKey>`, built from the push's `projectId` and `conversationKey`: the feature's thread, or the project-level thread for a message without a feature. The thread marks the conversation read and its notifications are cleared. The `clickUrl` stays one tap away in the thread header. A push without those fields (from an older server) opens its `clickUrl`, else the inbox.
+<Status kind="decided" /> A tap opens the message's thread, `notifier://conversation/<projectId>/<conversationKey>`, built from the push's `projectId` and `conversationKey`: the feature's thread, or the project-level thread for a message without a feature. The thread marks the conversation read and its notifications are cleared. The `clickUrl` is shown as an Open button on the message in the thread, and as an action on the notification itself, so it is one tap away from both. A push without those fields (from an older server) opens its `clickUrl`, else the inbox.
 
 ## Actions
 

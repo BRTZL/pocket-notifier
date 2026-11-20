@@ -108,12 +108,20 @@ export const PublishInput = z.object({
   /** Falls back to the project's `defaultPriority`. */
   priority: Priority.optional(),
   tags: z.array(Tag).max(MESSAGE_LIMITS.tags).default([]),
-  /** Opened when the notification is tapped. */
+  /**
+   * Where to look, e.g. a PR or CI run. The app shows it as an Open button on the message in
+   * its thread and as an action on the notification. A tap on the notification itself opens
+   * the message's thread, not this URL.
+   */
   clickUrl: OpenableUrl.optional(),
   actions: z.array(Action).max(MESSAGE_LIMITS.actions).default([]),
   /** From a previous attachment upload to the same project. */
   attachmentId: AttachmentId.optional(),
-  /** What the message is about, e.g. a project. Groups notifications as a conversation. */
+  /**
+   * The feature (conversation) the message belongs to. The server files it under the
+   * project's feature for `id`, created when missing, and stores `{ id: <feature slug>,
+   * title: <feature name> }`. Omitted: the project-level thread.
+   */
   conversation: Conversation.optional(),
   /** Who sent it within the conversation, e.g. an agent. Shown as the avatar badge. */
   sender: Sender.optional(),

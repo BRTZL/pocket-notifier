@@ -55,7 +55,7 @@ When a workstream is finished, call `update_feature_status` with `done`.
 
 - `title`: the outcome, at most 32 characters. No project prefix (the app shows it).
 - `body`: one line. Result first, the user's next step last. Example: `Magic-link login works, tests pass. Review PR #12.`
-- `url`: where to look (PR, CI run, deploy, your agent thread). Opened on tap.
+- `url`: where to look (PR, CI run, deploy, your agent thread). It shows as an Open button on the message in the thread and as an action on the notification. Tapping the notification itself opens the thread: the feature's, or the project-level thread when you leave `feature` out.
 - `actions`: up to 2 extra link buttons `{ label, url }`.
 - `ask` when blocked: `{ question, quickReplies: up to 3 short answers, allowText }`. You cannot read the answer through this server yet, so also say in your session what you asked and wait for the user there.
 
