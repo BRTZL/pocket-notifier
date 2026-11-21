@@ -53,7 +53,7 @@ Feature slugs are unique per project: lowercase letters, digits and `-`, up to 6
 - **`title`** is the outcome, at most 32 characters by convention (the API allows 250). **`body`** is one line.
 - **`priority`** 1 to 5: 2 low (FYI), 3 normal (the default for done), 4 high (blocked on a decision), 5 urgent (production or data at risk). Omitted: the project's default priority.
 - **`url`** is where to look (PR, CI run, deploy). The app shows it as an Open button on the message in its thread and as an action on the notification. Tapping the notification itself opens the thread: the feature's, or the project-level thread when `feature` is omitted.
-- **`ask`** `{ question?, quickReplies? (up to 3), allowText? (default true) }` adds a `reply` action, and the question is appended to the body. The app's thread composer answers it. Agents cannot read the reply through MCP in this version.
+- **`ask`** `{ question? }` appends the question to the body. No reply action is sent, because agents cannot read replies through MCP. `quickReplies` and `allowText` are still accepted so older clients keep working, and are ignored.
 - **`actions`** up to 2 link buttons `{ label, url }`.
 - **`attachmentId`** a file from `create_upload`, uploaded to the same project and not used yet. One file per notification.
 - **Sender.** The message's `sender` is the OAuth client: `{ id: <client_id>, name: <client_name> }`, for example "Claude Code". `publishedBy` is you.

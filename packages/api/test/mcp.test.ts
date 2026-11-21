@@ -194,11 +194,10 @@ describe("MCP server", () => {
       conversation: { id: "dark-mode", title: "Dark mode" },
       sender: { id: CLIENT_ID, name: "Test Client" },
       publishedBy: { id: ada.id },
-      actions: [
-        { type: "view", label: "Open PR" },
-        { type: "reply", input: true, quickReplies: ["Merge", "Wait"] },
-      ],
+      actions: [{ type: "view", label: "Open PR" }],
     });
+    // quickReplies are accepted but no reply action is sent: agents cannot read replies.
+    expect(published[0]?.actions).toHaveLength(1);
   });
 
   it("files MCP and REST sends to the same feature under the same key", async () => {

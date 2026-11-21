@@ -379,12 +379,15 @@ const SendInput = z.object({
         .array(z.string().trim().min(1).max(MESSAGE_LIMITS.quickReplyLength))
         .max(MESSAGE_LIMITS.quickReplies)
         .optional()
-        .describe('Up to 3 one-tap answers, e.g. ["Yes", "No"].'),
-      allowText: z.boolean().optional().describe("Let the user type an answer. Default true."),
+        .describe("Ignored: accepted so older clients keep working."),
+      allowText: z
+        .boolean()
+        .optional()
+        .describe("Ignored: accepted so older clients keep working."),
     })
     .optional()
     .describe(
-      "Use when blocked on a decision: adds a reply action. Replies are not readable through this server yet.",
+      "Use when blocked on a decision: the question is added to the body. The notification has no reply buttons; ask the user in your session too and wait for the answer there.",
     ),
   actions: z
     .array(
@@ -488,7 +491,7 @@ function registerSendTool(server: McpServer, caller: McpCaller) {
             priority: input.priority,
             tags: input.tags,
             url: input.url,
-            ask: input.ask,
+            ask: input.ask?.question ? { question: input.ask.question } : undefined,
             links: input.actions,
             sender: caller.sender,
             attachmentId: input.attachmentId,

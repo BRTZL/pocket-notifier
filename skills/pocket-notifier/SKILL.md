@@ -60,7 +60,7 @@ Project owners can change a project's `displayName`, `description` or `iconUrl` 
 - `url`: where to look (PR, CI run, deploy, your agent thread). It shows as an Open button on the message in the thread and as an action on the notification. Tapping the notification itself opens the thread: the feature's, or the project-level thread when you leave `feature` out.
 - `actions`: up to 2 extra link buttons `{ label, url }`.
 - `attachmentId`: one file per notification (screenshot, log, video, PDF, at most 95 MB). Call `create_upload` with the same `project`, `fileName`, `contentType` and the exact `size` in bytes, run the `curl` command it returns with the file's path (the link works once, for 1 hour), then pass its `attachmentId`. Images show as the notification's picture.
-- `ask` when blocked: `{ question, quickReplies: up to 3 short answers, allowText }`. You cannot read the answer through this server yet, so also say in your session what you asked and wait for the user there.
+- `ask` when blocked: `{ question }`. The question is added to the body; the notification has no reply buttons, so also ask in your session and wait for the user there.
 
 ```json
 {
@@ -69,7 +69,7 @@ Project owners can change a project's `displayName`, `description` or `iconUrl` 
   "title": "Need a decision: cache",
   "body": "Redis or in-memory LRU for the search cache?",
   "priority": 4,
-  "ask": { "question": "Which cache?", "quickReplies": ["Redis", "LRU"] }
+  "ask": { "question": "Which cache?" }
 }
 ```
 

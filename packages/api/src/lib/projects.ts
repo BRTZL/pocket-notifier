@@ -480,13 +480,11 @@ export async function resolveSendTarget(
   return { access, feature: created.feature, featureCreated: created.created };
 }
 
-/** What the agent asks the user, sent as a `reply` action the app's composer answers. */
-export type Ask = {
-  question?: string;
-  quickReplies?: string[];
-  /** Whether the user can type an answer. Default `true`. */
-  allowText?: boolean;
-};
+/**
+ * What the agent asks the user. Only the question is used: it is appended to the body.
+ * No reply action is sent, because agents cannot read replies.
+ */
+export type Ask = { question?: string };
 
 export type SendNotificationInput = {
   title: string;
@@ -502,26 +500,17 @@ export type SendNotificationInput = {
   attachmentId?: string;
 };
 
-/** Builds the message's actions: link buttons, then the reply action for `ask`. */
+/** Builds the message's actions: link buttons only. */
 function buildActions(input: SendNotificationInput): PublishInput["actions"] {
-  const actions: Action[] = (input.links ?? []).map((link, index) => ({
-    type: "view",
-    key: `link${index}`,
-    label: link.label,
-    url: link.url,
-    clear: false,
-  }));
-  if (input.ask) {
-    actions.push({
-      type: "reply",
-      key: "reply",
-      label: "Reply",
-      input: input.ask.allowText ?? true,
-      quickReplies: input.ask.quickReplies?.length ? input.ask.quickReplies : undefined,
+  return (input.links ?? []).map(
+    (link, index): Action => ({
+      type: "view",
+      key: `link${index}`,
+      label: link.label,
+      url: link.url,
       clear: false,
-    });
-  }
-  return actions;
+    }),
+  );
 }
 
 /** The body with the question of `ask` appended, so it is visible in the notification. */

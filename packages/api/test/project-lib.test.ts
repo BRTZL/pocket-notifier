@@ -367,7 +367,7 @@ describe("projects and features", () => {
           priority: 4,
           tags: ["perf"],
           url: "https://example.com/run/1",
-          ask: { question: "Ship it?", quickReplies: ["Yes", "No"] },
+          ask: { question: "Ship it?" },
           links: [{ label: "PR", url: "https://example.com/pr/1" }],
           sender: { id: "client_123", name: "Claude Code" },
         },
@@ -388,11 +388,10 @@ describe("projects and features", () => {
         conversation: { id: "perf", title: "Perf" },
         sender: { id: "client_123", name: "Claude Code" },
         publishedBy: { id: bob.id },
-        actions: [
-          { type: "view", key: "link0", label: "PR", url: "https://example.com/pr/1" },
-          { type: "reply", key: "reply", input: true, quickReplies: ["Yes", "No"] },
-        ],
+        actions: [{ type: "view", key: "link0", label: "PR", url: "https://example.com/pr/1" }],
       });
+      // An ask adds its question to the body but no reply action.
+      expect(published[0]?.actions).toHaveLength(1);
 
       const [stored] = await testDb.db.select().from(feature).where(eq(feature.slug, "perf"));
       expect(stored?.lastMessageAt?.getTime()).toBe(result.published.message.createdAt.getTime());
@@ -401,11 +400,8 @@ describe("projects and features", () => {
       expect(conversations.items[0]).toMatchObject({
         key: "c:perf",
         title: "Perf",
-        openAsk: {
-          messageId: result.published.message.id,
-          actionKey: "reply",
-          senderName: "Claude Code",
-        },
+        // No reply action, so the thread has no open question to answer.
+        openAsk: null,
       });
     });
 
