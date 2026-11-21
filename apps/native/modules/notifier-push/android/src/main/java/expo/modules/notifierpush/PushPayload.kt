@@ -29,6 +29,8 @@ data class PushMessage(
   val raw: Map<String, String>,
   val id: String,
   val project: String,
+  /** The project's display name, or `""`: show [project] then. */
+  val projectTitle: String,
   /** With `conversationKey`, the thread a tap opens. */
   val projectId: String,
   /** `c:<conversation id>` or `p:<project id>`. */
@@ -87,6 +89,8 @@ object PushPayload {
       raw = data,
       id = id,
       project = project,
+      // Older servers omit it; `""` falls back to the slug.
+      projectTitle = data["projectTitle"] ?: "",
       projectId = data["projectId"] ?: "",
       conversationKey = data["conversationKey"] ?: "",
       title = data["title"] ?: "",

@@ -222,11 +222,14 @@ export function createPushDispatch(options: PushDispatchOptions): Dispatch {
           return;
         }
         const [owner] = await db
-          .select({ iconUrl: project.iconUrl })
+          .select({ displayName: project.displayName, iconUrl: project.iconUrl })
           .from(project)
           .where(eq(project.id, message.projectId))
           .limit(1);
-        const data = toPushData(message, { projectIconUrl: owner?.iconUrl ?? null });
+        const data = toPushData(message, {
+          projectTitle: owner?.displayName ?? null,
+          projectIconUrl: owner?.iconUrl ?? null,
+        });
         const priority = fcmPriority(message.priority);
         const counts = await deliver(
           { ...deliverOptions, sender: pushSender },

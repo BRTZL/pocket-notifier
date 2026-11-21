@@ -55,6 +55,8 @@ object PushNotifications {
     val avatarSize = context.resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_width)
       .coerceAtLeast(96)
 
+    // The project as people know it: its display name, else the slug.
+    val projectName = message.projectTitle.ifEmpty { message.project }
     val conversationName = message.conversationTitle.ifEmpty { message.conversationId }
     // The conversation icon (the project's first) when it was downloaded, else the
     // generated initials. Only the cache is read: re-posts must not wait on the network.
@@ -62,14 +64,14 @@ object PushNotifications {
       ?: if (message.conversationId.isNotEmpty()) {
         Avatars.bitmap(message.conversationId, conversationName, avatarSize)
       } else {
-        Avatars.bitmap(message.project, message.project, avatarSize)
+        Avatars.bitmap(message.project, projectName, avatarSize)
       }
     val pictureUrl = message.attachmentUrl.takeIf { MediaRules.wantsPicture(message) }
-    val title = conversationName.ifEmpty { message.project }
+    val title = conversationName.ifEmpty { projectName }
     val agent = shortSenderName(message.senderName.ifEmpty { message.senderId })
     // Header line: "Pocket Notifier · <project> · <agent>". The project is left out when it is
     // already the title (project-level thread). An action result ("Sent") replaces it.
-    val header = status ?: listOf(message.project.takeIf { it != title }, agent.ifEmpty { null })
+    val header = status ?: listOf(projectName.takeIf { it != title }, agent.ifEmpty { null })
       .filterNotNull()
       .joinToString(" · ")
       .ifEmpty { null }
@@ -121,7 +123,7 @@ object PushNotifications {
       val body = withAttachmentLine(message.body, message, showsPicture = pictureUri != null)
       val picture = if (pictureUri != null) pictureUrl?.let { PushMedia.pictureBitmap(context, it) } else null
       builder
-        .setContentTitle(message.title.ifEmpty { message.project })
+        .setContentTitle(message.title.ifEmpty { projectName })
         .setContentText(body)
         .setStyle(
           if (picture != null) {
@@ -198,7 +200,7 @@ object PushNotifications {
       .setColor(ACCENT)
       .setContentTitle(title)
       .setContentText(if (count == 1) "1 new message" else "$count new messages")
-      .setSubText(message.project)
+      .setSubText(message.projectTitle.ifEmpty { message.project })
       .setGroup(groupKey)
       .setGroupSummary(true)
       .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)

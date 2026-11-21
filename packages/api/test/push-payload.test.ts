@@ -55,6 +55,7 @@ describe("toPushData", () => {
       projectId: PROJECT_ID,
       conversationKey: "c:ci",
       title: "main build failed",
+      projectTitle: "",
       body: "3 tests failed in auth.spec.ts",
       priority: "5",
       tags: "ci,failure",
@@ -75,6 +76,13 @@ describe("toPushData", () => {
     });
     expect(PushMessageData.safeParse(data).success).toBe(true);
     expect(Object.values(data).every((value) => typeof value === "string")).toBe(true);
+  });
+
+  it("sends the project's display name as projectTitle", () => {
+    expect(toPushData(message(), { projectTitle: "Continuous Integration" }).projectTitle).toBe(
+      "Continuous Integration",
+    );
+    expect(toPushData(message(), { projectTitle: null }).projectTitle).toBe("");
   });
 
   it("uses empty strings for unset fields", () => {

@@ -30,6 +30,7 @@ const NOTIFICATION_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp
 
 const FILL_ORDER: readonly OptionalKey[] = [
   "title",
+  "projectTitle",
   "conversationId",
   "conversationTitle",
   "senderId",
@@ -82,26 +83,33 @@ function cutText(text: string, max: number, fits: (candidate: string) => boolean
   return text.slice(0, low === 0 ? 0 : (ends[low - 1] ?? 0));
 }
 
-/** What the push needs beyond the message: the project's icon, shown as the conversation icon. */
-export type PushExtras = { projectIconUrl?: string | null };
+/**
+ * What the push needs beyond the message: the project's display name, shown instead of
+ * its slug, and its icon, shown as the conversation icon.
+ */
+export type PushExtras = { projectTitle?: string | null; projectIconUrl?: string | null };
+
+/** The attachment's URL when Android can draw it as the notification picture, else `""`. */
+function pictureUrl(attachment: Message["attachment"]): string {
+  return attachment && NOTIFICATION_IMAGE_TYPES.has(attachment.contentType.toLowerCase())
+    ? attachment.url
+    : "";
+}
 
 function fullValues(message: Message, extras: PushExtras): Record<OptionalKey, string> {
   const { attachment } = message;
   const projectIcon = extras.projectIconUrl ?? "";
   return {
     title: message.title ?? "",
+    projectTitle: extras.projectTitle ?? "",
     body: message.body,
     tags: message.tags.join(","),
     clickUrl: message.clickUrl ?? "",
     actions: message.actions.length > 0 ? JSON.stringify(message.actions) : "",
     attachment: attachment?.name ?? "",
     attachmentKind: attachment?.kind ?? "",
-    // Only images: the notification shows them as its big picture.
-    // Only types Android can draw as a notification picture (not SVG, HEIC, ...).
-    attachmentUrl:
-      attachment && NOTIFICATION_IMAGE_TYPES.has(attachment.contentType.toLowerCase())
-        ? attachment.url
-        : "",
+    // Only images Android can draw as the notification picture (not SVG, HEIC, ...).
+    attachmentUrl: pictureUrl(attachment),
     conversationId: message.conversation?.id ?? "",
     conversationTitle: message.conversation?.title ?? "",
     conversationIcon: projectIcon === "" ? (message.conversation?.iconUrl ?? "") : projectIcon,
@@ -127,6 +135,7 @@ export function toPushData(message: Message, extras: PushExtras = {}): MessageDa
     conversationKey: message.conversation
       ? `c:${message.conversation.id}`
       : `p:${message.projectId}`,
+    projectTitle: "",
     title: "",
     body: "",
     priority: String(message.priority) as MessageData["priority"],

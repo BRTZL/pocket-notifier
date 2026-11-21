@@ -38,6 +38,12 @@ class PushPayloadTest {
   }
 
   @Test
+  fun readsTheProjectDisplayName() {
+    assertEquals("RezMe", message("projectTitle" to "RezMe").projectTitle)
+    assertEquals("", message().projectTitle)
+  }
+
+  @Test
   fun dropsVersionOnePayloads() {
     assertNull(PushPayload.parse(data() + ("v" to "1")))
   }

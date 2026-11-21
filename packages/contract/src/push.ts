@@ -34,6 +34,8 @@ export const PushMessageData = z.object({
   projectId: ProjectId,
   /** `c:<feature slug>`, or `p:<project id>` for the project-level thread (no feature). */
   conversationKey: ConversationKey,
+  /** The project's display name, or `""` when it has none (show `project` then). */
+  projectTitle: z.string(),
   title: z.string(),
   body: z.string().max(PUSH_BODY_MAX),
   priority: z.enum(["1", "2", "3", "4", "5"]),
