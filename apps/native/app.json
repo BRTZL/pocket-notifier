@@ -55,6 +55,21 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "33c11414-9012-4c49-a545-d8aad050c472"
+      }
+    },
+    "owner": "bartuozel",
+    "updates": {
+      "url": "https://u.expo.dev/33c11414-9012-4c49-a545-d8aad050c472",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "fingerprint"
     }
   }
 }

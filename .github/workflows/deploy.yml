@@ -59,3 +59,52 @@ jobs:
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           FCM_SERVICE_ACCOUNT: ${{ secrets.FCM_SERVICE_ACCOUNT }}
           CORS_ORIGIN: https://notifier.bartuozel.com
+
+  # Ships JavaScript and asset changes to installed apps over the air (EAS Update).
+  # Runs after the server deploy, so a new bundle never calls an API that is not live yet.
+  # Builds only pick up bundles with their own runtime fingerprint, so a native change
+  # (Kotlin, new native library) waits for a new APK instead of crashing old ones.
+  app-update:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Check for app changes
+        id: changes
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # Manual runs and first pushes have no usable "before" commit: publish.
+          if [ -z "$BEFORE" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$BEFORE" HEAD -- apps/native packages/contract pnpm-lock.yaml; then
+            echo "app=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        if: steps.changes.outputs.app == 'true'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.changes.outputs.app == 'true'
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        if: steps.changes.outputs.app == 'true'
+      - name: Publish update (channel production)
+        if: steps.changes.outputs.app == 'true'
+        working-directory: apps/native
+        run: >-
+          npx --yes eas-cli@27.11.0 update
+          --channel production
+          --platform android
+          --message "${GITHUB_SHA::7} $(printf '%s' "$COMMIT_TITLE" | head -n 1)"
+          --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          NODE_ENV: production
+          EXPO_PUBLIC_SERVER_URL: https://notifier.bartuozel.com/api
+          COMMIT_TITLE: ${{ github.event.head_commit.message || 'manual run' }}
