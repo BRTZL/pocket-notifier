@@ -199,7 +199,7 @@ describe("writeObject", () => {
     const stored = await testDb.files.bucket.get("attachments/x/big");
     expect(stored?.httpMetadata?.contentType).toBe("video/mp4");
     expect(await bytesOf(stored?.body)).toEqual(data);
-  });
+  }, 30_000); // Miniflare writes 10 MB slowly on CI runners.
 
   it("stops at the byte cap and stores nothing", async () => {
     await expect(
