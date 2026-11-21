@@ -36,11 +36,13 @@ Feature slugs are unique per project: lowercase letters, digits and `-`, up to 6
 | Tool | Input | What it does |
 | --- | --- | --- |
 | `list_projects` | none | Your projects with `name`, `displayName`, `description`, `role`, `isGeneral` and feature counts by status. Creates General if needed. |
-| `create_project` | `name`, `displayName?`, `description?` | Creates a project owned by you. Idempotent: an existing project you own or publish to is returned. A name taken by someone else is an error: pick another name. |
+| `create_project` | `name`, `displayName?`, `description?`, `iconUrl?` (HTTPS) | Creates a project owned by you. Idempotent: an existing project you own or publish to is returned. A name taken by someone else is an error: pick another name. |
+| `update_project` | `project`, `displayName?`, `description?`, `iconUrl?` | Changes those fields; omitted ones stay, `null` clears one. `iconUrl` is an HTTPS image URL; clearing or replacing an uploaded icon deletes its file. Owners only. |
 | `list_features` | `project`, `status?` (`active` default, `done`, `archived`, `all`) | A project's features, most recent activity first. |
 | `create_feature` | `project`, `name`, `slug?`, `description?` | Creates a feature. Idempotent by slug. Owners and publishers. |
 | `update_feature_status` | `project`, `feature`, `status` | Sets `active`, `done` or `archived`. Owners only. |
-| `send_notification` | `project?`, `feature?`, `title`, `body?`, `priority?`, `tags?`, `url?`, `ask?`, `actions?` | Sends a push. See below. Owners and publishers. |
+| `create_upload` | `project?`, `fileName`, `contentType`, `size` | A one-time upload link for a file to attach. See below. Owners and publishers. |
+| `send_notification` | `project?`, `feature?`, `title`, `body?`, `priority?`, `tags?`, `url?`, `ask?`, `actions?`, `attachmentId?` | Sends a push. See below. Owners and publishers. |
 
 `project` is a project name as `list_projects` shows it. `general` also names your General project, unless you have a project actually called `general`. `feature` is a slug or a name (any case).
 
@@ -53,9 +55,20 @@ Feature slugs are unique per project: lowercase letters, digits and `-`, up to 6
 - **`url`** is where to look (PR, CI run, deploy). The app shows it as an Open button on the message in its thread and as an action on the notification. Tapping the notification itself opens the thread: the feature's, or the project-level thread when `feature` is omitted.
 - **`ask`** `{ question?, quickReplies? (up to 3), allowText? (default true) }` adds a `reply` action, and the question is appended to the body. The app's thread composer answers it. Agents cannot read the reply through MCP in this version.
 - **`actions`** up to 2 link buttons `{ label, url }`.
+- **`attachmentId`** a file from `create_upload`, uploaded to the same project and not used yet. One file per notification.
 - **Sender.** The message's `sender` is the OAuth client: `{ id: <client_id>, name: <client_name> }`, for example "Claude Code". `publishedBy` is you.
 
 The result has `messageId`, `project`, `isGeneral`, `feature` (`slug`, `name`, `created`) and `deliveredTo`, the number of subscribed, unmuted devices of the project.
+
+### create_upload
+
+<Status kind="decided" /> Agents attach a file in three steps:
+
+1. `create_upload` with `project` (omitted: General, as for `send_notification`), `fileName`, `contentType` and the exact `size` in bytes (at most 95 MB). The result is `{ attachmentId, uploadUrl, curl, expiresAt, project }`.
+2. Run `curl`, for example `curl --fail-with-body -sS -T 'build.log' 'https://notifier.bartuozel.com/api/uploads/att_…?token=…'`, with the file's real path. It sends `PUT <uploadUrl>` with the raw file as the body.
+3. `send_notification` with the same `project` and `attachmentId`.
+
+The link works **once**, for **1 hour**. The body may not be larger than the declared `size` (checked from `Content-Length` and while it streams): a larger one gets `413` and uses the link up. Wrong, used and expired links get `404`. An upload not sent within 24 hours is deleted. The content type you declare decides how the apps show the file (image, video, PDF or a file row); see [Attachments](/docs/api/publish#attachments).
 
 Tool errors are written for agents, for example `Project 'x' not found. Call list_projects to see your projects, or create_project to add it.`
 

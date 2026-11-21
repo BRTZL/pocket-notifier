@@ -40,6 +40,16 @@
             "backgroundColor": "#8C2B1C"
           }
         }
+      ],
+      "expo-image",
+      "expo-video",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to use a photo as a project icon",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
       ]
     ],
     "experiments": {

@@ -13,5 +13,14 @@
     <receiver
       android:name="expo.modules.notifierpush.ActionReceiver"
       android:exported="false" />
+    <provider
+      android:name="expo.modules.notifierpush.NotifierFileProvider"
+      android:authorities="${applicationId}.notifierpush.files"
+      android:exported="false"
+      android:grantUriPermissions="true">
+      <meta-data
+        android:name="android.support.FILE_PROVIDER_PATHS"
+        android:resource="@xml/notifier_push_file_paths" />
+    </provider>
   </application>
 </manifest>

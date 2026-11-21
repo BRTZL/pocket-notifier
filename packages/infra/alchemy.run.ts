@@ -33,6 +33,31 @@ export const db = Cloudflare.D1.Database("database", {
   migrations: "../../packages/db/src/migrations",
 });
 
+const DAY_SECONDS = 24 * 60 * 60;
+/** `RETENTION_DAYS.max` in `@notifier/contract/project`: the longest a message is kept. */
+const MAX_RETENTION_DAYS = 365;
+
+/**
+ * Project icons (`icons/`, kept as long as their project) and message attachments
+ * (`attachments/`, deleted with their message by the hourly retention run). Private: the
+ * server Worker serves both.
+ */
+export const files = Cloudflare.R2.Bucket("files", {
+  lifecycleRules: [
+    {
+      // Safety net only. Retention deletes attachments with their messages; this catches
+      // a file whose row is gone. Longest retention plus a day, so it never deletes a
+      // file a message still shows. Never applies to `icons/`.
+      id: "attachments-safety-net",
+      prefix: "attachments/",
+      deleteObjectsTransition: {
+        condition: { type: "Age", maxAge: (MAX_RETENTION_DAYS + 1) * DAY_SECONDS },
+      },
+      abortMultipartUploadsTransition: { condition: { type: "Age", maxAge: DAY_SECONDS } },
+    },
+  ],
+});
+
 export const server = Cloudflare.Worker("server", {
   main: "../../apps/server/src/index.ts",
   compatibility: {
@@ -48,6 +73,7 @@ export const server = Cloudflare.Worker("server", {
   workersDev: false,
   env: {
     DB: db,
+    FILES: files,
     CORS_ORIGIN: Config.String("CORS_ORIGIN").pipe(Config.withDefault(ORIGIN)),
     BETTER_AUTH_SECRET: Config.Redacted("BETTER_AUTH_SECRET"),
     // The origin, without `/api`: better-auth adds its `/api/auth` basePath itself.

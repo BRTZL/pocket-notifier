@@ -1,9 +1,12 @@
+import type { FileBucket } from "@notifier/api/lib/files";
 import { runRetention } from "@notifier/api/retention";
 import type { Database } from "@notifier/db";
 import { createLogger } from "evlog";
 
 export type ScheduledDeps = {
   getDb: () => Database;
+  /** The `FILES` bucket: retention deletes attachment files with their messages. */
+  getBucket: () => FileBucket;
   /** The cleanup to run; `runRetention` outside tests. */
   cleanup?: typeof runRetention;
 };
@@ -21,7 +24,10 @@ export function createScheduledHandler(deps: ScheduledDeps) {
     const log = createLogger({ operation: "retention", cron: controller.cron });
     const run = async () => {
       try {
-        const result = await cleanup(deps.getDb(), { now: new Date(controller.scheduledTime) });
+        const result = await cleanup(deps.getDb(), {
+          now: new Date(controller.scheduledTime),
+          bucket: deps.getBucket(),
+        });
         log.set({ retention: result });
       } catch (error) {
         log.error(error instanceof Error ? error : String(error));

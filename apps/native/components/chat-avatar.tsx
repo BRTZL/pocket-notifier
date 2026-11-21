@@ -1,4 +1,5 @@
 import { avatarColor, avatarInitials } from "@notifier/contract/avatar";
+import { Image } from "expo-image";
 import { Avatar } from "heroui-native";
 import { View } from "react-native";
 
@@ -25,7 +26,12 @@ export function ChatAvatar({ subject, size = 52 }: { subject: ChatAvatarSubject;
   }
   return (
     <Avatar background={null} alt={subject.name} style={box}>
-      {subject.iconUrl ? <Avatar.Image source={{ uri: subject.iconUrl }} /> : null}
+      {subject.iconUrl ? (
+        // expo-image caches icons on disk; a failed load shows the initials below.
+        <Avatar.Image source={{ uri: subject.iconUrl }} asChild>
+          <Image style={{ width: "100%", height: "100%" }} contentFit="cover" />
+        </Avatar.Image>
+      ) : null}
       <Avatar.Fallback
         // The one computed color in the app: the contract's avatar palette, so the web
         // dashboard and the phone draw the same avatar for the same id.

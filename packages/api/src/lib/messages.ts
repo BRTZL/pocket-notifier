@@ -1,5 +1,6 @@
 import { Conversation, Sender } from "@notifier/contract/avatar";
 import {
+  type Attachment,
   type InboxMessage,
   type Message,
   MessageId,
@@ -12,22 +13,33 @@ import type { Database } from "@notifier/db";
 import { newId } from "@notifier/db/ids";
 import { user } from "@notifier/db/schema/auth";
 import {
+  attachment,
   message,
   messageRead,
   messageResponse,
   project,
   projectMember,
 } from "@notifier/db/schema/notifier";
-import { and, asc, desc, eq, gt, isNull, lt, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, gt, isNull, lt, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Dispatch } from "../dispatch";
+import {
+  type AttachmentRow,
+  type AttachTarget,
+  attachableUpload,
+  attachableWhere,
+  attachmentOf,
+  linkAttachment,
+} from "./attachments";
 import { badRequest } from "./errors";
 import { ensureFeature, touchFeature } from "./features";
 import { toUserSummary } from "./serialize";
 import { DAY_MS } from "./token-scope";
 
 export type MessageRow = typeof message.$inferSelect;
+/** A stored message with the attachment linked to it, if any. */
+export type PublishedRow = { message: MessageRow; attachment: AttachmentRow | null };
 type ProjectRow = typeof project.$inferSelect;
 type UserRow = Parameters<typeof toUserSummary>[0];
 type PublishFields = z.output<typeof PublishInput>;
@@ -59,6 +71,9 @@ function normalizeActions(actions: PublishFields["actions"]): Message["actions"]
  * `conversation = { id: slug, title: name }` so its thread key is `c:<slug>`, and moves
  * that feature's `last_message_at`. Without `conversation` it goes to the project-level
  * thread, `p:<project id>`.
+ *
+ * With `attachmentId`, the upload (uploaded, same project, not yet attached) is linked to
+ * the message in the same batch as the insert and takes the message's `expiresAt`.
  */
 export async function publishMessage(
   db: Database,
@@ -67,37 +82,30 @@ export async function publishMessage(
     publisher: { userId: string; tokenId: string | null };
     input: PublishFields;
   },
-): Promise<MessageRow> {
+): Promise<PublishedRow> {
   const { project: target, publisher, input } = args;
-  if (input.attachmentId !== undefined) {
-    throw badRequest("Attachments are not supported yet");
-  }
   const actions = normalizeActions(input.actions);
-
-  const featureRow = input.conversation
-    ? (
-        await ensureFeature(db, {
-          projectId: target.id,
-          key: input.conversation.id,
-          name: input.conversation.title ?? input.conversation.id,
-          userId: publisher.userId,
-        })
-      ).feature
-    : undefined;
-  const conversation =
-    input.conversation && featureRow
-      ? {
-          id: featureRow.slug,
-          title: featureRow.name,
-          ...(input.conversation.iconUrl ? { iconUrl: input.conversation.iconUrl } : {}),
-        }
-      : null;
-
   const now = new Date();
-  const conversationKey = featureRow ? `c:${featureRow.slug}` : `p:${target.id}`;
-  const [row] = await db
-    .insert(message)
-    .values({
+  const attach =
+    input.attachmentId === undefined
+      ? undefined
+      : {
+          attachmentId: input.attachmentId,
+          projectId: target.id,
+          userId: publisher.userId,
+          now,
+        };
+  if (attach) {
+    await attachableUpload(db, attach);
+  }
+  const { featureRow, conversation } = await fileUnderFeature(db, {
+    projectId: target.id,
+    userId: publisher.userId,
+    input,
+  });
+  const published = await storeMessage(
+    db,
+    {
       id: newId("message"),
       projectId: target.id,
       title: input.title ?? null,
@@ -108,20 +116,111 @@ export async function publishMessage(
       actionsJson: JSON.stringify(actions),
       conversationJson: conversation ? JSON.stringify(conversation) : null,
       senderJson: input.sender ? JSON.stringify(input.sender) : null,
-      conversationKey,
+      conversationKey: featureRow ? `c:${featureRow.slug}` : `p:${target.id}`,
       publishedBy: publisher.userId,
       tokenId: publisher.tokenId,
       createdAt: now,
       expiresAt: new Date(now.getTime() + target.retentionDays * DAY_MS),
-    })
-    .returning();
+    },
+    attach,
+  );
+  if (featureRow && !(await touchFeature(db, featureRow.id, published.message.createdAt))) {
+    // Retention deleted the (idle, empty) feature between `ensureFeature` and the insert.
+    // The message now exists, so a feature created again here is never deleted under it.
+    const { feature: again } = await ensureFeature(db, {
+      projectId: target.id,
+      key: featureRow.slug,
+      name: featureRow.name,
+      userId: publisher.userId,
+    });
+    await touchFeature(db, again.id, published.message.createdAt);
+  }
+  return published;
+}
+
+/** The feature a message with `conversation` belongs to, and the conversation it stores. */
+async function fileUnderFeature(
+  db: Database,
+  args: { projectId: string; userId: string; input: PublishFields },
+) {
+  const requested = args.input.conversation;
+  if (!requested) {
+    return { featureRow: undefined, conversation: null };
+  }
+  const { feature: featureRow } = await ensureFeature(db, {
+    projectId: args.projectId,
+    key: requested.id,
+    name: requested.title ?? requested.id,
+    userId: args.userId,
+  });
+  const conversation = {
+    id: featureRow.slug,
+    title: featureRow.name,
+    ...(requested.iconUrl ? { iconUrl: requested.iconUrl } : {}),
+  };
+  return { featureRow, conversation };
+}
+
+type NewMessage = typeof message.$inferInsert & { id: string; expiresAt: Date };
+
+/**
+ * `insert into message (...) select <values> where <condition>`: the row is written only
+ * when `condition` holds at that moment, inside the statement.
+ */
+function conditionalInsert(db: Database, values: NewMessage, condition: SQL) {
+  const columns = getTableColumns(message);
+  const names: SQL[] = [];
+  const params: SQL[] = [];
+  for (const [key, column] of Object.entries(columns)) {
+    const value = values[key as keyof NewMessage];
+    if (value === undefined) {
+      continue;
+    }
+    names.push(sql`${sql.identifier(column.name)}`);
+    params.push(sql`${column.mapToDriverValue(value)}`);
+  }
+  return db.run(
+    sql`insert into ${message} (${sql.join(names, sql`, `)}) select ${sql.join(params, sql`, `)} where ${condition}`,
+  );
+}
+
+/**
+ * Inserts the message. With an attachment, the insert and the link run in one batch (one
+ * transaction): the insert happens only if the upload is still attachable at that moment,
+ * and the link matches only if the insert happened. A publish that loses the upload to
+ * another publish (or to retention) writes nothing and fails.
+ */
+async function storeMessage(
+  db: Database,
+  values: NewMessage,
+  attach: AttachTarget | undefined,
+): Promise<PublishedRow> {
+  if (!attach) {
+    const [row] = await db.insert(message).values(values).returning();
+    if (!row) {
+      throw new Error("message insert returned no row");
+    }
+    return { message: row, attachment: null };
+  }
+  const [, linkedRows] = await db.batch([
+    conditionalInsert(
+      db,
+      values,
+      sql`exists (select 1 from ${attachment} where ${attachableWhere(attach)})`,
+    ),
+    linkAttachment(db, { ...attach, messageId: values.id, expiresAt: values.expiresAt }),
+  ]);
+  const [linked] = linkedRows;
+  if (!linked) {
+    throw badRequest(
+      "This attachment is no longer available: it was attached to another message or expired. Upload the file again.",
+    );
+  }
+  const [row] = await db.select().from(message).where(eq(message.id, values.id)).limit(1);
   if (!row) {
     throw new Error("message insert returned no row");
   }
-  if (featureRow) {
-    await touchFeature(db, featureRow.id, row.createdAt);
-  }
-  return row;
+  return { message: row, attachment: linked };
 }
 
 /** Parses a stored JSON column with a contract schema; a bad row throws (a 500). */
@@ -154,6 +253,7 @@ export function toMessage(
   row: MessageRow,
   projectName: string,
   publisher: UserRow | null,
+  file: Attachment | null,
 ): Message {
   const assembled = {
     id: row.id,
@@ -165,7 +265,7 @@ export function toMessage(
     tags: parseStored(StoredTags, row.tagsJson, "tags_json", row.id),
     clickUrl: row.clickUrl,
     actions: parseStored(StoredActions, row.actionsJson, "actions_json", row.id),
-    attachment: null,
+    attachment: file,
     conversation: parseStored(
       StoredConversation,
       row.conversationJson,
@@ -186,7 +286,7 @@ export function toMessage(
   return parsed.data;
 }
 
-export function toPublishOutput(row: MessageRow, projectName: string) {
+export function toPublishOutput({ message: row }: PublishedRow, projectName: string) {
   return {
     id: row.id,
     project: projectName,
@@ -254,13 +354,13 @@ export function toPage<Row, Item>(
   };
 }
 
-/** Columns for a message with its project name and publisher. */
-const messageColumns = { message, projectName: project.name, publisher: user };
+/** Columns for a message with its project name, publisher and attachment. */
+const messageColumns = { message, projectName: project.name, publisher: user, attachment };
 
 /** One project's non-expired messages, newest first: `limit + 1` rows from before `cursor`. */
 export async function listProjectMessages(
   db: Database,
-  args: { projectId: string; cursor?: string; since?: string; limit: number },
+  args: { projectId: string; cursor?: string; since?: string; limit: number; origin: string },
 ) {
   const cursor = parseCursor(MessageId, args.cursor);
   const rows = await db
@@ -268,6 +368,7 @@ export async function listProjectMessages(
     .from(message)
     .innerJoin(project, eq(project.id, message.projectId))
     .leftJoin(user, eq(user.id, message.publishedBy))
+    .leftJoin(attachment, eq(attachment.messageId, message.id))
     .where(
       and(
         eq(message.projectId, args.projectId),
@@ -282,7 +383,13 @@ export async function listProjectMessages(
     rows,
     args.limit,
     (row) => row.message.id,
-    (row) => toMessage(row.message, row.projectName, row.publisher),
+    (row) =>
+      toMessage(
+        row.message,
+        row.projectName,
+        row.publisher,
+        attachmentOf(row.attachment, args.origin),
+      ),
   );
 }
 
@@ -293,6 +400,7 @@ export async function findMessage(db: Database, id: string) {
     .from(message)
     .innerJoin(project, eq(project.id, message.projectId))
     .leftJoin(user, eq(user.id, message.publishedBy))
+    .leftJoin(attachment, eq(attachment.messageId, message.id))
     .where(and(eq(message.id, id), notExpired()))
     .limit(1);
   return row;
@@ -312,6 +420,7 @@ export function selectInbox(db: Database, userId: string, extra: (SQL | undefine
       and(eq(projectMember.projectId, message.projectId), eq(projectMember.userId, userId)),
     )
     .leftJoin(user, eq(user.id, message.publishedBy))
+    .leftJoin(attachment, eq(attachment.messageId, message.id))
     .leftJoin(
       messageRead,
       and(eq(messageRead.messageId, message.id), eq(messageRead.userId, userId)),
@@ -324,6 +433,7 @@ type InboxRow = {
   message: MessageRow;
   projectName: string;
   publisher: UserRow | null;
+  attachment: AttachmentRow | null;
   readAt: Date | null;
 };
 
@@ -375,6 +485,7 @@ export async function toInboxMessages(
   db: Database,
   userId: string,
   rows: InboxRow[],
+  origin: string,
 ): Promise<InboxMessage[]> {
   const responses = await selectMyResponses(
     db,
@@ -382,7 +493,7 @@ export async function toInboxMessages(
     rows.map((row) => row.message.id),
   );
   return rows.map((row) => ({
-    ...toMessage(row.message, row.projectName, row.publisher),
+    ...toMessage(row.message, row.projectName, row.publisher, attachmentOf(row.attachment, origin)),
     read: row.readAt !== null,
     myResponses: responses.get(row.message.id) ?? [],
   }));

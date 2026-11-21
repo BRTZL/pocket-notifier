@@ -28,6 +28,8 @@ This is the contract between the server's FCM sender and the Android receiver. I
   "clickUrl": "https://github.com/acme/app/actions/runs/123",
   "actions": "[{\"type\":\"view\",\"key\":\"0\",\"label\":\"Open logs\",\"url\":\"https://ci.example.com/runs/123\",\"clear\":false}]",
   "attachment": "",
+  "attachmentKind": "",
+  "attachmentUrl": "",
   "conversationId": "ci",
   "conversationTitle": "",
   "conversationIcon": "",
@@ -47,7 +49,8 @@ This is the contract between the server's FCM sender and the Android receiver. I
 | `priority` | `"1"` to `"5"` |
 | `tags` | Comma-separated, `""` when empty |
 | `clickUrl`, `attachment` | `""` when not set; `attachment` is the file name. `clickUrl` is not the tap target (a tap opens the thread): the app shows it as an Open action on the notification and an Open button on the message in the thread |
-| `conversation*`, `sender*` | Flattened `conversation` and `sender`; each `""` when not set |
+| `attachmentKind`, `attachmentUrl` | The attachment's kind (`image`, `video`, `pdf`, `file`) or `""`. `attachmentUrl` is its download URL for `image` attachments only, so the notification can show the picture; `""` otherwise |
+| `conversation*`, `sender*` | Flattened `conversation` and `sender`; each `""` when not set. `conversationIcon` is the project's `iconUrl` when it has one, else the message's `conversation.iconUrl` |
 | `actions` | JSON string of the stored actions, or `""` |
 | `createdAt` | Unix milliseconds |
 | `truncated` | `"1"` when something was cut to fit |
@@ -61,7 +64,7 @@ The sender fills fields in this order and stops adding once the next field would
 3. `conversationId`, `conversationTitle`, `senderId`, `senderName`
 4. `body`, cut to 1,000 characters (`PUSH_BODY_MAX`)
 5. `actions`, all or nothing
-6. `tags`, `clickUrl`, `attachment`, `conversationIcon`, `senderIcon`
+6. `tags`, `clickUrl`, `attachment`, `attachmentKind`, `attachmentUrl`, `conversationIcon`, `senderIcon`
 
 The size is measured on the JSON-encoded `data` object as UTF-8. If the body does not fit in the space that is left, it is cut further to fit, always on a whole character (grapheme), and nothing after it is added.
 

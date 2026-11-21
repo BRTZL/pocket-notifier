@@ -1,4 +1,5 @@
 import type { Dispatch } from "@notifier/api/dispatch";
+import type { FileBucket } from "@notifier/api/lib/files";
 import type { PushSender } from "@notifier/api/push/fcm";
 import type { Database } from "@notifier/db";
 import type { RequestLogger } from "evlog";
@@ -98,19 +99,23 @@ describe("createScheduledHandler", () => {
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     const db = {} as Database;
     const cleanup = vi.fn(async () => ({
+      attachments: 1,
+      uploads: 0,
       messages: 2,
+      features: 0,
       invites: 0,
       devices: 1,
       done: true,
     }));
+    const bucket = {} as FileBucket;
     const waitUntil = vi.fn<(promise: Promise<unknown>) => void>();
     const scheduledTime = Date.UTC(2026, 10, 20, 13);
-    createScheduledHandler({ getDb: () => db, cleanup })(
+    createScheduledHandler({ getDb: () => db, getBucket: () => bucket, cleanup })(
       { cron: "0 * * * *", scheduledTime },
       { waitUntil },
     );
     await waitUntil.mock.calls[0]?.[0];
-    expect(cleanup).toHaveBeenCalledWith(db, { now: new Date(scheduledTime) });
+    expect(cleanup).toHaveBeenCalledWith(db, { now: new Date(scheduledTime), bucket });
     vi.restoreAllMocks();
   });
 
@@ -120,6 +125,7 @@ describe("createScheduledHandler", () => {
     const waitUntil = vi.fn<(promise: Promise<unknown>) => void>();
     createScheduledHandler({
       getDb: () => ({}) as Database,
+      getBucket: () => ({}) as FileBucket,
       cleanup: async () => {
         throw new Error("d1 down");
       },

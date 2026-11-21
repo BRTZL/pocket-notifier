@@ -13,7 +13,7 @@ import { SectionHeader, SettingsRow } from "@/components/settings-row";
 import { ThemedRefreshControl } from "@/components/themed-refresh-control";
 import { projectNameLine, projectTitle, useProject } from "@/hooks/use-project";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
-import { projectGlyph } from "@/lib/chat-avatar";
+import { projectAvatar } from "@/lib/chat-avatar";
 import { isAccessError } from "@/lib/errors";
 import { sortFeatures } from "@/lib/features";
 import { relativeTime } from "@/lib/format";
@@ -29,10 +29,13 @@ type OpenThread = (key: string, title: string) => void;
 
 function FeatureRow({
   feature,
+  iconUrl,
   isSelected,
   onOpen,
 }: {
   feature: Feature;
+  /** The project's icon: a feature thread shows it like the inbox does. */
+  iconUrl: string | null;
   isSelected: boolean;
   onOpen: OpenThread;
 }) {
@@ -52,7 +55,7 @@ function FeatureRow({
     >
       <PressableFeedback.Highlight />
       <ChatAvatar
-        subject={{ kind: "conversation", id: feature.slug, name: feature.name, iconUrl: null }}
+        subject={{ kind: "conversation", id: feature.slug, name: feature.name, iconUrl }}
         size={40}
       />
       <View className="min-w-0 flex-1">
@@ -79,10 +82,12 @@ function useFeatures(projectId: string) {
 
 function Features({
   features,
+  iconUrl,
   selectedKey,
   onOpen,
 }: {
   features: ReturnType<typeof useFeatures>;
+  iconUrl: string | null;
   selectedKey: string | null;
   onOpen: OpenThread;
 }) {
@@ -112,6 +117,7 @@ function Features({
         <FeatureRow
           key={feature.id}
           feature={feature}
+          iconUrl={iconUrl}
           isSelected={feature.conversationKey === selectedKey}
           onOpen={onOpen}
         />
@@ -167,14 +173,14 @@ function ProjectNavContent({
     }
   }
 
-  const { name, description } = project.data;
+  const { description } = project.data;
   const title = projectTitle(project.data);
   return (
     <View className="bg-background flex-1">
       <StackHeader
         title={title}
         subtitle={projectNameLine(project.data)}
-        avatar={{ kind: "glyph", name: title, glyph: projectGlyph(name) }}
+        avatar={projectAvatar(project.data)}
         onBack={onBack}
         right={<HeaderIconButton icon="tune" label="Project settings" onPress={onOpenSettings} />}
       />
@@ -198,7 +204,12 @@ function ProjectNavContent({
           onPress={() => onOpenThread(`p:${projectId}`, title)}
         />
         <SectionHeader title="Features" />
-        <Features features={features} selectedKey={selectedKey} onOpen={onOpenThread} />
+        <Features
+          features={features}
+          iconUrl={project.data.iconUrl}
+          selectedKey={selectedKey}
+          onOpen={onOpenThread}
+        />
       </ScrollView>
     </View>
   );

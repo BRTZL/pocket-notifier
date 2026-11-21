@@ -5,6 +5,7 @@ import { View } from "react-native";
 
 import { Icon } from "@/components/icon";
 import { HttpButton, type ReplyAction, ViewButton } from "@/components/message-actions";
+import { MessageAttachment } from "@/components/message-attachment";
 import { useOpenLink } from "@/hooks/use-open-link";
 import { useSendResponse } from "@/hooks/use-send-response";
 import { clockTime } from "@/lib/format";
@@ -20,7 +21,8 @@ function useCopy() {
 }
 
 function messageText(message: InboxMessage): string {
-  return [message.title, message.body].filter(Boolean).join("\n");
+  const text = [message.title, message.body].filter(Boolean).join("\n");
+  return text || (message.attachment?.name ?? "");
 }
 
 export function DaySeparator({ label }: { label: string }) {
@@ -160,6 +162,7 @@ export function MessageBubble({
   const isAsk = message.actions.some((action) => action.type === "reply");
   const openActions = openReplyActions(message);
   const { clickUrl } = message;
+  const hasMedia = message.attachment?.kind === "image" || message.attachment?.kind === "video";
 
   return (
     <View className={cn("items-start", continuesRun ? "mt-1" : "mt-3.5")}>
@@ -172,7 +175,8 @@ export function MessageBubble({
         animation={false}
         onPress={clickUrl ? () => openLink(clickUrl) : undefined}
         onLongPress={() => void copy(messageText(message))}
-        className="max-w-[84%]"
+        // Media needs a definite width to fill; text bubbles hug their content.
+        className={hasMedia ? "w-[84%]" : "max-w-[84%]"}
         accessibilityRole={clickUrl ? "link" : "text"}
         accessibilityHint={clickUrl ? "Opens the link. Long press to copy." : "Long press to copy."}
       >
@@ -186,6 +190,11 @@ export function MessageBubble({
         >
           <PressableFeedback.Highlight />
           <BubbleText message={message} isAsk={isAsk} />
+          {message.attachment ? (
+            <View className={message.title || message.body ? "mt-2.5" : undefined}>
+              <MessageAttachment attachment={message.attachment} />
+            </View>
+          ) : null}
         </View>
       </PressableFeedback>
       {openActions.length > 0 ? <QuickReplies message={message} actions={openActions} /> : null}

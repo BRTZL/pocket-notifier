@@ -22,6 +22,22 @@ export function projectGlyph(name: string): IconName {
   return PROJECT_GLYPHS.find(([pattern]) => pattern.test(lower))?.[1] ?? "folder";
 }
 
+/**
+ * The avatar for a project row or header: its uploaded icon (seeded by the project name, so
+ * a failed load falls back to the same initials as its notifications), else its glyph.
+ */
+export function projectAvatar(project: {
+  name: string;
+  displayName: string | null;
+  iconUrl: string | null;
+}): ChatAvatarSubject {
+  const title = project.displayName ?? project.name;
+  if (!project.iconUrl) {
+    return { kind: "glyph", name: title, glyph: projectGlyph(project.name) };
+  }
+  return { kind: "conversation", id: project.name, name: title, iconUrl: project.iconUrl };
+}
+
 /** The avatar for a conversation summary: the conversation for chats, a glyph for project threads. */
 export function conversationAvatar(conversation: ConversationSummary): ChatAvatarSubject {
   if (conversation.kind === "project" && !conversation.iconUrl) {

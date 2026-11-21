@@ -1,5 +1,7 @@
 import type { Context as ApiContext } from "@notifier/api/context";
 import type { Dispatch } from "@notifier/api/dispatch";
+import { receiveUpload, serveAttachment, serveIcon } from "@notifier/api/lib/file-routes";
+import type { Files } from "@notifier/api/lib/files";
 import { createPublicHandler } from "@notifier/api/public/handler";
 import { appRouter } from "@notifier/api/router";
 import { API_PREFIX, AUTH_PATH, MCP_PATH } from "@notifier/auth/paths";
@@ -21,6 +23,8 @@ export type AppDeps = {
   identifyUser: (log: RequestLogger, headers: Headers, path: string) => Promise<unknown>;
   authHandler: (request: Request) => Promise<Response>;
   getDb: () => Database;
+  /** R2 storage for icons and attachments, and the public origin their URLs use. */
+  getFiles: () => Files;
   /** Post-request side effects (push fan-out) for one request. */
   createDispatch: (c: HonoContext<EvlogVariables>, db: Database) => Promise<Dispatch>;
   createContext: (c: HonoContext<EvlogVariables>) => Promise<ApiContext>;
@@ -32,10 +36,27 @@ export type AppDeps = {
 
 const METHODS = ["GET", "POST", "OPTIONS"];
 const HEADERS = ["Content-Type", "Authorization"];
-/** MCP clients (also browser-based ones) send and read these on `/api/mcp`. */
-const PUBLIC_METHODS = ["GET", "POST", "DELETE", "OPTIONS"];
-const PUBLIC_HEADERS = [...HEADERS, "Mcp-Protocol-Version", "Mcp-Session-Id", "Last-Event-ID"];
-const PUBLIC_EXPOSED = ["WWW-Authenticate", "Mcp-Session-Id", "Mcp-Protocol-Version"];
+/**
+ * MCP clients (also browser-based ones) send and read these on `/api/mcp`; file routes
+ * add `PUT` (upload links), `HEAD` and `Range` (video seeking).
+ */
+const PUBLIC_METHODS = ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"];
+const PUBLIC_HEADERS = [
+  ...HEADERS,
+  "Mcp-Protocol-Version",
+  "Mcp-Session-Id",
+  "Last-Event-ID",
+  "Range",
+];
+const PUBLIC_EXPOSED = [
+  "WWW-Authenticate",
+  "Mcp-Session-Id",
+  "Mcp-Protocol-Version",
+  "Accept-Ranges",
+  "Content-Range",
+  "Content-Length",
+  "Content-Disposition",
+];
 
 /**
  * The server's Hono app. Everything is served under `/api` (see `@notifier/auth/paths`),
@@ -77,6 +98,27 @@ export function createApp(deps: AppDeps) {
   registerOAuthPages(app, deps.oauthPages);
   app.on(["GET", "POST", "DELETE"], MCP_PATH, (c) => deps.mcp(c));
 
+  // Files: public capability URLs, registered before the RPC handler (which would look
+  // up a session for every request it sees).
+  app.get(`${API_PREFIX}/icons/:projectId/:file`, (c) =>
+    serveIcon(deps.getFiles(), {
+      projectId: c.req.param("projectId"),
+      file: c.req.param("file"),
+    }),
+  );
+  app.get(`${API_PREFIX}/attachments/:id/:token/:name?`, (c) =>
+    serveAttachment(deps.getDb(), deps.getFiles(), c.req.raw, {
+      attachmentId: c.req.param("id"),
+      token: c.req.param("token"),
+    }),
+  );
+  app.put(`${API_PREFIX}/uploads/:id`, (c) =>
+    receiveUpload(deps.getDb(), deps.getFiles(), c.req.raw, {
+      attachmentId: c.req.param("id"),
+      token: c.req.query("token") ?? "",
+    }),
+  );
+
   const publicHandler = createPublicHandler();
   app.use("*", async (c, next) => {
     if (!isPublicApiPath(c.req.path)) {
@@ -89,6 +131,7 @@ export function createApp(deps: AppDeps) {
         db,
         authorization: c.req.header("Authorization") ?? null,
         dispatch: await deps.createDispatch(c, db),
+        files: deps.getFiles(),
       },
     });
     if (result.matched) {

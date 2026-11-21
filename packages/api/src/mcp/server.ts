@@ -5,13 +5,20 @@
  */
 
 import { type CallToolResult, McpServer } from "@modelcontextprotocol/server";
+import { IconUrl } from "@notifier/contract/avatar";
 import {
   FEATURE_LIMITS,
   FeatureSlug,
   FeatureStatus,
   type Feature as FeatureView,
 } from "@notifier/contract/feature";
-import { MESSAGE_LIMITS, OpenableUrl, Tag } from "@notifier/contract/message";
+import {
+  ATTACHMENT_MAX_BYTES,
+  AttachmentId,
+  MESSAGE_LIMITS,
+  OpenableUrl,
+  Tag,
+} from "@notifier/contract/message";
 import { Priority } from "@notifier/contract/priority";
 import { ProjectName } from "@notifier/contract/project";
 import type { Database } from "@notifier/db";
@@ -19,6 +26,10 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import type { Dispatch } from "../dispatch";
+import { createUploadLink } from "../lib/attachments";
+import { appError } from "../lib/errors";
+import type { Files } from "../lib/files";
+import { loadMyProject } from "../lib/my-projects";
 import {
   createFeature,
   createProject,
@@ -28,10 +39,12 @@ import {
   listProjects,
   type ProjectAccess,
   projectNotFound,
+  requirePublisher,
   resolveSendTarget,
   sendNotification,
   toFeature,
   updateFeatureStatus,
+  updateProject,
 } from "../lib/projects";
 import { MCP_INSTRUCTIONS } from "./instructions";
 
@@ -43,6 +56,7 @@ export type McpCaller = {
   /** Who sends: the OAuth client, e.g. `{ id: <client_id>, name: "Claude Code" }`. */
   sender: { id: string; name?: string };
   dispatch: Dispatch;
+  files: Files;
 };
 
 const ProjectRef = z
@@ -151,14 +165,18 @@ function registerProjectTools(server: McpServer, caller: McpCaller) {
           .optional()
           .describe('Shown in the app, e.g. "Rezme".'),
         description: z.string().max(500).optional(),
+        iconUrl: IconUrl.optional().describe(
+          "HTTPS URL of a square image, shown as the project's icon in the app.",
+        ),
       }),
     },
-    ({ name, displayName, description }) =>
+    ({ name, displayName, description, iconUrl }) =>
       run(async () => {
         const { project, created } = await createProject(caller.db, caller.userId, {
           name,
           displayName,
           description,
+          iconUrl,
         });
         return ok(
           created
@@ -170,11 +188,53 @@ function registerProjectTools(server: McpServer, caller: McpCaller) {
               name: project.name,
               displayName: project.displayName,
               description: project.description,
+              iconUrl: project.iconUrl,
               role: project.role,
               isGeneral: project.personal,
             },
           },
         );
+      }),
+  );
+
+  server.registerTool(
+    "update_project",
+    {
+      title: "Update project",
+      description:
+        "Change a project's display name, description or icon. Only the project owner can. Fields you leave out stay as they are; null clears one.",
+      inputSchema: z.object({
+        project: ProjectRef,
+        displayName: z.string().trim().min(1).max(80).nullable().optional(),
+        description: z.string().max(500).nullable().optional(),
+        iconUrl: IconUrl.nullable()
+          .optional()
+          .describe("HTTPS URL of a square image; null removes the icon."),
+      }),
+      annotations: { idempotentHint: true },
+    },
+    ({ project: ref, displayName, description, iconUrl }) =>
+      run(async () => {
+        const access = await projectOrFail(caller, ref);
+        if (access.role !== "owner") {
+          throw appError("FORBIDDEN", "Only a project owner can update the project");
+        }
+        await updateProject(caller.db, caller.files, access.project.id, {
+          displayName,
+          description,
+          iconUrl,
+        });
+        const project = await loadMyProject(caller.db, caller.userId, access.project.id);
+        return ok(`Updated project ${project.name}.`, {
+          project: {
+            name: project.name,
+            displayName: project.displayName,
+            description: project.description,
+            iconUrl: project.iconUrl,
+            role: project.role,
+            isGeneral: project.personal,
+          },
+        });
       }),
   );
 }
@@ -336,7 +396,71 @@ const SendInput = z.object({
     .max(2)
     .optional()
     .describe('Up to 2 link buttons, e.g. [{ label: "Open PR", url: "https://..." }].'),
+  attachmentId: AttachmentId.optional().describe(
+    "A file from create_upload, uploaded to the same project, attached to this notification.",
+  ),
 });
+
+/** A path or file name as one single-quoted shell word. */
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function registerUploadTool(server: McpServer, caller: McpCaller) {
+  server.registerTool(
+    "create_upload",
+    {
+      title: "Create upload",
+      description:
+        "Get a one-time link to upload a file (screenshot, log, video, PDF) for send_notification. Run the returned curl command with the file's path, then pass attachmentId to send_notification with the same project. The link works once, for 1 hour; unused uploads are deleted after 24 hours.",
+      inputSchema: z.object({
+        project: ProjectRef.optional().describe(
+          "The project you will send to. Omit for your private General project.",
+        ),
+        fileName: z.string().trim().min(1).max(255).describe('Shown in the app, e.g. "build.log".'),
+        contentType: z
+          .string()
+          .trim()
+          .min(1)
+          .max(127)
+          .describe('Media type, e.g. "image/png", "video/mp4", "application/pdf", "text/plain".'),
+        size: z
+          .number()
+          .int()
+          .min(0)
+          .max(ATTACHMENT_MAX_BYTES)
+          .describe(`Exact file size in bytes, at most ${ATTACHMENT_MAX_BYTES}.`),
+      }),
+    },
+    ({ project, fileName, contentType, size }) =>
+      run(async () => {
+        const access = await findProject(caller.db, caller.userId, project);
+        if (!access) {
+          throw projectNotFound(project ?? "");
+        }
+        requirePublisher(access);
+        const link = await createUploadLink(caller.db, caller.files, {
+          projectId: access.project.id,
+          userId: caller.userId,
+          fileName,
+          contentType,
+          size,
+        });
+        const expiresAt = link.row.uploadExpiresAt?.toISOString() ?? null;
+        const curl = `curl --fail-with-body -sS -T ${shellQuote(fileName)} ${shellQuote(link.url)}`;
+        return ok(
+          `Upload with: ${curl}\n(replace ${shellQuote(fileName)} with the file's path if it is elsewhere). Then call send_notification with attachmentId ${link.row.id}${project ? ` and project ${access.project.name}` : ""}. The link works once, until ${expiresAt}.`,
+          {
+            attachmentId: link.row.id,
+            uploadUrl: link.url,
+            curl,
+            expiresAt,
+            project: access.project.name,
+          },
+        );
+      }),
+  );
+}
 
 function registerSendTool(server: McpServer, caller: McpCaller) {
   server.registerTool(
@@ -353,7 +477,7 @@ function registerSendTool(server: McpServer, caller: McpCaller) {
           project: input.project,
           feature: input.feature,
         });
-        const { message, deliveredTo } = await sendNotification(caller.db, {
+        const { published, deliveredTo } = await sendNotification(caller.db, {
           access: target.access,
           userId: caller.userId,
           feature: target.feature,
@@ -367,7 +491,9 @@ function registerSendTool(server: McpServer, caller: McpCaller) {
             ask: input.ask,
             links: input.actions,
             sender: caller.sender,
+            attachmentId: input.attachmentId,
           },
+          files: caller.files,
         });
         const project = target.access.project.name;
         const feature = target.feature
@@ -375,9 +501,9 @@ function registerSendTool(server: McpServer, caller: McpCaller) {
           : null;
         const where = feature ? `${project} / ${feature.slug}` : project;
         return ok(
-          `Sent ${message.id} to ${where}${feature?.created ? " (new feature)" : ""}; ${deliveredTo} device(s) subscribed.`,
+          `Sent ${published.message.id} to ${where}${feature?.created ? " (new feature)" : ""}; ${deliveredTo} device(s) subscribed.`,
           {
-            messageId: message.id,
+            messageId: published.message.id,
             project,
             isGeneral: target.access.project.personalUserId !== null,
             feature,
@@ -397,5 +523,6 @@ export function createNotifierMcpServer(caller: McpCaller): McpServer {
   registerProjectTools(server, caller);
   registerFeatureTools(server, caller);
   registerSendTool(server, caller);
+  registerUploadTool(server, caller);
   return server;
 }

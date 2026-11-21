@@ -39,7 +39,27 @@ export function isPublicOAuthPath(path: string): boolean {
   );
 }
 
+/**
+ * Project icons, attachment downloads and MCP upload links: capability URLs (an
+ * unguessable token, or a content hash for icons), never a session.
+ */
+const FILE_PATH_PREFIXES = [
+  `${API_PREFIX}/icons/`,
+  `${API_PREFIX}/attachments/`,
+  `${API_PREFIX}/uploads/`,
+];
+
+export function isFilePath(path: string): boolean {
+  return FILE_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+/**
+ * The download token in an attachment URL path, for log redaction: the request log
+ * records the path, and the token is what makes the URL work.
+ */
+export const ATTACHMENT_TOKEN_IN_PATH = /(?<=\/api\/attachments\/att_[0-9a-z]{26}\/)[^/?#]+/gu;
+
 /** Paths that take no session and allow any origin without credentials. */
 export function isPublicPath(path: string): boolean {
-  return isPublicApiPath(path) || isMcpPath(path) || isPublicOAuthPath(path);
+  return isPublicApiPath(path) || isMcpPath(path) || isPublicOAuthPath(path) || isFilePath(path);
 }

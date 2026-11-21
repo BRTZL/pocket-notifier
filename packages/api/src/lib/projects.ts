@@ -27,9 +27,12 @@ import {
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import type { Dispatch } from "../dispatch";
+import { attachmentKey, attachmentOf } from "./attachments";
 import { appError, badRequest, isUniqueViolation } from "./errors";
 import { ensureFeature } from "./features";
-import { announcePublished, type MessageRow, publishMessage, toMessage } from "./messages";
+import { deletePrefix, type Files } from "./files";
+import { swapIconUrl } from "./icons";
+import { announcePublished, type PublishedRow, publishMessage, toMessage } from "./messages";
 import { loadMyProject, loadMyProjects } from "./my-projects";
 
 export type ProjectRow = typeof project.$inferSelect;
@@ -172,6 +175,7 @@ export type NewProjectInput = {
   name: string;
   displayName?: string;
   description?: string;
+  iconUrl?: string;
   defaultPriority?: number;
   retentionDays?: number;
 };
@@ -208,6 +212,7 @@ export async function createProject(
         name: input.name,
         displayName: input.displayName ?? null,
         description: input.description ?? null,
+        iconUrl: input.iconUrl ?? null,
         defaultPriority: input.defaultPriority,
         retentionDays: input.retentionDays,
       }),
@@ -221,6 +226,59 @@ export async function createProject(
     throw error;
   }
   return { project: await loadMyProject(db, userId, projectId), created: true };
+}
+
+export type ProjectChanges = {
+  displayName?: string | null;
+  description?: string | null;
+  /** `null` removes the icon. */
+  iconUrl?: string | null;
+  defaultPriority?: number;
+  retentionDays?: number;
+};
+
+/**
+ * Applies `changes` (fields left `undefined` stay as they are) to a project the caller
+ * owns; the caller checks that. A replaced or removed uploaded icon is deleted from R2.
+ */
+export async function updateProject(
+  db: Database,
+  files: Files,
+  projectId: string,
+  changes: ProjectChanges,
+): Promise<void> {
+  // Everything but the icon; the icon goes through compare-and-set.
+  const extra = Object.fromEntries(
+    Object.entries(changes).filter(([key, value]) => value !== undefined && key !== "iconUrl"),
+  ) as Partial<typeof project.$inferInsert>;
+  if (changes.iconUrl !== undefined) {
+    await swapIconUrl(db, files, { projectId, next: changes.iconUrl, extra });
+  } else if (Object.keys(extra).length > 0) {
+    await db.update(project).set(extra).where(eq(project.id, projectId));
+  }
+}
+
+/**
+ * Deletes a project; members, subscriptions, features, messages and attachment rows
+ * cascade. Its files (attachments and icons) are deleted from R2 afterwards. The caller
+ * checks that the user owns it and that it is not personal.
+ */
+export async function deleteProject(db: Database, files: Files, projectId: string): Promise<void> {
+  await db.delete(project).where(eq(project.id, projectId));
+  // Each prefix on its own, so a failure in one still cleans the other. The rows are
+  // gone either way; the R2 lifecycle rule still ages out attachment files.
+  const prefixes = [attachmentKey(projectId, ""), `icons/${projectId}/`];
+  const results = await Promise.allSettled(
+    prefixes.map((prefix) => deletePrefix(files.bucket, prefix)),
+  );
+  for (const [index, result] of results.entries()) {
+    if (result.status === "rejected") {
+      console.error("deleting a deleted project's files failed", {
+        prefix: prefixes[index],
+        error: result.reason,
+      });
+    }
+  }
 }
 
 export function toFeature(row: FeatureRow): Feature {
@@ -440,6 +498,8 @@ export type SendNotificationInput = {
   /** Extra links shown as buttons. */
   links?: { label: string; url: string }[];
   sender?: { id: string; name?: string };
+  /** An upload to the same project (`create_upload`), attached to the message. */
+  attachmentId?: string;
 };
 
 /** Builds the message's actions: link buttons, then the reply action for `ask`. */
@@ -496,8 +556,9 @@ export async function sendNotification(
     feature?: FeatureRow;
     input: SendNotificationInput;
     dispatch: Dispatch;
+    files: Files;
   },
-): Promise<{ message: MessageRow; deliveredTo: number }> {
+): Promise<{ published: PublishedRow; deliveredTo: number }> {
   requirePublisher(args.access);
   const { input } = args;
   const parsed = PublishInputSchema.safeParse({
@@ -510,18 +571,27 @@ export async function sendNotification(
     actions: buildActions(input),
     conversation: args.feature ? { id: args.feature.slug, title: args.feature.name } : undefined,
     sender: input.sender,
+    attachmentId: input.attachmentId,
   });
   if (!parsed.success) {
     throw badRequest(
       `Invalid notification: ${parsed.error.issues.map((issue) => `${issue.path.join(".") || "input"}: ${issue.message}`).join("; ")}`,
     );
   }
-  const row = await publishMessage(db, {
+  const published = await publishMessage(db, {
     project: args.access.project,
     publisher: { userId: args.userId, tokenId: null },
     input: parsed.data,
   });
   const [publisher] = await db.select().from(user).where(eq(user.id, args.userId)).limit(1);
-  announcePublished(args.dispatch, toMessage(row, args.access.project.name, publisher ?? null));
-  return { message: row, deliveredTo: await countPushDevices(db, args.access.project.id) };
+  announcePublished(
+    args.dispatch,
+    toMessage(
+      published.message,
+      args.access.project.name,
+      publisher ?? null,
+      attachmentOf(published.attachment, args.files.origin),
+    ),
+  );
+  return { published, deliveredTo: await countPushDevices(db, args.access.project.id) };
 }

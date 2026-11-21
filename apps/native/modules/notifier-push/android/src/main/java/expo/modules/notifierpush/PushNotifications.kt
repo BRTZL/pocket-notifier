@@ -56,11 +56,15 @@ object PushNotifications {
       .coerceAtLeast(96)
 
     val conversationName = message.conversationTitle.ifEmpty { message.conversationId }
-    val conversationAvatar = if (message.conversationId.isNotEmpty()) {
-      Avatars.bitmap(message.conversationId, conversationName, avatarSize)
-    } else {
-      Avatars.bitmap(message.project, message.project, avatarSize)
-    }
+    // The conversation icon (the project's first) when it was downloaded, else the
+    // generated initials. Only the cache is read: re-posts must not wait on the network.
+    val conversationAvatar = PushMedia.icon(context, message.conversationIcon, avatarSize)
+      ?: if (message.conversationId.isNotEmpty()) {
+        Avatars.bitmap(message.conversationId, conversationName, avatarSize)
+      } else {
+        Avatars.bitmap(message.project, message.project, avatarSize)
+      }
+    val pictureUrl = message.attachmentUrl.takeIf { MediaRules.wantsPicture(message) }
     val title = conversationName.ifEmpty { message.project }
     val agent = shortSenderName(message.senderName.ifEmpty { message.senderId })
     // Header line: "Pocket Notifier · <project> · <agent>". The project is left out when it is
@@ -85,7 +89,8 @@ object PushNotifications {
       .setOnlyAlertOnce(update)
       .setSubText(header)
 
-    val text = messageText(message)
+    val pictureUri = pictureUrl?.let { PushMedia.pictureUri(context, it) }
+    val text = messageText(message, showsPicture = pictureUri != null)
     if (message.conversationId.isNotEmpty() || message.senderId.isNotEmpty() || message.replies.isNotEmpty()) {
       // One avatar per notification: the conversation speaks as itself, so Android shows a single
       // icon and no sender row. The agent's name moves to the header line.
@@ -98,15 +103,33 @@ object PushNotifications {
       val style = NotificationCompat.MessagingStyle(me)
         .setGroupConversation(false)
       style.addMessage(text, message.createdAt, sender)
+      if (pictureUri != null) {
+        // An image message right under the text; its text is what shows where images can't.
+        style.addMessage(
+          NotificationCompat.MessagingStyle.Message(
+            message.attachmentName.ifEmpty { "Image" },
+            message.createdAt,
+            sender,
+          ).setData(PICTURE_MIME_TYPE, pictureUri),
+        )
+      }
       for (reply in message.replies) {
         style.addMessage(reply.text, reply.at, null as Person?)
       }
       builder.setStyle(style)
     } else {
+      val body = withAttachmentLine(message.body, message, showsPicture = pictureUri != null)
+      val picture = if (pictureUri != null) pictureUrl?.let { PushMedia.pictureBitmap(context, it) } else null
       builder
         .setContentTitle(message.title.ifEmpty { message.project })
-        .setContentText(message.body)
-        .setStyle(NotificationCompat.BigTextStyle().bigText(message.body))
+        .setContentText(body)
+        .setStyle(
+          if (picture != null) {
+            NotificationCompat.BigPictureStyle().bigPicture(picture).setSummaryText(body)
+          } else {
+            NotificationCompat.BigTextStyle().bigText(body)
+          },
+        )
     }
 
     message.actions.take(MAX_ACTIONS).forEachIndexed { index, action ->
@@ -120,15 +143,28 @@ object PushNotifications {
   /** "Claude Code (pocket-notifier)" -> "Claude Code": the OAuth client's suffix is noise here. */
   internal fun shortSenderName(name: String): String = name.substringBefore(" (").trim()
 
+  /**
+   * Any image type works: SystemUI only checks the `image/` prefix and decodes the file
+   * (stored as JPEG or PNG).
+   */
+  private const val PICTURE_MIME_TYPE = "image/jpeg"
+
+  /** The body plus "Attachment: <name>" unless the attachment is shown as the picture. */
+  internal fun withAttachmentLine(body: String, message: PushMessage, showsPicture: Boolean): String {
+    val line = if (showsPicture) null else MediaRules.attachmentLine(message)
+    return listOf(body, line).filter { !it.isNullOrEmpty() }.joinToString("\n")
+  }
+
   /** Bold title on the first line, then the body; the messaging style has no title slot. */
-  private fun messageText(message: PushMessage): CharSequence {
+  private fun messageText(message: PushMessage, showsPicture: Boolean): CharSequence {
+    val body = withAttachmentLine(message.body, message, showsPicture)
     if (message.title.isEmpty()) {
-      return message.body.ifEmpty { "New message" }
+      return body.ifEmpty { "New message" }
     }
     val text = SpannableStringBuilder(message.title)
     text.setSpan(StyleSpan(Typeface.BOLD), 0, message.title.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-    if (message.body.isNotEmpty()) {
-      text.append('\n').append(message.body)
+    if (body.isNotEmpty()) {
+      text.append('\n').append(body)
     }
     return text
   }

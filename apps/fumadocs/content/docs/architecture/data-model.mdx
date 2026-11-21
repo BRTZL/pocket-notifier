@@ -14,6 +14,7 @@ erDiagram
   project ||--o{ message : contains
   project ||--o{ feature : has
   user |o--o| project : "personal General"
+  project ||--o{ attachment : stores
   message |o--o| attachment : has
   message ||--o{ message_response : receives
   message ||--o{ message_read : "read by"
@@ -25,6 +26,7 @@ erDiagram
     text id PK "prj_..."
     text name UK
     text display_name
+    text icon_url
     int default_priority
     int retention_days
     text personal_user_id FK "UK, set on General"
@@ -68,9 +70,19 @@ erDiagram
   attachment {
     text id PK "att_..."
     text project_id FK
-    text r2_key
-    int size
+    text message_id FK "UK, null until published"
+    text uploaded_by FK
+    text token_id FK
+    text name
     text content_type
+    int size
+    text r2_key
+    text download_token
+    text upload_token_hash
+    int upload_expires_at
+    text status "pending | uploaded"
+    int created_at
+    int expires_at
   }
   message_response {
     text id PK "rsp_..."
@@ -119,6 +131,8 @@ erDiagram
 - **Project → Feature → Notification.** `project.personal_user_id` marks a user's private General project; a unique index allows one per user. A `feature` belongs to one project, and its `slug` (lowercase `[a-z0-9][a-z0-9-]{0,62}`, checked in SQL too) is the `conversation.id` of its messages, so a feature's thread is conversation key `c:<slug>`. Messages without a conversation form the project-level thread, key `p:<project id>`. Deleting a project deletes its features.
 - **Every conversation is a feature.** Every publish path (REST, app API, MCP) finds or creates the project's feature for a message's `conversation.id`: an id that is a valid slug once lowercased is the slug, any other id is slugified (`org/repo` becomes `org-repo`, with `-2`, `-3` … when that slug belongs to a feature with another name). The message is stored with `conversation = { id: <slug>, title: <feature name> }` and moves the feature's `last_message_at`. Migration `20261120222058_feature_backfill` gave existing conversations a feature row when their id was already a valid slug; other ids keep working as inbox threads without a feature.
 - **Project ids and keys.** Project ids are `prj_…` everywhere, including inside invite grants and token scopes, and the project-level thread key is `p:<project id>`. Rows written before the current model were rewritten by a migration.
+- **Project icons.** `project.icon_url` is either an image uploaded with `projects.setIcon` (stored in R2 at `icons/<project id>/<sha-256 prefix>-<random>.<ext>` (a new key for every upload), served from `/api/icons/...`) or any HTTPS URL an owner set. Replacing or clearing an uploaded icon deletes its file.
+- **Attachments.** One file per message, stored in R2 at `attachments/<project id>/<attachment id>`. An upload is a row with no `message_id`; a publish with its `attachmentId` sets `message_id` and copies the message's `expires_at`. `message_id` is `on delete set null`, not cascade, so a row whose message is gone still names its file for retention. `download_token` (32 random base62 characters) is part of the download URL; `upload_token_hash` is the SHA-256 of an MCP upload link's one-time token, cleared when the link is used.
 - **Read state** is one row per user and message in `message_read`. Unread counts come from messages in the user's projects with no row for that user.
-- **Indexes.** `message (project_id, id desc)` for history, `message (expires_at)` for cleanup, `device (user_id)`, `project_member (user_id)`.
-- **Deleting.** Removing a project cascades to members, subscriptions, messages, reads and responses. Attachment files in R2 are deleted by the retention job, not inside the request.
+- **Indexes.** `message (project_id, id desc)` for history, `message (expires_at)` for cleanup, `attachment (expires_at)` for cleanup, `attachment (message_id)` (unique: one file per message), `attachment (project_id)`, `device (user_id)`, `project_member (user_id)`.
+- **Deleting.** Removing a project cascades to members, subscriptions, features, messages, reads, responses and attachment rows; the request then deletes the project's files under `attachments/<project id>/` and `icons/<project id>/` in R2. Deleting a message deletes its attachment file first.

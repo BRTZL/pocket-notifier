@@ -2,7 +2,9 @@ import type { PublicContract } from "@notifier/contract/public";
 import type { Database } from "@notifier/db";
 import { ORPCError, type Router } from "@orpc/server";
 
+import { attachmentOf, storeUpload } from "../lib/attachments";
 import { appError } from "../lib/errors";
+import { FileTooLargeError } from "../lib/files";
 import {
   announcePublished,
   findMessage,
@@ -23,7 +25,15 @@ const publish = tokenAuthed.messages.publish.handler(async ({ context, input }) 
     publisher: { userId: auth.user.id, tokenId: auth.token.id },
     input,
   });
-  announcePublished(context.dispatch, toMessage(row, target.name, auth.user));
+  announcePublished(
+    context.dispatch,
+    toMessage(
+      row.message,
+      target.name,
+      auth.user,
+      attachmentOf(row.attachment, context.files.origin),
+    ),
+  );
   return toPublishOutput(row, target.name);
 });
 
@@ -34,6 +44,7 @@ const list = tokenAuthed.messages.list.handler(async ({ context, input }) => {
     cursor: input.cursor,
     since: input.since,
     limit: input.limit,
+    origin: context.files.origin,
   });
 });
 
@@ -65,7 +76,12 @@ async function readableMessage(db: Database, auth: TokenAuth, id: string) {
 
 const get = tokenAuthed.messages.get.handler(async ({ context, input }) => {
   const found = await readableMessage(context.db, context.auth, input.id);
-  return toMessage(found.message, found.projectName, found.publisher);
+  return toMessage(
+    found.message,
+    found.projectName,
+    found.publisher,
+    attachmentOf(found.attachment, context.files.origin),
+  );
 });
 
 const responses = tokenAuthed.messages.responses.handler(async ({ context, input }) => {
@@ -83,11 +99,36 @@ const responses = tokenAuthed.messages.responses.handler(async ({ context, input
 });
 
 /**
- * The implemented part of `publicContract`. `attachments.upload` is left out until
- * attachments ship, so the OpenAPI handler answers its path with a 404.
+ * Upload through oRPC, with the file already parsed: in-process clients and tests. Over
+ * HTTP the handler sends this path to the streaming `./upload` instead, which never
+ * buffers the body.
  */
+const upload = tokenAuthed.attachments.upload.handler(async ({ context, input, errors }) => {
+  const target = await tokenCanPublish(context.db, context.auth, input.project);
+  // zod types `z.file()` from `globalThis.File`, which it cannot infer with both the Node
+  // and the Workers types loaded; at runtime it is the platform's `File`.
+  const file = input.file as unknown as File;
+  try {
+    const row = await storeUpload(context.db, context.files, {
+      projectId: target.id,
+      uploader: { userId: context.auth.user.id, tokenId: context.auth.token.id },
+      fileName: file.name,
+      contentType: file.type,
+      stream: file.stream(),
+    });
+    return { id: row.id, expiresAt: row.expiresAt.toISOString() };
+  } catch (error) {
+    if (error instanceof FileTooLargeError) {
+      throw errors.PAYLOAD_TOO_LARGE({ data: { maxBytes: error.maxBytes } });
+    }
+    throw error;
+  }
+});
+
+/** Implements all of `publicContract`. */
 export const publicRouter = {
   messages: tokenAuthed.messages.router({ publish, list, get, responses }),
-} satisfies Router<Pick<PublicContract, "messages">, PublicContext>;
+  attachments: tokenAuthed.attachments.router({ upload }),
+} satisfies Router<PublicContract, PublicContext>;
 
 export type PublicRouter = typeof publicRouter;

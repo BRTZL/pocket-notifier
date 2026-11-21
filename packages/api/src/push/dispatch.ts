@@ -1,6 +1,6 @@
 import type { Message } from "@notifier/contract/message";
 import type { Database } from "@notifier/db";
-import { device, projectMember, subscription } from "@notifier/db/schema/notifier";
+import { device, project, projectMember, subscription } from "@notifier/db/schema/notifier";
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import type { Dispatch } from "../dispatch";
@@ -221,7 +221,12 @@ export function createPushDispatch(options: PushDispatchOptions): Dispatch {
           taskLog.set({ push: { recipients: 0 } });
           return;
         }
-        const data = toPushData(message);
+        const [owner] = await db
+          .select({ iconUrl: project.iconUrl })
+          .from(project)
+          .where(eq(project.id, message.projectId))
+          .limit(1);
+        const data = toPushData(message, { projectIconUrl: owner?.iconUrl ?? null });
         const priority = fcmPriority(message.priority);
         const counts = await deliver(
           { ...deliverOptions, sender: pushSender },

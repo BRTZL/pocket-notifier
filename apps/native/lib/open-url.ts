@@ -40,3 +40,15 @@ export async function openUrl(url: string): Promise<void> {
   }
   throw new UnopenableLinkError();
 }
+
+/**
+ * Opens an attachment's download URL with the system, so Android hands a PDF or file to
+ * a viewer app (or the browser downloads it). Only HTTPS URLs from the API are opened.
+ */
+export async function openAttachmentUrl(url: string): Promise<void> {
+  const parsed = parseUrl(url);
+  if (parsed.protocol !== "https:") {
+    throw new UnopenableLinkError();
+  }
+  await Linking.openURL(parsed.href);
+}

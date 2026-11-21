@@ -157,13 +157,13 @@ describe("public messages API", () => {
       ).resolves.toMatchObject({ project: "team" });
     });
 
-    it("rejects attachments until they are supported", async () => {
+    it("rejects an attachment that was never uploaded to the project", async () => {
       const api = publicClientFor(testDb.db, adaSecret);
       await expect(
         api.messages.publish({ project: "team", attachmentId: "att_01jd8x7q3n1p5s8u0w2y4a6c8e" }),
       ).rejects.toMatchObject({
         code: "BAD_REQUEST",
-        message: "Attachments are not supported yet",
+        message: expect.stringContaining("Attachment not found in this project"),
       });
     });
 
@@ -422,6 +422,7 @@ describe("public messages API", () => {
             db: testDb.db,
             authorization: request.headers.get("Authorization"),
             dispatch: { ...noopDispatch, messagePublished },
+            files: testDb.files,
           },
         });
 
@@ -474,13 +475,16 @@ describe("public messages API", () => {
       expect(await tooLarge.response?.json()).toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
       expect(messagePublished).toHaveBeenCalledTimes(1);
 
+      // The upload route is served (streaming, see attachments.test.ts); without a
+      // multipart body it is a 400.
       const attachment = await send(
         new Request("http://api.test/v1/projects/team/attachments", {
           method: "POST",
           headers: { Authorization: `Bearer ${adaSecret}` },
         }),
       );
-      expect(attachment.matched).toBe(false);
+      expect(attachment.matched).toBe(true);
+      expect(attachment.response?.status).toBe(400);
     });
   });
 });

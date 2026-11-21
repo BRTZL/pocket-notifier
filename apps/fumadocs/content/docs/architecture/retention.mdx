@@ -12,7 +12,9 @@ description: How long messages, attachments and other records are kept, and how 
 | Message | `expiresAt`, set at publish time from the project's retention |
 | Responses and read state | Deleted with their message |
 | Attachment file | Deleted with its message |
-| Uploaded attachment never used in a message | 1 hour after upload |
+| Uploaded attachment never used in a message | 24 hours after upload (`UNUSED_UPLOAD_TTL_MS`) |
+| Feature with no messages left | 30 days after its last message (or its creation, if it never had one) |
+| Project and its icon | Kept until an owner deletes the project |
 | Accepted, expired or revoked invite | 30 days after it ends |
 | Device not seen | 60 days after `lastSeenAt` |
 | Expired access token | Kept, so it still shows as expired in the token list |
@@ -21,39 +23,48 @@ Changing a project's retention affects only new messages. Existing messages keep
 
 ## Cleanup job
 
-A Cron Trigger (`0 * * * *`) runs the cleanup every hour. It is set in `apps/server/wrangler.jsonc` for local dev and in `packages/infra/alchemy.run.ts` for deploys, and calls the `scheduled` export of the server Worker. The cleanup itself is `runRetention(db, { now })` in `packages/api/src/retention.ts`.
+A Cron Trigger (`0 * * * *`) runs the cleanup every hour. It is set in `apps/server/wrangler.jsonc` for local dev and in `packages/infra/alchemy.run.ts` for deploys, and calls the `scheduled` export of the server Worker. The cleanup itself is `runRetention(db, { now, bucket })` in `packages/api/src/retention.ts`; the run's counts (`attachments`, `uploads`, `messages`, `features`, `invites`, `devices`, `done`) go on one log event.
 
-<Status kind="open" /> Attachments do not exist yet, so the file steps below are not implemented. The job deletes expired messages, old invites and stale devices only.
+<Status kind="decided" /> Every step works in batches of up to 500 rows, all within one 20-second budget; the next run continues where this one stopped.
 
 <Steps>
 <Step>
 
-### Find expired messages
+### Delete files of expired messages
 
-Select a batch of up to 500 messages where `expires_at < now`, using the `expires_at` index.
-
-</Step>
-<Step>
-
-### Delete files first
-
-Delete their R2 objects. If deleting a file fails, its message stays and the next run tries again, so no row ever points to a missing file.
+Select attachments of messages past `expires_at` (a linked attachment carries its message's `expires_at`, so this uses the `attachment (expires_at)` index). Delete their R2 objects (up to 1,000 keys per call), then their rows. If deleting a file fails, the rows stay and the next run tries again, so no row ever points to a missing file.
 
 </Step>
 <Step>
 
-### Delete rows
+### Delete unused uploads
 
-Delete the messages; responses and read state cascade. Repeat until nothing is expired or the run's time budget (20 seconds) is used up; the next run continues where this one stopped.
+Uploads never attached to a message, 24 hours after the upload: R2 objects first, then rows. This also catches a row whose message was deleted another way.
+
+</Step>
+<Step>
+
+### Delete expired messages
+
+Delete messages where `expires_at < now`, using the `expires_at` index; responses and read state cascade.
+
+</Step>
+<Step>
+
+### Delete idle features
+
+Delete features whose last activity (last message, else creation) is over 30 days old and that have no messages left. Nothing references a feature, so nothing cascades: projects and their icons are never touched.
 
 </Step>
 <Step>
 
 ### Sweep the rest
 
-Delete orphaned uploads, old invites and stale devices, also 500 at a time and within the same 20-second budget. Invites and devices are found without an index: there are only a few per user.
+Delete old invites and stale devices. Invites and devices are found without an index: there are only a few per user.
 
 </Step>
 </Steps>
+
+An R2 lifecycle rule on `attachments/` (in `packages/infra/alchemy.run.ts`) deletes files 366 days after upload, the longest retention plus a day, and aborts multipart uploads left open for a day. It is only a safety net for a file whose row is gone; `icons/` has no rule.
 
 The apps and the API never show a message past its `expiresAt`, even if cleanup has not run yet.

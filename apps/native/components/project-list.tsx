@@ -10,7 +10,7 @@ import { HeaderIconButton, ScreenHeader } from "@/components/screen-header";
 import { ThemedRefreshControl } from "@/components/themed-refresh-control";
 import { projectNameLine } from "@/hooks/use-project";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
-import { projectGlyph } from "@/lib/chat-avatar";
+import { projectAvatar } from "@/lib/chat-avatar";
 import { orpc } from "@/utils/orpc";
 
 function subscriptionLabel(project: MyProject): string | null {
@@ -36,7 +36,7 @@ function ProjectRow({ project, onPress }: { project: MyProject; onPress: () => v
       accessibilityLabel={`${title}, ${project.unreadCount} unread${subscription ? `, ${subscription}` : ""}`}
     >
       <PressableFeedback.Highlight />
-      <ChatAvatar subject={{ kind: "glyph", name: title, glyph: projectGlyph(project.name) }} />
+      <ChatAvatar subject={projectAvatar(project)} />
       <View className="min-w-0 flex-1">
         <Typography
           numberOfLines={1}

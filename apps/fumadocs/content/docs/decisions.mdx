@@ -38,6 +38,7 @@ description: Every v1 design decision, whether it is settled, and where it is ex
 | Agent layout | With MCP each repository is a project and each feature a conversation; with REST, one `agents` project | [Coding agents](/docs/product/agents#project-layout) |
 | Avatars | Project avatar with agent badge, chat-style (`MessagingStyle`) | [Notifications](/docs/mobile/notifications#conversations-and-avatars) |
 | Avatar source | Generated initials and color; an HTTPS `iconUrl` overrides | [Notifications](/docs/mobile/notifications#generated-avatars) |
+| Attachments | One file per message, up to 95 MB, in R2; download URLs carry a random token and work until the message expires | [Publish](/docs/api/publish#attachments) |
 | Answering agents | Agents can ask with a `reply` action; they cannot read replies through MCP yet | [MCP server](/docs/api/mcp#send_notification) |
 
 ## Open
@@ -46,7 +47,6 @@ Proposals that are written into the contract or the docs but still need a yes or
 
 | Question | Proposal | Details |
 | --- | --- | --- |
-| Attachment size cap | 15 MB per file | [Publish](/docs/api/publish#attachments) |
 | Secrets in HTTP actions | Not supported: HTTPS URL, method and body only, no headers | [Publish](/docs/api/publish#actions) |
 | Waiting for a reply | Not in v1; scripts poll `GET /v1/messages/{id}/responses` | [Messages](/docs/api/messages#reading-replies) |
 | Publishing to a missing project | Rejected with `404`; projects are created in the app | [Publish](/docs/api/publish#projects) |

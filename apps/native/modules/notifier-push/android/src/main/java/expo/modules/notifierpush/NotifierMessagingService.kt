@@ -16,7 +16,12 @@ class NotifierMessagingService : FirebaseMessagingService() {
   override fun onMessageReceived(remoteMessage: RemoteMessage) {
     try {
       when (val push = PushPayload.parse(remoteMessage.data)) {
-        is Push.Message -> PushNotifications.show(applicationContext, push.message)
+        is Push.Message -> {
+          // Already on a background thread: download the icon and picture first (bounded),
+          // then build the notification from the cache.
+          PushMedia.prefetch(applicationContext, push.message)
+          PushNotifications.show(applicationContext, push.message)
+        }
         is Push.Dismiss -> PushNotifications.cancel(applicationContext, push.ids)
         // Unknown version or kind: a newer server; ignore rather than show something wrong.
         null -> Log.i(TAG, "ignored push v=${remoteMessage.data["v"]} kind=${remoteMessage.data["kind"]}")

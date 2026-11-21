@@ -13,7 +13,10 @@ import { type EventSubscription, NativeModule, requireOptionalNativeModule } fro
  *
  * Known gaps in v1:
  * - A `truncated` push is shown as it arrived; the full message is not fetched.
- * - Avatars are always generated; `conversationIcon` and `senderIcon` URLs are not loaded.
+ * - `senderIcon` is not loaded. `conversationIcon` (the project icon first) is downloaded
+ *   (HTTPS only, cached) as the large icon, falling back to generated initials.
+ * - Image attachments show as the notification picture; other kinds add an
+ *   "Attachment: <name>" line.
  */
 
 type NotifierPushEvents = {

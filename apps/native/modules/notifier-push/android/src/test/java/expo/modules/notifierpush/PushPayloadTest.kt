@@ -92,4 +92,37 @@ class PushPayloadTest {
       PushNotifications.groupKey("rezme", "speed"),
     )
   }
+
+  @Test
+  fun parsesTheMediaFields() {
+    val parsed = message(
+      "conversationIcon" to "https://notifier.example/api/icons/abc.webp",
+      "attachment" to "screenshot.png",
+      "attachmentKind" to "image",
+      "attachmentUrl" to "https://notifier.example/api/attachments/att_1?t=secret",
+    )
+    assertEquals("https://notifier.example/api/icons/abc.webp", parsed.conversationIcon)
+    assertEquals("screenshot.png", parsed.attachmentName)
+    assertEquals("image", parsed.attachmentKind)
+    assertEquals("https://notifier.example/api/attachments/att_1?t=secret", parsed.attachmentUrl)
+  }
+
+  @Test
+  fun olderServersWithoutMediaFieldsParseToEmpty() {
+    val parsed = message()
+    assertEquals("", parsed.conversationIcon)
+    assertEquals("", parsed.attachmentName)
+    assertEquals("", parsed.attachmentKind)
+    assertEquals("", parsed.attachmentUrl)
+  }
+
+  @Test
+  fun namesAttachmentsThatAreNotShownAsThePicture() {
+    val file = message("attachment" to "report.pdf", "attachmentKind" to "pdf")
+    assertEquals("Build log\nAttachment: report.pdf", PushNotifications.withAttachmentLine("Build log", file, showsPicture = false))
+    assertEquals("Attachment: report.pdf", PushNotifications.withAttachmentLine("", file, showsPicture = false))
+    val image = message("attachment" to "shot.png", "attachmentKind" to "image")
+    assertEquals("Build log", PushNotifications.withAttachmentLine("Build log", image, showsPicture = true))
+    assertEquals("Build log", PushNotifications.withAttachmentLine("Build log", message(), showsPicture = false))
+  }
 }

@@ -20,7 +20,8 @@ const inbox = await client.messages.list({ unreadOnly: true });
 | --- | --- | --- |
 | `me` | `get` | The signed-in user |
 | `projects` | `list` | Projects the user is a member of, with role, subscription, unread count; includes the private General project (`personal: true`) |
-| | `get` / `create` / `update` / `delete` | Manage one project (`update` and `delete` need `owner`) |
+| | `get` / `create` / `update` / `delete` | Manage one project (`update` and `delete` need `owner`). `iconUrl` sets any HTTPS image; `null` clears it |
+| | `setIcon` | Upload the project's icon (`owner`; General too). See below |
 | | `setSubscription` | Subscribe, unsubscribe, mute |
 | `features` | `list` | A project's features, optionally one `status`, most recent activity first |
 | | `create` | New feature, idempotent by slug (`owner` or `publisher`) |
@@ -29,7 +30,7 @@ const inbox = await client.messages.list({ unreadOnly: true });
 | `messages` | `list` | Inbox, or one project with `projectId`; `unreadOnly` filter |
 | | `get` | One message with read state |
 | | `markRead` | By IDs, or everything up to a message |
-| | `publish` | Same rules as the public publish, for "send test message" |
+| | `publish` | Same rules as the public publish, for "send test message"; takes an `attachmentId` |
 | | `delete` | Remove a message (`owner` only) |
 | `responses` | `create` | Ack or reply from a `reply` action |
 | | `list` | Responses to a message (`owner` or `publisher`) |
@@ -37,6 +38,18 @@ const inbox = await client.messages.list({ unreadOnly: true });
 | `invites` | `list` / `create` / `revoke` | Invites the user created |
 | | `preview` | Public: what an invite link grants, for the sign-up page |
 | `devices` | `list` / `register` / `rename` / `remove` | The user's phones; `register` upserts by push token |
+
+## Project icons
+
+<Status kind="decided" /> `projects.setIcon({ id, contentType, data })` takes the image as base64 in JSON, so the React Native client needs no multipart:
+
+- `contentType` is `image/png`, `image/jpeg` or `image/webp`, and the first bytes must match it; anything else is `BAD_REQUEST`.
+- At most `PROJECT_ICON_MAX_BYTES` (256 KB) decoded. The app resizes to a 256 px square first.
+- The server stores it in R2 as `icons/<project id>/<sha-256 prefix>-<random>.<ext>` (a new key for every upload), sets `iconUrl` to `https://notifier.bartuozel.com/api/icons/<project id>/<file>` and deletes the icon it replaces. It returns the updated `MyProject`.
+
+`GET /api/icons/<project id>/<file>` serves the image without a session, with `Cache-Control: public, max-age=31536000, immutable` (a new image gets a new file name), `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'`.
+
+The project icon is the conversation icon everywhere: conversation summaries and the push payload use the project's `iconUrl` first, then the message's `conversation.iconUrl`.
 
 ## Errors
 

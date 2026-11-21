@@ -13,6 +13,7 @@ import { oauthClient } from "@notifier/db/schema/oauth";
 import { eq } from "drizzle-orm";
 
 import type { Dispatch } from "../dispatch";
+import type { Files } from "../lib/files";
 import { createNotifierMcpServer } from "./server";
 
 /** `Sender.name` allows at most 40 characters. */
@@ -50,6 +51,7 @@ async function findOAuthClientName(db: Database, clientId: string): Promise<stri
 export type McpRequestDeps = {
   db: Database;
   dispatch: Dispatch;
+  files: Files;
 };
 
 /** Answers one `/mcp` request for the user and client named by `claims`. */
@@ -72,7 +74,14 @@ export async function handleMcpRequest(
     : { id: FALLBACK_SENDER };
 
   const handler = createMcpHandler(
-    () => createNotifierMcpServer({ db: deps.db, userId, sender, dispatch: deps.dispatch }),
+    () =>
+      createNotifierMcpServer({
+        db: deps.db,
+        userId,
+        sender,
+        dispatch: deps.dispatch,
+        files: deps.files,
+      }),
     {
       keepAliveMs: 0,
       maxRequestBodySize: 64 * 1024,

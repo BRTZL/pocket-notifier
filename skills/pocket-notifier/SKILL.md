@@ -51,12 +51,15 @@ Before the first notification in a session:
 
 When a workstream is finished, call `update_feature_status` with `done`.
 
+Project owners can change a project's `displayName`, `description` or `iconUrl` (an HTTPS image) with `update_project`; `create_project` takes `iconUrl` too.
+
 ## Writing the notification
 
 - `title`: the outcome, at most 32 characters. No project prefix (the app shows it).
 - `body`: one line. Result first, the user's next step last. Example: `Magic-link login works, tests pass. Review PR #12.`
 - `url`: where to look (PR, CI run, deploy, your agent thread). It shows as an Open button on the message in the thread and as an action on the notification. Tapping the notification itself opens the thread: the feature's, or the project-level thread when you leave `feature` out.
 - `actions`: up to 2 extra link buttons `{ label, url }`.
+- `attachmentId`: one file per notification (screenshot, log, video, PDF, at most 95 MB). Call `create_upload` with the same `project`, `fileName`, `contentType` and the exact `size` in bytes, run the `curl` command it returns with the file's path (the link works once, for 1 hour), then pass its `attachmentId`. Images show as the notification's picture.
 - `ask` when blocked: `{ question, quickReplies: up to 3 short answers, allowText }`. You cannot read the answer through this server yet, so also say in your session what you asked and wait for the user there.
 
 ```json

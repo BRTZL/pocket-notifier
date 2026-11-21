@@ -124,6 +124,11 @@ export async function ensureFeature(
 }
 
 /** Marks a message at `at` as the feature's latest activity. */
-export async function touchFeature(db: Database, featureId: string, at: Date): Promise<void> {
-  await db.update(feature).set({ lastMessageAt: at }).where(eq(feature.id, featureId));
+export async function touchFeature(db: Database, featureId: string, at: Date): Promise<boolean> {
+  const updated = await db
+    .update(feature)
+    .set({ lastMessageAt: at })
+    .where(eq(feature.id, featureId))
+    .returning({ id: feature.id });
+  return updated.length > 0;
 }

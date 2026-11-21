@@ -1,9 +1,11 @@
 import { PRIORITY_NAMES } from "@notifier/contract/priority";
+import { useQuery } from "@tanstack/react-query";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { Button, Card, Separator, Typography } from "heroui-native";
 import { ScrollView, View } from "react-native";
 
 import { MessageActions } from "@/components/message-actions";
+import { MessageAttachment } from "@/components/message-attachment";
 import { PriorityChip, TagChips } from "@/components/message-row";
 import { EmptyState, ErrorState, LoadingState } from "@/components/query-state";
 import { SenderAvatar } from "@/components/sender-avatar";
@@ -11,12 +13,19 @@ import { useMessage } from "@/hooks/use-inbox";
 import { useOpenLink } from "@/hooks/use-open-link";
 import { isAccessError } from "@/lib/errors";
 import { fullTime, messageHeadline } from "@/lib/format";
+import { orpc } from "@/utils/orpc";
 
 /** One message, opened from the inbox or from a project; the route passes `id`. */
 export function MessageDetailScreen() {
   const { id = "" } = useLocalSearchParams<{ id: string }>();
   const query = useMessage(id);
   const openLink = useOpenLink();
+  // For the project's icon; usually already cached by the screen that opened the message.
+  const projectId = query.data?.projectId;
+  const project = useQuery({
+    ...orpc.projects.get.queryOptions({ input: { id: projectId ?? "" } }),
+    enabled: projectId !== undefined,
+  });
 
   if (query.isPending) {
     return <LoadingState />;
@@ -57,6 +66,7 @@ export function MessageDetailScreen() {
           project={message.project}
           conversation={message.conversation}
           sender={message.sender}
+          projectIconUrl={project.data?.iconUrl ?? null}
           size="lg"
         />
         <View className="flex-1 gap-0.5">
@@ -87,6 +97,7 @@ export function MessageDetailScreen() {
             </Typography>
           ) : null}
           {message.body ? <Typography selectable>{message.body}</Typography> : null}
+          {message.attachment ? <MessageAttachment attachment={message.attachment} /> : null}
         </Card.Body>
       </Card>
 

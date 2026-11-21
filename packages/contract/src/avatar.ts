@@ -18,7 +18,8 @@ const AvatarKey = z
   .max(64)
   .regex(/^[\p{L}\p{N}._:@/-]+$/u, "Use letters, digits and . _ : @ / -");
 
-const IconUrl = z.url({ protocol: /^https$/u }).max(2048);
+/** An HTTPS image URL: a project icon, or a per-message conversation or sender icon. */
+export const IconUrl = z.url({ protocol: /^https$/u }).max(2048);
 
 export const Conversation = z.object({
   /** Stable key, e.g. the project name. Same id, same avatar and stack. */

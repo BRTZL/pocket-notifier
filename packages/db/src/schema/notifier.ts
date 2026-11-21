@@ -26,6 +26,11 @@ export const project = sqliteTable(
     name: text("name").notNull().unique(),
     displayName: text("display_name"),
     description: text("description"),
+    /**
+     * The project's icon: an uploaded image (`/api/icons/<project id>/<file>` on this
+     * deployment, stored in R2 under `icons/`) or any HTTPS URL an owner set.
+     */
+    iconUrl: text("icon_url"),
     defaultPriority: integer("default_priority").default(DEFAULT_PRIORITY).notNull(),
     retentionDays: integer("retention_days").default(RETENTION_DAYS.default).notNull(),
     /**
@@ -262,6 +267,54 @@ export const invite = sqliteTable(
   (table) => [index("invite_createdBy_idx").on(table.createdBy)],
 );
 
+/**
+ * A file attached to (or uploaded for) a message, stored in R2 at `r2Key`. One per
+ * message. Uploaded first, then linked by a publish with its `attachmentId`; uploads
+ * never linked are deleted once `expiresAt` (upload time + `UNUSED_UPLOAD_TTL_MS`)
+ * passes. Linking sets `expiresAt` to the message's, so the file goes with its message.
+ */
+export const attachment = sqliteTable(
+  "attachment",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    /**
+     * The message it is attached to; `null` until published. `set null` rather than
+     * cascade: a row whose message went keeps its R2 key, so retention still deletes
+     * the object instead of leaking it.
+     */
+    messageId: text("message_id").references(() => message.id, { onDelete: "set null" }),
+    uploadedBy: text("uploaded_by").references(() => user.id, { onDelete: "set null" }),
+    /** The access token of a REST upload; `null` for app and MCP upload-link uploads. */
+    tokenId: text("token_id").references(() => accessToken.id, { onDelete: "set null" }),
+    /** Sanitized file name, shown in the apps and sent in `Content-Disposition`. */
+    name: text("name").notNull(),
+    contentType: text("content_type").notNull(),
+    /** Bytes stored; the declared size until an upload link is used. */
+    size: integer("size").notNull(),
+    r2Key: text("r2_key").notNull(),
+    /** Random, unguessable part of the download URL; compared in constant time. */
+    downloadToken: text("download_token").notNull(),
+    /** SHA-256 hex of an MCP upload link's one-time token; cleared when the link is used. */
+    uploadTokenHash: text("upload_token_hash"),
+    /** When the upload link stops working. */
+    uploadExpiresAt: integer("upload_expires_at", { mode: "timestamp_ms" }),
+    status: text("status", { enum: ["pending", "uploaded"] })
+      .default("pending")
+      .notNull(),
+    createdAt: createdAt(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("attachment_messageId_uidx").on(table.messageId),
+    index("attachment_expiresAt_idx").on(table.expiresAt),
+    index("attachment_projectId_idx").on(table.projectId),
+    check("attachment_status_check", sql`${table.status} in ('pending', 'uploaded')`),
+  ],
+);
+
 export const notifierRelations = defineRelationsPart(
   {
     user,
@@ -275,6 +328,7 @@ export const notifierRelations = defineRelationsPart(
     messageResponse,
     device,
     invite,
+    attachment,
   },
   (r) => ({
     user: {
@@ -314,6 +368,11 @@ export const notifierRelations = defineRelationsPart(
       token: r.one.accessToken({ from: r.message.tokenId, to: r.accessToken.id }),
       responses: r.many.messageResponse({ from: r.message.id, to: r.messageResponse.messageId }),
       reads: r.many.messageRead({ from: r.message.id, to: r.messageRead.messageId }),
+      attachment: r.one.attachment({ from: r.message.id, to: r.attachment.messageId }),
+    },
+    attachment: {
+      project: r.one.project({ from: r.attachment.projectId, to: r.project.id, optional: false }),
+      message: r.one.message({ from: r.attachment.messageId, to: r.message.id }),
     },
     messageRead: {
       message: r.one.message({ from: r.messageRead.messageId, to: r.message.id, optional: false }),

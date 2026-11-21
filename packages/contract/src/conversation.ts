@@ -1,5 +1,5 @@
 import { z } from "zod";
-
+import { AttachmentKind } from "./attachment-kind";
 import { idSchema, PageInput, Timestamp } from "./common";
 import { Priority } from "./priority";
 import { ProjectId, ProjectName } from "./project";
@@ -62,6 +62,8 @@ export const ConversationSummary = z.object({
     body: z.string().max(CONVERSATION_PREVIEW_LENGTH),
     /** `sender.name`, else `sender.id`; `null` without a sender. */
     senderName: z.string().nullable(),
+    /** The message's attachment, for a preview like "Photo" when there is no text. */
+    attachment: z.object({ name: z.string(), kind: AttachmentKind }).nullable(),
     priority: Priority,
     createdAt: Timestamp,
   }),

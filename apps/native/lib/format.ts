@@ -127,3 +127,20 @@ export function dayLabel(iso: string, now = new Date()): string {
 export function dayKey(iso: string): number {
   return startOfDay(new Date(iso));
 }
+
+const TRAILING_ZERO = /\.0$/u;
+
+/** A file size for people: "820 B", "14 KB", "3.2 MB". */
+export function fileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value < 10 ? value.toFixed(1).replace(TRAILING_ZERO, "") : Math.round(value)} ${units[unit]}`;
+}

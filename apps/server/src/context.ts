@@ -3,7 +3,7 @@ import type { EvlogVariables } from "evlog/hono";
 import type { Context as HonoContext } from "hono";
 
 import { ENV } from "./env.server";
-import { createAuth, getDb, requestDispatch } from "./services";
+import { createAuth, getDb, getFiles, requestDispatch } from "./services";
 
 const TRAILING_SLASHES = /\/+$/u;
 
@@ -22,6 +22,7 @@ export async function createContext({ context }: CreateContextOptions): Promise<
     // CORS_ORIGIN is the deployment's public origin; invite links are built on it.
     appUrl: ENV.CORS_ORIGIN.replace(TRAILING_SLASHES, ""),
     dispatch: await requestDispatch(context, db),
+    files: getFiles(),
   };
 }
 

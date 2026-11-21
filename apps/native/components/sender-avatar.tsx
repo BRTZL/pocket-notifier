@@ -47,6 +47,8 @@ export type SenderAvatarProps = {
   project: string;
   conversation: Conversation | null;
   sender: Sender | null;
+  /** The project's icon: drawn instead of the conversation's when set. */
+  projectIconUrl?: string | null;
   size?: "md" | "lg";
 };
 
@@ -54,14 +56,20 @@ export type SenderAvatarProps = {
  * The message avatar: the conversation (or the project when there is none) as the large
  * circle, with the sender as a small badge in the corner when there is one.
  */
-export function SenderAvatar({ project, conversation, sender, size = "md" }: SenderAvatarProps) {
+export function SenderAvatar({
+  project,
+  conversation,
+  sender,
+  projectIconUrl,
+  size = "md",
+}: SenderAvatarProps) {
   const main: AvatarSubject = conversation
     ? {
         id: conversation.id,
         name: conversation.title ?? conversation.id,
-        iconUrl: conversation.iconUrl,
+        iconUrl: projectIconUrl ?? conversation.iconUrl,
       }
-    : { id: project, name: project };
+    : { id: project, name: project, iconUrl: projectIconUrl ?? undefined };
   const badge: AvatarSubject | null = sender
     ? { id: sender.id, name: sender.name ?? sender.id, iconUrl: sender.iconUrl }
     : null;

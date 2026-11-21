@@ -44,7 +44,14 @@ export const PushMessageData = z.object({
   actions: z.string(),
   /** Attachment file name, or `""`. */
   attachment: z.string(),
-  /** Conversation id, title and icon URL; `""` when the message has none. */
+  /** Attachment kind (`image`, `video`, `pdf`, `file`), or `""`. */
+  attachmentKind: z.string(),
+  /** Attachment download URL for `image` attachments (the notification's big picture), else `""`. */
+  attachmentUrl: z.string(),
+  /**
+   * Conversation id, title and icon URL; `""` when the message has none. The icon is the
+   * project's `iconUrl` when set, else the message's `conversation.iconUrl`.
+   */
   conversationId: z.string(),
   conversationTitle: z.string(),
   conversationIcon: z.string(),

@@ -33,6 +33,7 @@ import {
   MyProject,
   ProjectId,
   ProjectMember,
+  SetProjectIconInput,
   SubscriptionInput,
   UpdateMemberInput,
   UpdateProjectInput,
@@ -67,6 +68,11 @@ export const appContract = {
       .input(CreateProjectInput)
       .output(MyProject),
     update: authed.input(UpdateProjectInput).output(MyProject),
+    /** Owners only. Uploads an image and makes it the project's icon. */
+    setIcon: authed
+      .errors({ TOO_MANY_REQUESTS: ERRORS.TOO_MANY_REQUESTS })
+      .input(SetProjectIconInput)
+      .output(MyProject),
     delete: authed.input(ById(ProjectId)).output(Ok),
     setSubscription: authed.input(SubscriptionInput).output(MyProject),
   },

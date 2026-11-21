@@ -1,4 +1,5 @@
 import type { Dispatch } from "@notifier/api/dispatch";
+import type { Files } from "@notifier/api/lib/files";
 import { findOAuthClient, handleMcpRequest } from "@notifier/api/mcp/handler";
 import { pushSetupFromSecret } from "@notifier/api/push/config";
 import { createAuth as createConfiguredAuth, protectMcp, verifyOAuthQuery } from "@notifier/auth";
@@ -13,6 +14,16 @@ import type { OAuthPageDeps } from "./oauth/routes";
 export function getDb(): Database {
   return createDb(ENV);
 }
+const TRAILING_SLASHES = /\/+$/u;
+
+/** The `FILES` bucket, and the deployment's origin (BETTER_AUTH_URL) for file URLs. */
+export function getFiles(): Files {
+  return {
+    bucket: ENV.FILES,
+    origin: new URL(ENV.BETTER_AUTH_URL).origin.replace(TRAILING_SLASHES, ""),
+  };
+}
+
 export async function createAuth(database?: Database) {
   return createConfiguredAuth(ENV, database ?? (await getDb()));
 }
@@ -51,7 +62,7 @@ export async function serveMcp(c: HonoContext<EvlogVariables>): Promise<Response
   const db = getDb();
   const dispatch = await requestDispatch(c, db);
   const protectedHandler = protectMcp(await createAuth(db), ENV, (request, claims) =>
-    handleMcpRequest(request, claims, { db, dispatch }),
+    handleMcpRequest(request, claims, { db, dispatch, files: getFiles() }),
   );
   return protectedHandler(c.req.raw);
 }

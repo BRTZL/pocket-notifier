@@ -1,4 +1,5 @@
 import type { Context as ApiContext } from "@notifier/api/context";
+import type { FileBucket } from "@notifier/api/lib/files";
 import type { Database } from "@notifier/db";
 import { describe, expect, it, vi } from "vitest";
 
@@ -14,6 +15,7 @@ function setup() {
     identifyUser: vi.fn(async () => false),
     authHandler: vi.fn(async () => new Response(null, { status: 204 })),
     getDb: vi.fn(() => ({}) as Database),
+    getFiles: vi.fn(() => ({ bucket: {} as FileBucket, origin: "https://notifier.test" })),
     createDispatch: vi.fn(async () => ({ messagePublished: vi.fn(), messagesRead: vi.fn() })),
     createContext: vi.fn(async () => ({}) as ApiContext),
     oauthPages: {

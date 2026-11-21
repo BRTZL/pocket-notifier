@@ -34,7 +34,11 @@ describe("MCP server", () => {
     };
     const transport = new StreamableHTTPClientTransport(new URL(MCP_URL), {
       fetch: (input, init) =>
-        handleMcpRequest(new Request(input, init), claims, { db: testDb.db, dispatch }),
+        handleMcpRequest(new Request(input, init), claims, {
+          db: testDb.db,
+          dispatch,
+          files: testDb.files,
+        }),
     });
     const client = new Client({ name: "test", version: "1.0.0" });
     await client.connect(transport);
@@ -72,10 +76,12 @@ describe("MCP server", () => {
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       "create_feature",
       "create_project",
+      "create_upload",
       "list_features",
       "list_projects",
       "send_notification",
       "update_feature_status",
+      "update_project",
     ]);
     const send = tools.find((tool) => tool.name === "send_notification");
     expect(send?.inputSchema).toMatchObject({
@@ -270,13 +276,13 @@ describe("MCP server", () => {
     const get = await handleMcpRequest(
       new Request(MCP_URL, { headers: { accept: "text/event-stream" } }),
       { sub: ada.id },
-      { db: testDb.db, dispatch },
+      { db: testDb.db, dispatch, files: testDb.files },
     );
     expect(get.status).toBe(405);
     const anonymous = await handleMcpRequest(
       new Request(MCP_URL, { method: "POST", body: "{}" }),
       {},
-      { db: testDb.db, dispatch },
+      { db: testDb.db, dispatch, files: testDb.files },
     );
     expect(anonymous.status).toBe(401);
   });

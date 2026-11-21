@@ -6,9 +6,10 @@ import {
   ConversationSummary as ConversationSummarySchema,
   type OpenAsk,
 } from "@notifier/contract/conversation";
-import { MessageId } from "@notifier/contract/message";
+import { attachmentKind, MessageId } from "@notifier/contract/message";
 import type { Database } from "@notifier/db";
 import {
+  attachment,
   message,
   messageRead,
   messageResponse,
@@ -74,25 +75,32 @@ export function conversationsQuery(
     .groupBy(message.projectId, message.conversationKey)
     .as("conversation");
 
-  return db
-    .select({
-      message,
-      key: groups.key,
-      unreadCount: groups.unreadCount,
-      projectName: project.name,
-      projectDisplayName: project.displayName,
-      muted: subscription.muted,
-    })
-    .from(groups)
-    .innerJoin(message, eq(message.id, groups.lastId))
-    .innerJoin(project, eq(project.id, groups.projectId))
-    .leftJoin(
-      subscription,
-      and(eq(subscription.projectId, groups.projectId), eq(subscription.userId, userId)),
-    )
-    .where(args.cursor ? lt(groups.lastId, args.cursor) : undefined)
-    .orderBy(desc(groups.lastId))
-    .limit(args.limit + 1);
+  return (
+    db
+      .select({
+        message,
+        key: groups.key,
+        unreadCount: groups.unreadCount,
+        projectName: project.name,
+        projectDisplayName: project.displayName,
+        projectIconUrl: project.iconUrl,
+        attachmentName: attachment.name,
+        attachmentContentType: attachment.contentType,
+        muted: subscription.muted,
+      })
+      .from(groups)
+      .innerJoin(message, eq(message.id, groups.lastId))
+      .innerJoin(project, eq(project.id, groups.projectId))
+      // At most one attachment per message (unique `message_id`).
+      .leftJoin(attachment, eq(attachment.messageId, groups.lastId))
+      .leftJoin(
+        subscription,
+        and(eq(subscription.projectId, groups.projectId), eq(subscription.userId, userId)),
+      )
+      .where(args.cursor ? lt(groups.lastId, args.cursor) : undefined)
+      .orderBy(desc(groups.lastId))
+      .limit(args.limit + 1)
+  );
 }
 
 const WHITESPACE = /\s+/gu;
@@ -126,6 +134,9 @@ type SummaryRow = {
   unreadCount: number;
   projectName: string;
   projectDisplayName: string | null;
+  projectIconUrl: string | null;
+  attachmentName: string | null;
+  attachmentContentType: string | null;
   muted: boolean | null;
 };
 
@@ -207,13 +218,18 @@ function toConversationSummary(row: SummaryRow, openAsk: OpenAsk | null): Conver
       conversation?.title ??
       conversation?.id ??
       (isConversation ? row.key.slice(2) : (row.projectDisplayName ?? row.projectName)),
-    iconUrl: conversation?.iconUrl ?? null,
+    // The project's icon wins over a per-message conversation icon.
+    iconUrl: row.projectIconUrl ?? conversation?.iconUrl ?? null,
     kind: isConversation ? "conversation" : "project",
     lastMessage: {
       id: latest.id,
       title: latest.title,
       body: previewOf(latest.body),
       senderName: sender ? (sender.name ?? sender.id) : null,
+      attachment:
+        row.attachmentName !== null && row.attachmentContentType !== null
+          ? { name: row.attachmentName, kind: attachmentKind(row.attachmentContentType) }
+          : null,
       priority: latest.priority,
       createdAt: latest.createdAt.toISOString(),
     },

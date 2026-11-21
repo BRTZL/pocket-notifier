@@ -376,7 +376,14 @@ describe("push dispatch", () => {
             headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
             body: JSON.stringify({ body: "hello" }),
           }),
-          { context: { db: testDb.db, authorization: `Bearer ${secret}`, dispatch } },
+          {
+            context: {
+              db: testDb.db,
+              authorization: `Bearer ${secret}`,
+              dispatch,
+              files: testDb.files,
+            },
+          },
         );
 
       expect((await publish()).response?.status).toBe(201);
@@ -414,7 +421,14 @@ describe("push dispatch", () => {
           headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
           body: JSON.stringify({ body: "hello" }),
         }),
-        { context: { db: testDb.db, authorization: `Bearer ${secret}`, dispatch } },
+        {
+          context: {
+            db: testDb.db,
+            authorization: `Bearer ${secret}`,
+            dispatch,
+            files: testDb.files,
+          },
+        },
       );
       expect(response.response?.status).toBe(201);
       expect(tasks).toHaveLength(0);

@@ -4,8 +4,10 @@ import { user } from "@notifier/db/schema/auth";
 import { createRouterClient } from "@orpc/server";
 
 import type { Dispatch } from "../src/dispatch";
+import type { Files } from "../src/lib/files";
 import { publicRouter } from "../src/public/router";
 import { appRouter } from "../src/router";
+import { filesOf } from "./db";
 
 export const TEST_APP_URL = "http://web.test";
 
@@ -52,6 +54,7 @@ export function clientFor(
   db: Database,
   testUser: TestUser | null,
   dispatch: Dispatch = noopDispatch,
+  files: Files = filesOf(db),
 ) {
   return createRouterClient(appRouter, {
     context: {
@@ -59,6 +62,7 @@ export function clientFor(
       session: testUser ? fakeSession(testUser) : null,
       appUrl: TEST_APP_URL,
       dispatch,
+      files,
     },
   });
 }
@@ -66,7 +70,7 @@ export function clientFor(
 /** The public `/v1` router, called directly with `Authorization: Bearer <secret>`. */
 export function publicClientFor(db: Database, secret: string, dispatch: Dispatch = noopDispatch) {
   return createRouterClient(publicRouter, {
-    context: { db, authorization: `Bearer ${secret}`, dispatch },
+    context: { db, authorization: `Bearer ${secret}`, dispatch, files: filesOf(db) },
   });
 }
 

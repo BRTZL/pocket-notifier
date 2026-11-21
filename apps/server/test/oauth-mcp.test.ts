@@ -72,12 +72,14 @@ describe("OAuth for MCP clients, end to end", () => {
       identifyUser: async () => undefined,
       authHandler: (request) => auth.handler(request),
       getDb: () => db,
+      getFiles: () => testDb.files,
       createDispatch: async () => dispatch,
       createContext: async (c) => ({
         db,
         session: await auth.api.getSession({ headers: c.req.raw.headers }),
         appUrl: ENV.CORS_ORIGIN,
         dispatch,
+        files: testDb.files,
       }),
       oauthPages: {
         authOrigin: BASE,
@@ -88,7 +90,7 @@ describe("OAuth for MCP clients, end to end", () => {
       },
       mcp: (c) =>
         protectMcp(auth, ENV, (request, claims) =>
-          handleMcpRequest(request, claims, { db, dispatch }),
+          handleMcpRequest(request, claims, { db, dispatch, files: testDb.files }),
         )(c.req.raw),
     });
     // The first account of a fresh deployment needs no invite.

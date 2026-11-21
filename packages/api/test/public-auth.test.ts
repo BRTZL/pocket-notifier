@@ -210,14 +210,28 @@ describe("bearer token auth", () => {
       call(
         probe,
         { project: "team" },
-        { context: { db: testDb.db, authorization: `Bearer ${secret}`, dispatch: noopDispatch } },
+        {
+          context: {
+            db: testDb.db,
+            authorization: `Bearer ${secret}`,
+            dispatch: noopDispatch,
+            files: testDb.files,
+          },
+        },
       ),
     ).resolves.toEqual({ items: [], nextCursor: null });
     await expect(
       call(
         probe,
         { project: "team" },
-        { context: { db: testDb.db, authorization: null, dispatch: noopDispatch } },
+        {
+          context: {
+            db: testDb.db,
+            authorization: null,
+            dispatch: noopDispatch,
+            files: testDb.files,
+          },
+        },
       ),
     ).rejects.toMatchObject(definedError("UNAUTHORIZED"));
   });

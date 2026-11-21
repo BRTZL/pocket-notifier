@@ -40,6 +40,14 @@ data class PushMessage(
   val actions: List<PushAction>,
   val conversationId: String,
   val conversationTitle: String,
+  /** HTTPS icon of the conversation (the project's icon first), or `""`. */
+  val conversationIcon: String,
+  /** Attachment file name, or `""`. */
+  val attachmentName: String,
+  /** `image`, `video`, `pdf`, `file`, or `""`. */
+  val attachmentKind: String,
+  /** Download URL, only sent for `image` attachments; else `""`. */
+  val attachmentUrl: String,
   val senderId: String,
   val senderName: String,
   val truncated: Boolean,
@@ -88,6 +96,11 @@ object PushPayload {
       actions = parseActions(data["actions"] ?: ""),
       conversationId = data["conversationId"] ?: "",
       conversationTitle = data["conversationTitle"] ?: "",
+      // Older servers omit these; `""` means none.
+      conversationIcon = data["conversationIcon"] ?: "",
+      attachmentName = data["attachment"] ?: "",
+      attachmentKind = data["attachmentKind"] ?: "",
+      attachmentUrl = data["attachmentUrl"] ?: "",
       senderId = data["senderId"] ?: "",
       senderName = data["senderName"] ?: "",
       truncated = data["truncated"] == "1",

@@ -1,5 +1,5 @@
 import { z } from "zod";
-
+import { AttachmentKind } from "./attachment-kind";
 import { Conversation, Sender } from "./avatar";
 import { idSchema, PageInput, Timestamp, UserSummary } from "./common";
 import { ConversationRef } from "./conversation";
@@ -24,8 +24,11 @@ export const MESSAGE_LIMITS = {
   quickReplyLength: 40,
 } as const;
 
-/** Proposed cap, still open. See the Attachments page in the docs. */
-export const ATTACHMENT_MAX_BYTES = 15 * 1024 * 1024;
+/**
+ * Largest attachment: 95 MB (decimal), under Cloudflare's 100 MB request body limit with
+ * room for the multipart overhead of a REST upload.
+ */
+export const ATTACHMENT_MAX_BYTES = 95_000_000;
 
 /**
  * Links a subscriber may open from a message: web pages and notifier's own deep
@@ -90,13 +93,21 @@ export const Action = z.discriminatedUnion("type", [ViewAction, HttpAction, Repl
 export type Action = z.infer<typeof Action>;
 export type ActionInput = z.input<typeof Action>;
 
+export { AttachmentKind, attachmentKind } from "./attachment-kind";
+
 export const Attachment = z.object({
   id: AttachmentId,
   name: z.string().min(1).max(255),
   contentType: z.string().min(1).max(127),
   size: z.number().int().min(0).max(ATTACHMENT_MAX_BYTES),
-  /** Short-lived signed download URL. */
+  kind: AttachmentKind,
+  /**
+   * Download URL on this deployment (`/api/attachments/...`). It carries an unguessable
+   * token, so it works without a session (notification images, video players, sharing)
+   * until the message expires.
+   */
   url: z.url(),
+  /** When the file is deleted: its message's `expiresAt`. */
   expiresAt: Timestamp,
 });
 export type Attachment = z.infer<typeof Attachment>;
@@ -195,3 +206,6 @@ export const UploadAttachmentOutput = z.object({
   /** Unreferenced uploads are deleted after this time. */
   expiresAt: Timestamp,
 });
+
+/** Uploads not attached to a message within this time are deleted. */
+export const UNUSED_UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;

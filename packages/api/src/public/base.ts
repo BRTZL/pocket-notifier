@@ -3,6 +3,7 @@ import type { Database } from "@notifier/db";
 import { implement } from "@orpc/server";
 
 import type { Dispatch } from "../dispatch";
+import type { Files } from "../lib/files";
 import { authenticateToken } from "./auth";
 
 export type PublicContext = {
@@ -10,6 +11,7 @@ export type PublicContext = {
   /** The raw `Authorization` header, or `null` when the request has none. */
   authorization: string | null;
   dispatch: Dispatch;
+  files: Files;
 };
 
 /** Implements `publicContract` (the `/v1` API for scripts). */

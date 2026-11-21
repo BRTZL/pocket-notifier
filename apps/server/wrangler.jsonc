@@ -15,6 +15,13 @@
       "migrations_dir": ".wrangler/migrations",
     },
   ],
+  // Icons and attachments; local dev keeps them under .wrangler/state.
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "notifier-files-local",
+    },
+  ],
   // Hourly retention cleanup (the `scheduled` export in src/index.ts). Trigger it locally
   // with `wrangler dev --test-scheduled` and `curl http://localhost:3300/__scheduled`.
   "triggers": {

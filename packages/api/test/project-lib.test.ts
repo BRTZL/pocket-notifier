@@ -360,6 +360,7 @@ describe("projects and features", () => {
         ...target,
         userId: bob.id,
         dispatch,
+        files: testDb.files,
         input: {
           title: "Benchmarks done",
           body: "p95 is 120 ms",
@@ -372,7 +373,10 @@ describe("projects and features", () => {
         },
       });
       expect(result.deliveredTo).toBe(1);
-      expect(result.message).toMatchObject({ projectId: rezme.id, conversationKey: "c:perf" });
+      expect(result.published.message).toMatchObject({
+        projectId: rezme.id,
+        conversationKey: "c:perf",
+      });
 
       expect(published).toHaveLength(1);
       expect(published[0]).toMatchObject({
@@ -391,13 +395,17 @@ describe("projects and features", () => {
       });
 
       const [stored] = await testDb.db.select().from(feature).where(eq(feature.slug, "perf"));
-      expect(stored?.lastMessageAt?.getTime()).toBe(result.message.createdAt.getTime());
+      expect(stored?.lastMessageAt?.getTime()).toBe(result.published.message.createdAt.getTime());
       // The app sees it as a conversation of the project.
       const conversations = await clientFor(testDb.db, carol).conversations.list({});
       expect(conversations.items[0]).toMatchObject({
         key: "c:perf",
         title: "Perf",
-        openAsk: { messageId: result.message.id, actionKey: "reply", senderName: "Claude Code" },
+        openAsk: {
+          messageId: result.published.message.id,
+          actionKey: "reply",
+          senderName: "Claude Code",
+        },
       });
     });
 
@@ -408,11 +416,12 @@ describe("projects and features", () => {
         ...target,
         userId: ada.id,
         dispatch,
+        files: testDb.files,
         input: { title: "Hello" },
       });
       expect(result.deliveredTo).toBe(0);
       expect(published[0]).toMatchObject({ conversation: null, sender: null, body: "" });
-      expect(result.message.projectId).toBe(target.access.project.id);
+      expect(result.published.message.projectId).toBe(target.access.project.id);
     });
 
     it("rejects input the publish rules refuse", async () => {
@@ -422,6 +431,7 @@ describe("projects and features", () => {
           ...target,
           userId: ada.id,
           dispatch: spyDispatch().dispatch,
+          files: testDb.files,
           input: { title: "x", url: "javascript:alert(1)" },
         }),
       ).rejects.toMatchObject(codeError("BAD_REQUEST"));

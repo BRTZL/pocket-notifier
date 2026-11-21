@@ -62,6 +62,8 @@ describe("toPushData", () => {
       actions:
         '[{"type":"view","key":"0","label":"Open logs","url":"https://ci.example.com/runs/123","clear":false}]',
       attachment: "",
+      attachmentKind: "",
+      attachmentUrl: "",
       conversationId: "ci",
       conversationTitle: "",
       conversationIcon: "https://example.com/ci.png",

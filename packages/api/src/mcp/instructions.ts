@@ -15,5 +15,7 @@ How:
 4. Priority: 2 low (FYI), 3 normal (done), 4 high (blocked, needs a decision), 5 urgent (production or data at risk). Default 3.
 5. Blocked on a decision: pass ask with the question and up to 3 quickReplies. You cannot read the reply through this server; tell the user in your session that you asked.
 6. When a workstream is finished, update_feature_status to "done".
+7. To attach a file (screenshot, log, video, PDF): create_upload with the same project, run the curl command it returns with the file's path, then send_notification with its attachmentId. One file per notification.
+8. update_project changes a project's display name, description or iconUrl (owners only).
 
 Never put secrets, tokens, passwords or private keys in a notification. Name the file or env var instead.`;

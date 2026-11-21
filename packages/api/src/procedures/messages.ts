@@ -4,6 +4,7 @@ import { message, messageRead, project, projectMember } from "@notifier/db/schem
 import { and, eq, lt, lte, type SQL, sql } from "drizzle-orm";
 
 import { authed } from "../base";
+import { attachmentOf, deleteMessageAttachments } from "../lib/attachments";
 import { appError } from "../lib/errors";
 import {
   announcePublished,
@@ -48,7 +49,10 @@ const list = authed.messages.list.handler(async ({ context, input }) => {
     (row) => row.message.id,
     (row) => row,
   );
-  return { ...page, items: await toInboxMessages(db, userId, page.items) };
+  return {
+    ...page,
+    items: await toInboxMessages(db, userId, page.items, context.files.origin),
+  };
 });
 
 const get = authed.messages.get.handler(async ({ context, input }) => {
@@ -58,7 +62,12 @@ const get = authed.messages.get.handler(async ({ context, input }) => {
   if (!row) {
     throw appError("NOT_FOUND", "Message not found");
   }
-  const [item] = await toInboxMessages(context.db, context.session.user.id, [row]);
+  const [item] = await toInboxMessages(
+    context.db,
+    context.session.user.id,
+    [row],
+    context.files.origin,
+  );
   if (!item) {
     throw new Error("inbox message mapping returned no item");
   }
@@ -132,7 +141,15 @@ const publish = authed.messages.publish.handler(async ({ context, input }) => {
     publisher: { userId: caller.id, tokenId: null },
     input,
   });
-  announcePublished(context.dispatch, toMessage(row, found.project.name, caller));
+  announcePublished(
+    context.dispatch,
+    toMessage(
+      row.message,
+      found.project.name,
+      caller,
+      attachmentOf(row.attachment, context.files.origin),
+    ),
+  );
   return toPublishOutput(row, found.project.name);
 });
 
@@ -151,6 +168,8 @@ const remove = authed.messages.delete.handler(async ({ context, input }) => {
   if (membership.role !== "owner") {
     throw appError("FORBIDDEN", "Only a project owner can delete messages");
   }
+  // First: once the message is gone its attachment row no longer names it (`set null`).
+  await deleteMessageAttachments(db, context.files, [input.id]);
   await db.delete(message).where(eq(message.id, input.id));
   return { ok: true as const };
 });

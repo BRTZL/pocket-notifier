@@ -23,7 +23,11 @@ type OptionalKey = Exclude<
   | "truncated"
 >;
 
+/** Image types Android can draw as a notification picture. */
+const NOTIFICATION_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+
 /** Optional fields after the always-sent ones, in the order `api/push-payload.mdx` fills them. */
+
 const FILL_ORDER: readonly OptionalKey[] = [
   "title",
   "conversationId",
@@ -35,6 +39,8 @@ const FILL_ORDER: readonly OptionalKey[] = [
   "tags",
   "clickUrl",
   "attachment",
+  "attachmentKind",
+  "attachmentUrl",
   "conversationIcon",
   "senderIcon",
 ];
@@ -76,17 +82,29 @@ function cutText(text: string, max: number, fits: (candidate: string) => boolean
   return text.slice(0, low === 0 ? 0 : (ends[low - 1] ?? 0));
 }
 
-function fullValues(message: Message): Record<OptionalKey, string> {
+/** What the push needs beyond the message: the project's icon, shown as the conversation icon. */
+export type PushExtras = { projectIconUrl?: string | null };
+
+function fullValues(message: Message, extras: PushExtras): Record<OptionalKey, string> {
+  const { attachment } = message;
+  const projectIcon = extras.projectIconUrl ?? "";
   return {
     title: message.title ?? "",
     body: message.body,
     tags: message.tags.join(","),
     clickUrl: message.clickUrl ?? "",
     actions: message.actions.length > 0 ? JSON.stringify(message.actions) : "",
-    attachment: message.attachment?.name ?? "",
+    attachment: attachment?.name ?? "",
+    attachmentKind: attachment?.kind ?? "",
+    // Only images: the notification shows them as its big picture.
+    // Only types Android can draw as a notification picture (not SVG, HEIC, ...).
+    attachmentUrl:
+      attachment && NOTIFICATION_IMAGE_TYPES.has(attachment.contentType.toLowerCase())
+        ? attachment.url
+        : "",
     conversationId: message.conversation?.id ?? "",
     conversationTitle: message.conversation?.title ?? "",
-    conversationIcon: message.conversation?.iconUrl ?? "",
+    conversationIcon: projectIcon === "" ? (message.conversation?.iconUrl ?? "") : projectIcon,
     senderId: message.sender?.id ?? "",
     senderName: message.sender?.name ?? "",
     senderIcon: message.sender?.iconUrl ?? "",
@@ -99,7 +117,7 @@ function fullValues(message: Message): Record<OptionalKey, string> {
  * cut to `PUSH_BODY_MAX` (and, if needed, to the space left) on a grapheme boundary.
  * `truncated` is `"1"` when anything was cut or left out.
  */
-export function toPushData(message: Message): MessageData {
+export function toPushData(message: Message, extras: PushExtras = {}): MessageData {
   const data: MessageData = {
     v: PUSH_VERSION,
     kind: "message",
@@ -116,6 +134,8 @@ export function toPushData(message: Message): MessageData {
     clickUrl: "",
     actions: "",
     attachment: "",
+    attachmentKind: "",
+    attachmentUrl: "",
     conversationId: "",
     conversationTitle: "",
     conversationIcon: "",
@@ -125,7 +145,7 @@ export function toPushData(message: Message): MessageData {
     truncated: "0",
     createdAt: String(Date.parse(message.createdAt)),
   };
-  const full = fullValues(message);
+  const full = fullValues(message, extras);
   const fits = (key: OptionalKey, value: string) =>
     pushDataBytes({ ...data, [key]: value }) <= FCM_MAX_PAYLOAD_BYTES;
 

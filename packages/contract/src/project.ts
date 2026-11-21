@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { IconUrl } from "./avatar";
 import { idSchema, Timestamp, UserSummary } from "./common";
 import { Priority } from "./priority";
 
@@ -36,6 +37,16 @@ export const Project = z.object({
   name: ProjectName,
   displayName: z.string().min(1).max(80).nullable(),
   description: z.string().max(500).nullable(),
+  /**
+   * The project's icon: an uploaded image served from this deployment under
+   * `/api/icons/...`, or any HTTPS URL an owner set. `null` draws generated initials.
+   * Plain `http` only for uploads on a local deployment (`http://localhost:3300`); what
+   * owners set is always HTTPS (`IconUrl` on the inputs).
+   */
+  iconUrl: z
+    .url({ protocol: /^https?$/u })
+    .max(2048)
+    .nullable(),
   defaultPriority: Priority,
   retentionDays: RetentionDays,
   createdAt: Timestamp,
@@ -63,6 +74,7 @@ export const CreateProjectInput = z.object({
   name: ProjectName,
   displayName: z.string().min(1).max(80).optional(),
   description: z.string().max(500).optional(),
+  iconUrl: IconUrl.optional(),
   defaultPriority: Priority.optional(),
   retentionDays: RetentionDays.optional(),
 });
@@ -71,8 +83,33 @@ export const UpdateProjectInput = z.object({
   id: ProjectId,
   displayName: z.string().min(1).max(80).nullable().optional(),
   description: z.string().max(500).nullable().optional(),
+  /** `null` removes the icon (and deletes an uploaded one). Owners only. */
+  iconUrl: IconUrl.nullable().optional(),
   defaultPriority: Priority.optional(),
   retentionDays: RetentionDays.optional(),
+});
+
+/** Image types accepted for an uploaded project icon. */
+export const ProjectIconContentType = z.enum(["image/png", "image/jpeg", "image/webp"]);
+export type ProjectIconContentType = z.infer<typeof ProjectIconContentType>;
+
+/** Largest uploaded icon, decoded. Apps resize to a 256 px square before uploading. */
+export const PROJECT_ICON_MAX_BYTES = 256 * 1024;
+
+/**
+ * Upload a project icon (owners only). The image is base64 in JSON so the React Native
+ * client needs no multipart or `File` support. The server checks the bytes match
+ * `contentType`, stores the image and sets `iconUrl` to its `/api/icons/...` URL.
+ */
+export const SetProjectIconInput = z.object({
+  id: ProjectId,
+  contentType: ProjectIconContentType,
+  /** Base64 (standard alphabet, padded) of at most `PROJECT_ICON_MAX_BYTES` bytes. */
+  data: z
+    .string()
+    .min(1)
+    .max(Math.ceil(PROJECT_ICON_MAX_BYTES / 3) * 4)
+    .regex(/^[A-Za-z0-9+/]+={0,2}$/u, "Must be base64"),
 });
 
 export const ProjectMember = z.object({

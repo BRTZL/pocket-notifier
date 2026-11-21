@@ -31,7 +31,7 @@ const create = authed.responses.create.handler(async ({ context, input, errors }
   const caller = context.session.user;
   const found = await memberMessage(db, input.messageId, caller.id);
 
-  const { actions } = toMessage(found.message, found.projectName, found.publisher);
+  const { actions } = toMessage(found.message, found.projectName, found.publisher, null);
   const action = actions.find((candidate) => candidate.key === input.actionKey);
   if (!action) {
     throw badRequest(`The message has no action "${input.actionKey}"`);

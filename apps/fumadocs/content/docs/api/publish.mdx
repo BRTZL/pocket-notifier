@@ -218,7 +218,7 @@ The project in the URL must already exist. Publishing to an unknown project retu
 
 ## Attachments
 
-Attaching a file takes two steps. First upload the file, then publish with its ID:
+<Status kind="decided" /> One file per message. Attaching takes two steps: upload the file, then publish with its ID. Agents on MCP use [`create_upload`](/docs/api/mcp#create_upload) instead of the first step.
 
 <Steps>
 <Step>
@@ -228,12 +228,14 @@ Attaching a file takes two steps. First upload the file, then publish with its I
 ```bash
 curl -X POST "$NOTIFIER_URL/v1/projects/ci/attachments" \
   -H "Authorization: Bearer $NOTIFIER_TOKEN" \
-  -F "file=@report.html"
+  -F "file=@report.html;type=text/html"
 ```
 
 ```json
-{ "id": "att_01jd8x7q3n1p5s8u0w2y4a6c8e", "expiresAt": "2026-11-20T13:00:00.000Z" }
+{ "id": "att_01jd8x7q3n1p5s8u0w2y4a6c8e", "expiresAt": "2026-11-21T12:00:00.000Z" }
 ```
+
+`multipart/form-data` with the file in a field named `file`; the part's `filename` and `Content-Type` become the attachment's name and type (no type: `application/octet-stream`). The token needs publish rights on the project, checked before the body is read. The file streams to R2, so it is never held in memory whole.
 
 </Step>
 <Step>
@@ -247,6 +249,16 @@ curl -X POST "$NOTIFIER_URL/v1/projects/ci/attachments" \
 </Step>
 </Steps>
 
-Uploads not used within an hour are deleted. The proposed size cap is 15 MB per file (`ATTACHMENT_MAX_BYTES`); larger files get `413 PAYLOAD_TOO_LARGE`. <Status kind="open" />
+The upload must be yours, in the same project and not used by another message, or the publish is a `400`. Uploads not used within 24 hours are deleted (`UNUSED_UPLOAD_TTL_MS`). The cap is 95 MB per file (`ATTACHMENT_MAX_BYTES`, just under Cloudflare's 100 MB request limit); larger files get `413 PAYLOAD_TOO_LARGE`.
 
-Subscribers download through short-lived signed URLs in `message.attachment.url`. The file expires together with its message.
+### Download
+
+`message.attachment` has `id`, `name`, `contentType`, `size`, `kind` and `url`, and `expiresAt` (the message's: the file is deleted with it). `kind` is `image`, `video`, `pdf` or `file`, from the content type; the apps show an inline image, a video player, a PDF viewer or a file row.
+
+`url` is `https://notifier.bartuozel.com/api/attachments/<id>/<token>/<name>`. The token is random (about 190 bits), so the URL works without a session (notification pictures, video players, sharing) until the message expires; treat it like the message itself. The route:
+
+- sends `Content-Type`, `Content-Length` and `Content-Disposition`: `inline` for image, video and PDF, `attachment` for everything else, with a safe file name;
+- supports `Range` (`206 Partial Content`, `416` past the end), so video players can seek;
+- sends `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'`, plus `sandbox` for everything but images, so an uploaded HTML or SVG file never runs scripts on notifier's origin;
+- answers a wrong token, an unused upload or an expired message with the same `404`.
+- sends `Cache-Control: private, no-cache`, so a cached copy is revalidated and a deleted file stops being served.

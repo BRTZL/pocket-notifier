@@ -4,6 +4,7 @@ import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { ProjectDangerZone } from "@/components/project-danger-zone";
 import { ProjectEditForm } from "@/components/project-edit-form";
+import { ProjectIconEditor } from "@/components/project-icon-editor";
 import { ProjectMembers } from "@/components/project-members";
 import { ProjectSubscription } from "@/components/project-subscription";
 import { InvalidProjectLink, ProjectUnavailable } from "@/components/project-unavailable";
@@ -47,6 +48,7 @@ function ProjectSettingsScreenContent({ projectId }: { projectId: string }) {
       </Section>
       {isOwner ? (
         <Section title="Settings">
+          <ProjectIconEditor project={project.data} />
           <ProjectEditForm key={project.data.id} project={project.data} />
         </Section>
       ) : null}

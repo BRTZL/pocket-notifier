@@ -47,6 +47,7 @@ export function toMyProject(
     name: row.name,
     displayName: row.displayName,
     description: row.description,
+    iconUrl: row.iconUrl,
     defaultPriority: row.defaultPriority,
     retentionDays: row.retentionDays,
     createdAt: row.createdAt.toISOString(),

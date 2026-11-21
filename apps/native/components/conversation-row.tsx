@@ -7,10 +7,18 @@ import { Icon } from "@/components/icon";
 import { conversationAvatar } from "@/lib/chat-avatar";
 import { chatTime } from "@/lib/format";
 
-/** The last message's title, or its body when it has none. */
+const ATTACHMENT_LABELS = { image: "Photo", video: "Video", pdf: "PDF" } as const;
+
+/** The last message's title, else its body, else what it carries ("Photo", a file name). */
 function previewText(conversation: ConversationSummary): string {
-  const { title, body } = conversation.lastMessage;
-  return title ?? body;
+  const { title, body, attachment } = conversation.lastMessage;
+  if (title || body) {
+    return title ?? body;
+  }
+  if (!attachment) {
+    return "";
+  }
+  return attachment.kind === "file" ? attachment.name : ATTACHMENT_LABELS[attachment.kind];
 }
 
 function UnreadCount({ conversation }: { conversation: ConversationSummary }) {
