@@ -1,6 +1,6 @@
 import type { InboxMessage } from "@notifier/contract/message";
 
-import { dayKey, dayLabel } from "@/lib/format";
+import { agentName, dayKey, dayLabel } from "@/lib/format";
 
 type ReplyAction = Extract<InboxMessage["actions"][number], { type: "reply" }>;
 
@@ -34,7 +34,7 @@ function senderKey(message: InboxMessage): string {
 }
 
 function senderName(message: InboxMessage): string | null {
-  return message.sender ? (message.sender.name ?? message.sender.id) : null;
+  return message.sender ? agentName(message.sender.name ?? message.sender.id) : null;
 }
 
 /** What one of the user's responses says: their text, or the label of the button they tapped. */

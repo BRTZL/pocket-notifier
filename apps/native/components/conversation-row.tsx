@@ -7,7 +7,7 @@ import { Icon } from "@/components/icon";
 import { conversationAvatar } from "@/lib/chat-avatar";
 import { chatTime } from "@/lib/format";
 
-/** `Sender: text`, or just the text; the title wins over the body when there is one. */
+/** The last message's title, or its body when it has none. */
 function previewText(conversation: ConversationSummary): string {
   const { title, body } = conversation.lastMessage;
   return title ?? body;
@@ -38,7 +38,10 @@ function UnreadCount({ conversation }: { conversation: ConversationSummary }) {
   );
 }
 
-/** One chat in the inbox: avatar, name, `Sender: preview`, time and unread count. */
+/**
+ * One chat in the inbox: avatar, feature name with its project, the last message, time and
+ * unread count. The sender is left out: it is almost always the same agent.
+ */
 export function ConversationRow({
   conversation,
   onPress,
@@ -50,7 +53,9 @@ export function ConversationRow({
   isSelected?: boolean;
 }) {
   const unread = conversation.unreadCount > 0;
-  const { senderName, priority, createdAt } = conversation.lastMessage;
+  const { priority, createdAt } = conversation.lastMessage;
+  // A feature thread names its project; a project-level thread already is the project.
+  const project = conversation.kind === "conversation" ? conversation.projectTitle : null;
   const preview = previewText(conversation);
   const isUrgent = priority === 5;
 
@@ -61,7 +66,7 @@ export function ConversationRow({
       className={cn("flex-row items-center gap-3.5 px-5 py-2.5", isSelected && "bg-accent-soft")}
       accessibilityRole="button"
       accessibilityState={{ selected: isSelected }}
-      accessibilityLabel={`${conversation.title}. ${unread ? `${conversation.unreadCount} unread. ` : ""}${senderName ? `${senderName}: ` : ""}${preview}`}
+      accessibilityLabel={`${conversation.title}${project ? `, ${project}` : ""}. ${unread ? `${conversation.unreadCount} unread. ` : ""}${preview}`}
     >
       <PressableFeedback.Highlight />
       <ChatAvatar subject={conversationAvatar(conversation)} />
@@ -75,6 +80,12 @@ export function ConversationRow({
             )}
           >
             {conversation.title}
+            {project ? (
+              <Typography className="text-muted text-[15px] font-medium">
+                {"  ·  "}
+                {project}
+              </Typography>
+            ) : null}
           </Typography>
           <Typography
             className={cn(
@@ -95,11 +106,6 @@ export function ConversationRow({
                 unread ? "text-foreground-secondary" : "text-muted",
               )}
             >
-              {senderName ? (
-                <Typography className="text-foreground text-[15px] font-bold">
-                  {senderName}:{" "}
-                </Typography>
-              ) : null}
               {preview}
             </Typography>
           </View>

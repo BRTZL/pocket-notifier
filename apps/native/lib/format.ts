@@ -28,6 +28,15 @@ export function fullTime(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
+/**
+ * An agent's display name without the OAuth client's suffix:
+ * "Claude Code (pocket-notifier)" becomes "Claude Code".
+ */
+export function agentName(name: string): string {
+  const cut = name.indexOf(" (");
+  return (cut > 0 ? name.slice(0, cut) : name).trim();
+}
+
 type Headline = Pick<InboxMessage, "conversation" | "sender" | "project">;
 
 /**
@@ -36,10 +45,10 @@ type Headline = Pick<InboxMessage, "conversation" | "sender" | "project">;
  */
 export function messageHeadline({ conversation, sender, project }: Headline): string {
   if (!conversation) {
-    return sender ? `${project} · ${sender.name ?? sender.id}` : project;
+    return sender ? `${project} · ${agentName(sender.name ?? sender.id)}` : project;
   }
   const title = conversation.title ?? conversation.id;
-  return sender ? `${title} · ${sender.name ?? sender.id}` : title;
+  return sender ? `${title} · ${agentName(sender.name ?? sender.id)}` : title;
 }
 
 /** Whether a priority deserves a marker (high and urgent). */

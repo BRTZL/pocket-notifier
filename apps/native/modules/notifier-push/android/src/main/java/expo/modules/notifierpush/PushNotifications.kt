@@ -62,6 +62,13 @@ object PushNotifications {
       Avatars.bitmap(message.project, message.project, avatarSize)
     }
     val title = conversationName.ifEmpty { message.project }
+    val agent = shortSenderName(message.senderName.ifEmpty { message.senderId })
+    // Header line: "Pocket Notifier · <project> · <agent>". The project is left out when it is
+    // already the title (project-level thread). An action result ("Sent") replaces it.
+    val header = status ?: listOf(message.project.takeIf { it != title }, agent.ifEmpty { null })
+      .filterNotNull()
+      .joinToString(" · ")
+      .ifEmpty { null }
 
     val builder = NotificationCompat.Builder(context, channelId)
       .setSmallIcon(R.drawable.notifier_push_small_icon)
@@ -76,21 +83,20 @@ object PushNotifications {
       .setCategory(NotificationCompat.CATEGORY_MESSAGE)
       .setPriority(compatPriority(message.priority))
       .setOnlyAlertOnce(update)
-      .setSubText(status)
+      .setSubText(header)
 
     val text = messageText(message)
     if (message.conversationId.isNotEmpty() || message.senderId.isNotEmpty() || message.replies.isNotEmpty()) {
-      val senderKey = message.senderId.ifEmpty { message.project }
-      val senderName = message.senderName.ifEmpty { message.senderId }.ifEmpty { message.project }
+      // One avatar per notification: the conversation speaks as itself, so Android shows a single
+      // icon and no sender row. The agent's name moves to the header line.
       val sender = Person.Builder()
-        .setKey(senderKey)
-        .setName(senderName)
-        .setIcon(IconCompat.createWithBitmap(Avatars.bitmap(senderKey, senderName, avatarSize)))
+        .setKey(groupKey)
+        .setName(title)
+        .setIcon(IconCompat.createWithBitmap(conversationAvatar))
         .build()
       val me = Person.Builder().setKey("self").setName("You").build()
       val style = NotificationCompat.MessagingStyle(me)
-        .setConversationTitle(title)
-        .setGroupConversation(true)
+        .setGroupConversation(false)
       style.addMessage(text, message.createdAt, sender)
       for (reply in message.replies) {
         style.addMessage(reply.text, reply.at, null as Person?)
@@ -110,6 +116,9 @@ object PushNotifications {
     manager.notify(message.id, MESSAGE_ID, builder.build())
     postSummary(context, message, groupKey, title)
   }
+
+  /** "Claude Code (pocket-notifier)" -> "Claude Code": the OAuth client's suffix is noise here. */
+  internal fun shortSenderName(name: String): String = name.substringBefore(" (").trim()
 
   /** Bold title on the first line, then the body; the messaging style has no title slot. */
   private fun messageText(message: PushMessage): CharSequence {
