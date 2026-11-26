@@ -101,6 +101,8 @@ export const feature = sqliteTable(
     /** The agent's last reply or the error, one line, secrets masked. */
     t3Summary: text("t3_summary"),
     t3RunStartedAt: integer("t3_run_started_at", { mode: "timestamp_ms" }),
+    /** The T3 stream sequence of the last accepted report; older reports are ignored. */
+    t3Sequence: integer("t3_sequence"),
   },
   (table) => [
     uniqueIndex("feature_projectId_slug_uidx").on(table.projectId, table.slug),

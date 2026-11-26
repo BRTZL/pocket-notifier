@@ -3,6 +3,7 @@
  * lands in the same feature, found by the thread id; the feature name the agent passes only
  * names a feature the first time.
  */
+import { FEATURE_LIMITS, slugify } from "@notifier/contract/feature";
 import { type T3ThreadLink, type T3ThreadRef, t3ThreadUrl } from "@notifier/contract/t3";
 import type { Database } from "@notifier/db";
 import { feature } from "@notifier/db/schema/notifier";
@@ -56,8 +57,21 @@ export function t3Link(row: T3Columns): T3ThreadLink | null {
 /** Characters of the thread id used in a generated slug, e.g. `t3-352b089c`. */
 const SHORT_ID_LENGTH = 8;
 const NOT_SLUG = /[^a-z0-9]/gu;
+const EDGE_DASHES = /^-+|-+$/gu;
+const TRAILING_DASHES = /-+$/u;
 /** Name of a feature created for a thread when the agent passed none. */
 const UNNAMED_THREAD = "T3 thread";
+
+/** The whole thread id as slug characters, cut to fit a slug after `t3-`. */
+function threadSlug(threadId: string): string {
+  return (
+    threadId
+      .toLowerCase()
+      .replace(NOT_SLUG, "-")
+      .replace(EDGE_DASHES, "")
+      .slice(-(FEATURE_LIMITS.slugLength - 3)) || "thread"
+  );
+}
 
 /** The thread id's tail as slug characters: UUIDs differ in their first characters. */
 function shortThreadId(threadId: string): string {
@@ -124,7 +138,14 @@ export async function ensureT3Feature(
   }
   const name = args.name?.trim();
   const short = shortThreadId(args.ref.threadId);
-  const keys = name ? [name, `${name} ${short}`] : [`t3-${short}`];
+  // Each key is a valid slug, so `ensureFeature` takes it as is. The thread-specific ones
+  // keep room for the id: two threads with the same long name never meet at one slug.
+  const withId = (base: string, id: string) =>
+    `${base.slice(0, FEATURE_LIMITS.slugLength - id.length - 1).replace(TRAILING_DASHES, "")}-${id}`;
+  const fullId = threadSlug(args.ref.threadId);
+  const keys = name
+    ? [name, withId(slugify(name), short), withId("t3", fullId)]
+    : [withId("t3", short), withId("t3", fullId)];
   for (const key of keys) {
     // biome-ignore lint/performance/noAwaitInLoops: the second key is only tried when the first is taken.
     const ensured = await ensureFeature(db, {

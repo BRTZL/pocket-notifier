@@ -59,11 +59,20 @@ const TOKEN_RENEW_MS = 24 * 60 * 60 * 1000;
 const TOKEN_TTL = "30d";
 const SUMMARY_LENGTH = 500;
 
+/** What the bridge last told the server about a thread. */
+type Reported = {
+  signature: string;
+  /** The report itself when it reached the server: resent with `removed` on archive. */
+  report: StatusReport | null;
+};
+
 type State = {
   /** Highest shell sequence handled; the stream resumes after it. */
   sequence: number | null;
-  /** Per thread: the signature of the last report the server accepted. */
-  reported: Record<string, string>;
+  /** Per thread id. */
+  reported: Record<string, Reported>;
+  /** T3 projects by id, so a resumed stream can place threads before any project update. */
+  projects: Record<string, ProjectShell>;
 };
 
 type Config = { apiUrl: string; notifierToken: string; t3Cli: string };
@@ -73,7 +82,7 @@ const QUOTES = /^["']|["']$/gu;
 const TRAILING_SLASH = /\/$/u;
 
 /** `record` without `key`. */
-function withoutKey(record: Record<string, string>, key: string): Record<string, string> {
+function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T> {
   return Object.fromEntries(Object.entries(record).filter(([name]) => name !== key));
 }
 
@@ -116,13 +125,25 @@ async function writePrivate(path: string, content: string) {
   await rename(temp, path);
 }
 
+function emptyState(): State {
+  return { sequence: null, reported: {}, projects: {} };
+}
+
 async function loadState(): Promise<State> {
   try {
-    return JSON.parse(await readFile(STATE_FILE, "utf8")) as State;
+    const saved = JSON.parse(await readFile(STATE_FILE, "utf8")) as Partial<State>;
+    // Without the project map a resume cannot place threads: start from a full snapshot.
+    if (!(saved.projects && saved.reported)) {
+      return emptyState();
+    }
+    return { sequence: saved.sequence ?? null, reported: saved.reported, projects: saved.projects };
   } catch {
-    return { sequence: null, reported: {} };
+    return emptyState();
   }
 }
+
+/** The notifier refused the token: retry later, never drop the report. */
+class NotifierAuthError extends Error {}
 
 /** A read-only T3 token, issued with the `t3` CLI and kept until a day before it expires. */
 class T3Token {
@@ -190,33 +211,44 @@ class Notifier {
     });
   }
 
-  /** `true` when the server took the report; `false` when it refused it for good. */
+  /**
+   * `true` when the server took the report; `false` when it refused this report for good
+   * (out of scope, invalid, project name taken). Throws when it may work later: the
+   * caller then stops and resumes from the last handled item.
+   */
   async report(report: StatusReport): Promise<boolean> {
     for (let attempt = 1; ; attempt += 1) {
       try {
         // biome-ignore lint/performance/noAwaitInLoops: retries wait on the previous attempt.
-        const response = await this.post("/v1/t3/threads", report);
-        if (response.ok) {
-          const result = (await response.json()) as { feature: string; pushed: boolean };
-          log(
-            `${report.phase.padEnd(20)} ${report.project.name}/${result.feature}${result.pushed ? " (pushed)" : ""}`,
-          );
-          return true;
-        }
-        if (response.status < 500 && response.status !== 429) {
-          log(
-            `server refused ${report.threadId}: HTTP ${response.status} ${(await response.text()).slice(0, 200)}`,
-          );
-          return false;
-        }
-        throw new Error(`HTTP ${response.status}`);
+        return await this.reportOnce(report);
       } catch (error) {
-        if (attempt >= 5) {
+        if (error instanceof NotifierAuthError || attempt >= 5) {
           throw error;
         }
         await sleep(2 ** attempt * 1000);
       }
     }
+  }
+
+  /** One attempt of `report`; throws on errors worth a retry. */
+  private async reportOnce(report: StatusReport): Promise<boolean> {
+    const response = await this.post("/v1/t3/threads", report);
+    if (response.ok) {
+      const result = (await response.json()) as { feature: string; pushed: boolean };
+      const pushed = result.pushed ? " (pushed)" : "";
+      const phase = report.removed ? "removed" : report.phase;
+      log(`${phase.padEnd(20)} ${report.project.name}/${result.feature}${pushed}`);
+      return true;
+    }
+    if (response.status === 401) {
+      throw new NotifierAuthError("the notifier refused NOTIFIER_TOKEN (HTTP 401)");
+    }
+    if (response.status < 500 && response.status !== 429) {
+      const detail = (await response.text()).slice(0, 200);
+      log(`server refused ${report.threadId}: HTTP ${response.status} ${detail}`);
+      return false;
+    }
+    throw new Error(`HTTP ${response.status}`);
   }
 
   async heartbeat(environmentId: string) {
@@ -232,8 +264,7 @@ class Notifier {
 }
 
 class Bridge {
-  private readonly projects = new Map<string, ProjectShell>();
-  private state: State = { sequence: null, reported: {} };
+  private state: State = emptyState();
   private origin = "";
   private readonly environmentId: string;
   private readonly token: T3Token;
@@ -278,7 +309,8 @@ class Bridge {
             .issue()
             .catch((issueError: Error) => log(`t3 auth failed: ${issueError.message}`));
         } else {
-          log(`T3 connection failed: ${(error as Error).message}`);
+          // Includes a refused NOTIFIER_TOKEN: the unreported item is retried after the wait.
+          log(`stream stopped: ${(error as Error).message}`);
         }
       }
       await sleep(delay);
@@ -308,31 +340,31 @@ class Bridge {
         case "snapshot": {
           const { snapshot } = item;
           for (const project of snapshot.projects) {
-            this.projects.set(project.id, project);
+            this.state.projects[project.id] = project;
           }
           // A project-only snapshot (no threads) refreshes metadata; it removes nothing.
           const firstRun = this.state.sequence === null;
           for (const thread of snapshot.threads) {
             // biome-ignore lint/performance/noAwaitInLoops: reports go out in stream order.
-            await this.consider(thread, { quietIfOld: firstRun });
+            await this.consider(thread, snapshot.snapshotSequence, { quietIfOld: firstRun });
           }
           this.advance(snapshot.snapshotSequence);
           break;
         }
         case "project.updated":
-          this.projects.set(item.project.id, item.project);
+          this.state.projects[item.project.id] = item.project;
           this.advance(item.sequence);
           break;
         case "thread.updated":
-          await this.consider(item.thread, { quietIfOld: false });
+          await this.consider(item.thread, item.sequence, { quietIfOld: false });
           this.advance(item.sequence);
           break;
         case "thread.removed":
-          this.state.reported = withoutKey(this.state.reported, item.threadId);
+          await this.remove(item.threadId, item.sequence);
           this.advance(item.sequence);
           break;
         case "project.removed":
-          this.projects.delete(item.projectId);
+          this.state.projects = withoutKey(this.state.projects, item.projectId);
           this.advance(item.sequence);
           break;
         default:
@@ -346,23 +378,26 @@ class Bridge {
     this.state.sequence = Math.max(this.state.sequence ?? 0, sequence);
   }
 
-  private async consider(thread: ThreadShell, options: { quietIfOld: boolean }) {
+  private async consider(thread: ThreadShell, sequence: number, options: { quietIfOld: boolean }) {
     if (!isListedThread(thread)) {
+      // Archived or deleted (or never shown): off the board if it was ever on it.
+      await this.remove(thread.id, sequence);
       return;
     }
-    const project = this.projects.get(thread.projectId);
+    const project = this.state.projects[thread.projectId];
     if (!project) {
+      log(`thread ${thread.id} has an unknown project ${thread.projectId}; skipped`);
       return;
     }
-    const report = reportFor(this.environmentId, thread, project);
+    const report = reportFor(this.environmentId, thread, project, sequence);
     const signature = signatureOf(report);
-    if (this.state.reported[thread.id] === signature) {
+    if (this.state.reported[thread.id]?.signature === signature) {
       return;
     }
     const updatedAt = thread.updatedAt ? Date.parse(thread.updatedAt) : 0;
     if (options.quietIfOld && Date.now() - updatedAt > FIRST_RUN_WINDOW_MS) {
       // First run: remember old threads without reporting them.
-      this.state.reported[thread.id] = signature;
+      this.state.reported[thread.id] = { signature, report: null };
       return;
     }
     if (report.phase === "completed") {
@@ -372,7 +407,23 @@ class Bridge {
       report.summary = report.summary.slice(0, SUMMARY_LENGTH);
     }
     if (await this.notifier.report(report)) {
-      this.state.reported[thread.id] = signature;
+      // Kept without the summary: only the identity and labels are needed for a removal.
+      this.state.reported[thread.id] = { signature, report: { ...report, summary: null } };
+    }
+  }
+
+  /** Tells the server a thread it knows about is gone from T3's list. */
+  private async remove(threadId: string, sequence: number) {
+    const known = this.state.reported[threadId];
+    if (known?.report && !known.report.removed) {
+      const report: StatusReport = { ...known.report, removed: true, sequence };
+      if (await this.notifier.report(report)) {
+        this.state.reported[threadId] = { signature: signatureOf(report), report };
+        return;
+      }
+    }
+    if (known && !known.report) {
+      this.state.reported = withoutKey(this.state.reported, threadId);
     }
   }
 

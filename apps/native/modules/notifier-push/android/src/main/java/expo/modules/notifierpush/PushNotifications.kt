@@ -33,6 +33,8 @@ object PushNotifications {
   /** Web links, the app's own links, and T3 Code threads (opened in T3's app). */
   private val OPENABLE_SCHEMES = setOf("http", "https", "notifier", "t3code")
   private val SCHEME = Regex("^([A-Za-z][A-Za-z0-9+.-]*):")
+  /** Same as `T3_THREAD_URL` in packages/contract/src/t3.ts. */
+  private val T3_THREAD_URL = Regex("^t3code://threads/[A-Za-z0-9._~%-]{1,600}/[A-Za-z0-9._~%-]{1,600}$")
 
   /** Same as `notificationGroupKey` in `packages/contract/src/push.ts`. */
   fun groupKey(project: String, conversationId: String): String =
@@ -285,6 +287,10 @@ object PushNotifications {
     }
     // Not `Uri.parse`: this also runs in plain JVM unit tests.
     val scheme = SCHEME.find(url)?.groupValues?.get(1)?.lowercase() ?: return false
+    if (scheme == "t3code") {
+      // Only thread links: T3 Code opens other routes a publisher has no business with.
+      return T3_THREAD_URL.matches(url)
+    }
     return scheme in OPENABLE_SCHEMES
   }
 

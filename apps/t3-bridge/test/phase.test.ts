@@ -90,6 +90,7 @@ describe("reportFor", () => {
         ],
       }),
       project,
+      7,
     );
     expect(failed).toMatchObject({
       environmentId: "env-1",
@@ -98,19 +99,27 @@ describe("reportFor", () => {
       summary: "Claude API unknown.",
       errorClass: "transport_error",
       pullRequestUrl: "https://github.com/a/b/pull/1",
+      sequence: 7,
+      removed: false,
     });
-    expect(reportFor("env-1", thread({ lastError: "old" }), project).summary).toBeNull();
+    // A failure class the bridge does not know is sent as unknown.
+    expect(
+      reportFor("env-1", thread({ status: "failed", lastErrorClass: "TOKEN=abc" }), project, 7)
+        .errorClass,
+    ).toBe("unknown");
+    expect(reportFor("env-1", thread({ lastError: "old" }), project, 7).summary).toBeNull();
     expect(pullRequestUrl(thread({ linkedPullRequest: { url: "git@github.com:a/b" } }))).toBeNull();
   });
 
   it("changes its signature on news, not on visits", () => {
-    const base = reportFor("env-1", thread(), project);
+    const base = reportFor("env-1", thread(), project, 7);
     const visited = reportFor(
       "env-1",
       thread({ lastVisitedAt: "2026-11-26T10:00:00.000Z" }),
       project,
+      7,
     );
-    const done = reportFor("env-1", thread({ status: "completed" }), project);
+    const done = reportFor("env-1", thread({ status: "completed" }), project, 7);
     expect(signatureOf(visited)).toBe(signatureOf(base));
     expect(signatureOf(done)).not.toBe(signatureOf(base));
   });

@@ -1,3 +1,4 @@
+import { T3_THREAD_URL } from "@notifier/contract/t3";
 import * as WebBrowser from "expo-web-browser";
 import { Linking } from "react-native";
 
@@ -33,6 +34,10 @@ export async function openUrl(url: string): Promise<void> {
   if (WEB_PROTOCOLS.has(parsed.protocol)) {
     await WebBrowser.openBrowserAsync(parsed.href);
     return;
+  }
+  if (parsed.protocol === "t3code:" && !T3_THREAD_URL.test(url)) {
+    // Only thread links: T3 Code opens other routes a publisher has no business with.
+    throw new UnopenableLinkError();
   }
   if (DEEP_LINK_PROTOCOLS.has(parsed.protocol)) {
     await Linking.openURL(parsed.href);

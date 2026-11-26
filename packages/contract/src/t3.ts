@@ -26,6 +26,13 @@ export const T3ThreadRef = z.object({
 });
 export type T3ThreadRef = z.infer<typeof T3ThreadRef>;
 
+/**
+ * The only `t3code:` links messages may carry: `t3code://threads/<environment>/<thread>`,
+ * no query or fragment. T3 Code opens other routes too; publishers get none of them.
+ */
+export const T3_THREAD_URL =
+  /^t3code:\/\/threads\/[A-Za-z0-9._~%-]{1,600}\/[A-Za-z0-9._~%-]{1,600}$/u;
+
 /** Opens the thread in T3 Code: the desktop app, or T3's mobile app on a phone. */
 export function t3ThreadUrl(ref: T3ThreadRef): string {
   return `t3code://threads/${encodeURIComponent(ref.environmentId)}/${encodeURIComponent(ref.threadId)}`;
@@ -70,8 +77,26 @@ export const T3_LIMITS = {
   titleLength: 200,
   branchLength: 255,
   summaryLength: 500,
-  errorClassLength: 64,
 } as const;
+
+/** T3's failure classes (`OrchestrationV2ProviderFailureClass`); anything else is `unknown`. */
+export const T3ErrorClass = z.enum([
+  "usage_limit",
+  "provider_error",
+  "transport_error",
+  "permission_error",
+  "validation_error",
+  "unknown",
+]);
+
+/** An https URL without credentials in it. */
+const PublicHttpsUrl = z
+  .url({ protocol: /^https$/u })
+  .max(2048)
+  .refine((url) => {
+    const parsed = new URL(url);
+    return parsed.username === "" && parsed.password === "";
+  }, "The URL must not contain credentials");
 
 /**
  * What the T3 bridge reports for one top-level thread whenever its phase, title, branch or
@@ -88,11 +113,7 @@ export const T3ThreadStatusInput = T3ThreadRef.extend({
   title: z.string().trim().min(1).max(T3_LIMITS.titleLength),
   phase: T3Phase,
   branch: z.string().max(T3_LIMITS.branchLength).nullable().default(null),
-  pullRequestUrl: z
-    .url({ protocol: /^https$/u })
-    .max(2048)
-    .nullable()
-    .default(null),
+  pullRequestUrl: PublicHttpsUrl.nullable().default(null),
   /** The latest run's start and end, ISO 8601. */
   runStartedAt: Timestamp.nullable().default(null),
   runCompletedAt: Timestamp.nullable().default(null),
@@ -102,7 +123,14 @@ export const T3ThreadStatusInput = T3ThreadRef.extend({
   lastVisitedAt: Timestamp.nullable().default(null),
   /** One line: the agent's last reply for `completed`, the error for `failed`. */
   summary: z.string().max(T3_LIMITS.summaryLength).nullable().default(null),
-  errorClass: z.string().max(T3_LIMITS.errorClassLength).nullable().default(null),
+  errorClass: T3ErrorClass.nullable().default(null),
+  /**
+   * The T3 stream sequence this report reflects. A report older than the last one the
+   * server accepted for the thread is ignored, so a delayed retry never undoes news.
+   */
+  sequence: z.number().int().min(0),
+  /** The thread was archived or deleted in T3: it leaves the board. */
+  removed: z.boolean().default(false),
 });
 export type T3ThreadStatusInput = z.input<typeof T3ThreadStatusInput>;
 

@@ -15,4 +15,5 @@ ALTER TABLE `feature` ADD `t3_branch` text;--> statement-breakpoint
 ALTER TABLE `feature` ADD `t3_pull_request_url` text;--> statement-breakpoint
 ALTER TABLE `feature` ADD `t3_summary` text;--> statement-breakpoint
 ALTER TABLE `feature` ADD `t3_run_started_at` integer;--> statement-breakpoint
+ALTER TABLE `feature` ADD `t3_sequence` integer;--> statement-breakpoint
 CREATE UNIQUE INDEX `feature_projectId_t3Thread_uidx` ON `feature` (`project_id`,`t3_environment_id`,`t3_thread_id`) WHERE "feature"."t3_thread_id" is not null;

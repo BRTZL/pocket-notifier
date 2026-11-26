@@ -127,14 +127,19 @@ const upload = tokenAuthed.attachments.upload.handler(async ({ context, input, e
 });
 
 /**
- * A thread's status from the T3 bridge. The bridge may create the repo's project, so a
- * token scoped to some projects only reports threads of those projects.
+ * The T3 bridge creates projects and speaks for the whole account (its heartbeat shows on
+ * the board), so it needs a token for all projects.
  */
+function requireBridgeToken(auth: TokenAuth) {
+  if (auth.scope.kind !== "all") {
+    throw appError("FORBIDDEN", "The T3 bridge needs a token with access to all projects");
+  }
+}
+
+/** A thread's status from the T3 bridge. */
 const threadStatus = tokenAuthed.t3.threadStatus.handler(async ({ context, input }) => {
   const { auth } = context;
-  if (auth.scope.kind === "projects" && !auth.scope.projects.includes(input.project.name)) {
-    throw appError("FORBIDDEN", "This token's scope does not include the project");
-  }
+  requireBridgeToken(auth);
   return await reportT3Status(context.db, {
     userId: auth.user.id,
     input,
@@ -144,6 +149,7 @@ const threadStatus = tokenAuthed.t3.threadStatus.handler(async ({ context, input
 });
 
 const heartbeat = tokenAuthed.t3.heartbeat.handler(async ({ context, input }) => {
+  requireBridgeToken(context.auth);
   await recordT3Heartbeat(context.db, {
     userId: context.auth.user.id,
     environmentId: input.environmentId,

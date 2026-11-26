@@ -5,6 +5,7 @@ import { idSchema, PageInput, Timestamp, UserSummary } from "./common";
 import { ConversationRef } from "./conversation";
 import { Priority } from "./priority";
 import { ProjectId, ProjectName } from "./project";
+import { T3_THREAD_URL } from "./t3";
 
 export const MessageId = idSchema("message");
 export const AttachmentId = idSchema("attachment");
@@ -37,7 +38,11 @@ export const ATTACHMENT_MAX_BYTES = 95_000_000;
  */
 export const OpenableUrl = z
   .url({ protocol: /^(?:https?|notifier|t3code)$/u })
-  .max(MESSAGE_LIMITS.urlLength);
+  .max(MESSAGE_LIMITS.urlLength)
+  .refine(
+    (url) => !url.toLowerCase().startsWith("t3code:") || T3_THREAD_URL.test(url),
+    "T3 Code links must be t3code://threads/<environment>/<thread>",
+  );
 
 export const Tag = z
   .string()

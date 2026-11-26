@@ -6,9 +6,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Dispatch } from "../src/dispatch";
 import { redactSecrets } from "../src/lib/redact";
-import { decidePush, LONG_RUN_MS, RECENT_VISIT_MS, summaryLine } from "../src/lib/t3-status";
+import { decidePush, LONG_RUN_MS, SEEN_BEFORE_END_MS, summaryLine } from "../src/lib/t3-status";
 import { createTestDb, type TestDb } from "./db";
 import { clientFor, publicClientFor, seedUser, type TestUser } from "./helpers";
+
+/** Set to make the next `sendNotification` fail, as a D1 error would. */
+const sendFailure = vi.hoisted(() => ({ next: false }));
+vi.mock("../src/lib/projects", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/lib/projects")>();
+  return {
+    ...actual,
+    sendNotification: (...args: Parameters<typeof actual.sendNotification>) => {
+      if (sendFailure.next) {
+        sendFailure.next = false;
+        return Promise.reject(new Error("D1 unavailable"));
+      }
+      return actual.sendNotification(...args);
+    },
+  };
+});
 
 const NOW = new Date("2026-11-26T12:00:00.000Z");
 const minutesAgo = (minutes: number) => new Date(NOW.getTime() - minutes * 60_000).toISOString();
@@ -42,9 +58,12 @@ describe("decidePush", () => {
         agentSpoke: false,
       },
       {
+        // Opened shortly before the end: the user saw it finish.
         previous: "running" as const,
         input: finished({
-          lastVisitedAt: new Date(NOW.getTime() - RECENT_VISIT_MS + 1000).toISOString(),
+          lastVisitedAt: new Date(
+            Date.parse(minutesAgo(1)) - SEEN_BEFORE_END_MS + 1000,
+          ).toISOString(),
         }),
         agentSpoke: false,
       },
@@ -56,6 +75,13 @@ describe("decidePush", () => {
     for (const args of quiet) {
       expect(decidePush({ ...args, now: NOW })).toBeNull();
     }
+  });
+
+  it("pushes when the only visit was well before the run ended", () => {
+    const input = finished({ lastVisitedAt: minutesAgo(5) });
+    expect(decidePush({ previous: "running", input, agentSpoke: false, now: NOW })).toEqual({
+      kind: "completed",
+    });
   });
 
   it("pushes failures, even after a short run, but not after Stop", () => {
@@ -134,8 +160,11 @@ describe("T3 bridge API", () => {
   let published: Message[];
   let dispatch: Dispatch;
   let secret: string;
+  // Each report reflects a later point of the T3 stream, unless a test says otherwise.
+  let sequence = 0;
 
   const status = (overrides: Partial<T3ThreadStatusInput> = {}): T3ThreadStatusInput => ({
+    sequence: ++sequence,
     environmentId: "env-1",
     threadId: "352b089c-3d43-4d8d-850b-47ea9c7a3699",
     project: { name: "rezme", title: "RezMe" },
@@ -250,6 +279,72 @@ describe("T3 bridge API", () => {
     expect((await clientFor(testDb.db, bob).t3.board()).threads).toEqual([]);
   });
 
+  it("ignores an older report and pushes a finish once under concurrent reports", async () => {
+    const api = publicClientFor(testDb.db, secret, dispatch);
+    await api.t3.threadStatus(status({ sequence: 10 }));
+    const stale = await api.t3.threadStatus(status({ sequence: 5, phase: "failed" }));
+    expect(stale.pushed).toBe(false);
+    const [kept] = await testDb.db.select().from(feature);
+    expect(kept?.t3Phase).toBe("running");
+
+    const done = status({
+      sequence: 11,
+      phase: "completed",
+      runCompletedAt: new Date().toISOString(),
+    });
+    const results = await Promise.all([api.t3.threadStatus(done), api.t3.threadStatus(done)]);
+    expect(results.filter((result) => result.pushed)).toHaveLength(1);
+    expect(published).toHaveLength(1);
+  });
+
+  it("undoes the status when the push fails, so the retry pushes", async () => {
+    const api = publicClientFor(testDb.db, secret, dispatch);
+    await api.t3.threadStatus(status({ sequence: 1 }));
+    const failed = status({ sequence: 2, phase: "failed", errorClass: "transport_error" });
+    sendFailure.next = true;
+    await expect(api.t3.threadStatus(failed)).rejects.toThrow();
+    const [undone] = await testDb.db.select().from(feature);
+    expect(undone?.t3Phase).toBe("running");
+
+    expect((await api.t3.threadStatus(failed)).pushed).toBe(true);
+    expect(published.at(-1)).toMatchObject({ title: "Thread failed", body: "transport error" });
+  });
+
+  it("masks secrets in titles and branches, and takes threads off the board when removed", async () => {
+    const api = publicClientFor(testDb.db, secret, dispatch);
+    await api.t3.threadStatus(
+      status({ title: "Debug API_KEY=supersecretvalue", branch: "fix/TOKEN=abcdefghij" }),
+    );
+    const [row] = await testDb.db.select().from(feature);
+    expect(row?.name).toBe("Debug API_KEY=[redacted]");
+    expect(row?.t3Title).toBe("Debug API_KEY=[redacted]");
+    expect(row?.t3Branch).toBe("fix/TOKEN=[redacted]");
+    expect((await clientFor(testDb.db, ada).t3.board()).threads).toHaveLength(1);
+
+    await api.t3.threadStatus(status({ title: "Debug API_KEY=supersecretvalue", removed: true }));
+    expect((await clientFor(testDb.db, ada).t3.board()).threads).toHaveLength(0);
+  });
+
+  it("gives two threads with the same long name their own features", async () => {
+    const api = publicClientFor(testDb.db, secret, dispatch);
+    const title = "a".repeat(64);
+    const first = await api.t3.threadStatus(status({ threadId: "thread-one-aaaa", title }));
+    const second = await api.t3.threadStatus(status({ threadId: "thread-two-bbbb", title }));
+    expect(first.feature).not.toBe(second.feature);
+    expect(second.feature.length).toBeLessThanOrEqual(63);
+  });
+
+  it("refuses credentials in pull request URLs and other t3code routes in messages", async () => {
+    const api = publicClientFor(testDb.db, secret, dispatch);
+    await expect(
+      api.t3.threadStatus(status({ pullRequestUrl: "https://user:pass@github.com/a/b/pull/1" })),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await api.t3.threadStatus(status());
+    await expect(
+      api.messages.publish({ project: "rezme", title: "x", clickUrl: "t3code://new?prompt=rm" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
   it("refuses a token scoped to other projects, and records heartbeats", async () => {
     const owner = clientFor(testDb.db, ada);
     await owner.projects.create({ name: "other" });
@@ -261,6 +356,9 @@ describe("T3 bridge API", () => {
       publicClientFor(testDb.db, scoped.secret, dispatch).t3.threadStatus(status()),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
+    await expect(
+      publicClientFor(testDb.db, scoped.secret).t3.heartbeat({ environmentId: "env-1" }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await publicClientFor(testDb.db, secret).t3.heartbeat({ environmentId: "env-1" });
     const [beat] = await testDb.db.select().from(t3Bridge);
     expect(beat).toMatchObject({ userId: ada.id, environmentId: "env-1" });

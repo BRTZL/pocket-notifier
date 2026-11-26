@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "289f8473-7d6d-4d6f-9bb2-7a799168d861",
+  "id": "f7fe9a46-c66d-4ac5-bbd4-36128e3e2179",
   "prevIds": [
     "f29816a8-dd07-4237-a586-608adf4d9b6e"
   ],
@@ -955,6 +955,16 @@
     {
       "table": "feature",
       "name": "t3_run_started_at",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "feature",
+      "name": "t3_sequence",
       "type": "integer",
       "notNull": false,
       "autoincrement": false,

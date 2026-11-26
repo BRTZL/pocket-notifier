@@ -125,7 +125,7 @@ export function pullRequestUrl(thread: ThreadShell): string | null {
   return url?.startsWith("https://") ? url : null;
 }
 
-/** The body of `POST /v1/t3/threads`, without `summary` (added when the phase needs one). */
+/** The body of `POST /v1/t3/threads`. `summary` is added when the phase needs one. */
 export type StatusReport = {
   environmentId: string;
   threadId: string;
@@ -139,8 +139,27 @@ export type StatusReport = {
   stopRequested: boolean;
   lastVisitedAt: string | null;
   summary: string | null;
-  errorClass: string | null;
+  errorClass: ErrorClass | null;
+  /** The T3 stream sequence the report reflects; the server ignores older ones. */
+  sequence: number;
+  /** The thread was archived or deleted in T3. */
+  removed: boolean;
 };
+
+const ERROR_CLASSES = [
+  "usage_limit",
+  "provider_error",
+  "transport_error",
+  "permission_error",
+  "validation_error",
+  "unknown",
+] as const;
+type ErrorClass = (typeof ERROR_CLASSES)[number];
+
+/** T3's failure class, or `unknown` for one this bridge does not know. */
+function errorClassOf(value: string | null | undefined): ErrorClass {
+  return ERROR_CLASSES.find((known) => known === value) ?? "unknown";
+}
 
 const TITLE_LENGTH = 200;
 const PROJECT_TITLE_LENGTH = 80;
@@ -149,6 +168,7 @@ export function reportFor(
   environmentId: string,
   thread: ThreadShell,
   project: ProjectShell,
+  sequence: number,
 ): StatusReport {
   const phase = phaseOf(thread);
   return {
@@ -167,7 +187,9 @@ export function reportFor(
     stopRequested: thread.latestRunStopRequested === true,
     lastVisitedAt: thread.lastVisitedAt ?? null,
     summary: phase === "failed" ? (thread.lastError ?? null) : null,
-    errorClass: phase === "failed" ? (thread.lastErrorClass ?? null) : null,
+    errorClass: phase === "failed" ? errorClassOf(thread.lastErrorClass) : null,
+    sequence,
+    removed: false,
   };
 }
 
@@ -184,5 +206,6 @@ export function signatureOf(report: StatusReport): string {
     report.pullRequestUrl,
     report.runStartedAt,
     report.runCompletedAt,
+    report.removed,
   ]);
 }

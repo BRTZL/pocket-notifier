@@ -47,7 +47,9 @@ class PushPayloadTest {
 
   @Test
   fun opensT3ThreadLinksButNotOtherSchemes() {
-    assertTrue(PushNotifications.isOpenable("t3code://threads/env-1/352b089c"))
+    assertTrue(PushNotifications.isOpenable("t3code://threads/env-1/thread%3Adelegated-task%3Aabc"))
+    assertFalse(PushNotifications.isOpenable("t3code://new?prompt=rm"))
+    assertFalse(PushNotifications.isOpenable("t3code://threads/env-1/abc?x=1"))
     assertTrue(PushNotifications.isOpenable("https://example.com"))
     assertFalse(PushNotifications.isOpenable("intent://x#Intent;end"))
   }

@@ -14,7 +14,7 @@
 import { T3_LIMITS, type T3Phase, type T3ThreadStatusInput } from "@notifier/contract/t3";
 import type { Database } from "@notifier/db";
 import { feature, message, t3Bridge } from "@notifier/db/schema/notifier";
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, sql } from "drizzle-orm";
 
 import type { Dispatch } from "../dispatch";
 import type { Files } from "./files";
@@ -30,8 +30,8 @@ export const T3_BRIDGE_SENDER = { id: "t3-bridge", name: "T3 Code" } as const;
 
 /** A finished run shorter than this is no news. */
 export const LONG_RUN_MS = 5 * 60 * 1000;
-/** The user opened the thread this recently: they saw it finish. */
-export const RECENT_VISIT_MS = 5 * 60 * 1000;
+/** A visit this shortly before the run ended, or later, means the user saw it finish. */
+export const SEEN_BEFORE_END_MS = 2 * 60 * 1000;
 /** Characters of the summary in a push body. */
 const PUSH_SUMMARY_LENGTH = 200;
 const FEATURE_NAME_LENGTH = 64;
@@ -88,8 +88,10 @@ export function decidePush(args: {
   if (!(ran >= LONG_RUN_MS)) {
     return null;
   }
+  // Seen: the user had the thread open around the time it finished, or after. A visit
+  // earlier in the run says nothing about the end.
   const visited = input.lastVisitedAt ? Date.parse(input.lastVisitedAt) : Number.NaN;
-  if (args.now.getTime() - visited < RECENT_VISIT_MS) {
+  if (visited >= Date.parse(input.runCompletedAt) - SEEN_BEFORE_END_MS) {
     return null;
   }
   return { kind: "completed" };
@@ -130,21 +132,53 @@ async function projectFor(db: Database, userId: string, input: StatusInput) {
   return created;
 }
 
+/** Text from T3 that people see: secrets masked. */
+function masked(text: string | null): string | null {
+  return text === null ? null : redactSecrets(text);
+}
+
 /** The feature's new T3 columns, and its name when it still carries T3's old title. */
 function statusUpdate(row: FeatureRow, input: StatusInput, now: Date) {
-  const title = input.title.slice(0, FEATURE_NAME_LENGTH);
+  const t3Title = redactSecrets(input.title);
+  const name = t3Title.slice(0, FEATURE_NAME_LENGTH);
   const namedAfterT3 =
     row.t3Title === null || row.name === row.t3Title.slice(0, FEATURE_NAME_LENGTH);
+  // A removed thread leaves the board: no phase.
+  const phase = input.removed ? null : input.phase;
   return {
-    ...(namedAfterT3 && row.name !== title ? { name: title } : {}),
-    t3Title: input.title,
-    t3Phase: input.phase,
-    t3PhaseAt: row.t3Phase === input.phase && row.t3PhaseAt ? row.t3PhaseAt : now,
-    t3Branch: input.branch,
+    ...(namedAfterT3 && row.name !== name ? { name } : {}),
+    t3Title,
+    t3Phase: phase,
+    t3PhaseAt: row.t3Phase === phase && row.t3PhaseAt ? row.t3PhaseAt : now,
+    t3Branch: masked(input.branch),
     t3PullRequestUrl: input.pullRequestUrl,
     t3Summary: summaryLine(input.summary),
     t3RunStartedAt: input.runStartedAt ? new Date(input.runStartedAt) : null,
+    t3Sequence: input.sequence,
   };
+}
+
+/** The columns `statusUpdate` sets, as they were in `row`: to undo a failed push. */
+function previousStatus(row: FeatureRow) {
+  return {
+    name: row.name,
+    t3Title: row.t3Title,
+    t3Phase: row.t3Phase,
+    t3PhaseAt: row.t3PhaseAt,
+    t3Branch: row.t3Branch,
+    t3PullRequestUrl: row.t3PullRequestUrl,
+    t3Summary: row.t3Summary,
+    t3RunStartedAt: row.t3RunStartedAt,
+    t3Sequence: row.t3Sequence,
+  };
+}
+
+/** Matches the row only while its sequence is still `sequence` (compare-and-set). */
+function atSequence(id: string, sequence: number | null) {
+  return and(
+    eq(feature.id, id),
+    sequence === null ? isNull(feature.t3Sequence) : eq(feature.t3Sequence, sequence),
+  );
 }
 
 function pushContent(kind: "failed" | "completed", input: StatusInput) {
@@ -169,6 +203,11 @@ function pushContent(kind: "failed" | "completed", input: StatusInput) {
 /**
  * Records a thread's status on its feature (creating the project and feature when
  * missing) and sends a push when `decidePush` says so.
+ *
+ * - A report older than the last accepted one (by T3 stream sequence) changes nothing.
+ * - The update is a compare-and-set on the sequence it read, so of two concurrent reports
+ *   only one moves the phase and pushes.
+ * - When the push fails, the update is undone, so the bridge's retry pushes again.
  */
 export async function reportT3Status(
   db: Database,
@@ -186,39 +225,60 @@ export async function reportT3Status(
   const ensured = await ensureT3Feature(db, {
     projectId: access.project.id,
     ref: { environmentId: input.environmentId, threadId: input.threadId },
-    name: input.title.slice(0, FEATURE_NAME_LENGTH),
+    name: redactSecrets(input.title).slice(0, FEATURE_NAME_LENGTH),
     userId,
   });
   const before = ensured.feature;
+  const result = (pushed: boolean, slug = before.slug) => ({
+    project: access.project.name,
+    feature: slug,
+    pushed,
+  });
+  if (before.t3Sequence !== null && input.sequence < before.t3Sequence) {
+    return result(false);
+  }
   const [after] = await db
     .update(feature)
     .set(statusUpdate(before, input, now))
-    .where(eq(feature.id, before.id))
+    .where(atSequence(before.id, before.t3Sequence))
     .returning();
-  const row = after ?? before;
+  if (!after) {
+    // A concurrent report won the compare-and-set; it pushes if anything does.
+    return result(false);
+  }
 
-  const decision = decidePush({
-    previous: before.t3Phase,
-    input,
-    agentSpoke: await agentSpokeSince(db, row, input.runStartedAt),
-    now,
-  });
+  const decision = input.removed
+    ? null
+    : decidePush({
+        previous: before.t3Phase,
+        input,
+        agentSpoke: await agentSpokeSince(db, after, input.runStartedAt),
+        now,
+      });
   if (decision) {
     const content = pushContent(decision.kind, input);
-    await sendNotification(db, {
-      access,
-      userId,
-      feature: row,
-      dispatch: args.dispatch,
-      files: args.files,
-      input: {
-        ...content,
-        sender: T3_BRIDGE_SENDER,
-        links: input.pullRequestUrl ? [{ label: "Open PR", url: input.pullRequestUrl }] : [],
-      },
-    });
+    try {
+      await sendNotification(db, {
+        access,
+        userId,
+        feature: after,
+        dispatch: args.dispatch,
+        files: args.files,
+        input: {
+          ...content,
+          sender: T3_BRIDGE_SENDER,
+          links: input.pullRequestUrl ? [{ label: "Open PR", url: input.pullRequestUrl }] : [],
+        },
+      });
+    } catch (error) {
+      await db
+        .update(feature)
+        .set(previousStatus(before))
+        .where(atSequence(before.id, input.sequence));
+      throw error;
+    }
   }
-  return { project: access.project.name, feature: row.slug, pushed: decision !== null };
+  return result(decision !== null, after.slug);
 }
 
 /** Marks the user's bridge for `environmentId` as alive at `now`. */
