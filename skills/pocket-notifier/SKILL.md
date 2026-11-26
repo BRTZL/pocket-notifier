@@ -48,6 +48,7 @@ Before the first notification in a session:
 1. `list_projects`. If the project is missing, `create_project` with `name` (and `displayName`). If the name is taken by someone else, pick another (for example `rezme-app`).
 2. `list_features` for the project. Reuse a matching feature; otherwise `create_feature`, or just pass the new name to `send_notification`, which creates a missing feature.
 3. Leave `project` out only for notifications that belong to no project; they go to the user's private General project.
+4. Running in T3 Code (`$T3CODE_THREAD_ID` is set)? Pass `t3: { environmentId, threadId }` on every `send_notification`: `threadId` is `$T3CODE_THREAD_ID`, `environmentId` is the contents of `~/.t3/userdata/environment-id`. Every message from one thread lands in one feature (your `feature` only names it the first time), and each gets an **Open in T3** button so the user can reply in your thread.
 
 When a workstream is finished, call `update_feature_status` with `done`.
 
@@ -57,9 +58,9 @@ Project owners can change a project's `displayName`, `description` or `iconUrl` 
 
 - `title`: the outcome, at most 32 characters. No project prefix (the app shows it).
 - `body`: one line. Result first, the user's next step last. Example: `Magic-link login works, tests pass. Review PR #12.`
-- `url`: where to look (PR, CI run, deploy, your agent thread). It shows as an Open button on the message in the thread and as an action on the notification. Tapping the notification itself opens the thread: the feature's, or the project-level thread when you leave `feature` out.
+- `url`: where to look (PR, CI run, deploy). For a T3 Code thread pass `t3` instead. It shows as an Open button on the message in the thread and as an action on the notification. Tapping the notification itself opens the thread: the feature's, or the project-level thread when you leave `feature` out.
 - `actions`: up to 2 extra link buttons `{ label, url }`.
-- `attachmentId`: one file per notification (screenshot, log, video, PDF, at most 95 MB). Call `create_upload` with the same `project`, `fileName`, `contentType` and the exact `size` in bytes, run the `curl` command it returns with the file's path (the link works once, for 1 hour), then pass its `attachmentId`. Images show as the notification's picture.
+- `attachmentId`: one file per notification (screenshot, log, video, PDF, at most 95 MB). Call `create_upload` with the same `project`, `fileName`, `contentType` and the exact `size` in bytes, run the `curl` command it returns with the file's path (the link works once, for 1 hour), then pass its `attachmentId`. Images show as the notification's picture. Attach proof when you have it: a screenshot or recording for a visible change, the failing log for a failure, the file you produced.
 - `ask` when blocked: `{ question }`. The question is added to the body; the notification has no reply buttons, so also ask in your session and wait for the user there.
 
 ```json
