@@ -13,6 +13,7 @@ import {
 } from "./message";
 import { ProjectName } from "./project";
 import { MessageResponse } from "./response";
+import { T3HeartbeatInput, T3ThreadStatusInput, T3ThreadStatusOutput } from "./t3";
 
 /**
  * Public HTTP API for scripts, CI and servers. Authenticated with an access
@@ -84,6 +85,31 @@ export const publicContract = {
       .errors({ NOT_FOUND: ERRORS.NOT_FOUND, PAYLOAD_TOO_LARGE: ERRORS.PAYLOAD_TOO_LARGE })
       .input(z.object({ project: ProjectName, file: z.file().max(ATTACHMENT_MAX_BYTES) }))
       .output(UploadAttachmentOutput),
+  },
+
+  /** For the T3 bridge: thread status from a local T3 Code server. */
+  t3: {
+    threadStatus: base
+      .route({
+        method: "POST",
+        path: "/v1/t3/threads",
+        summary: "Report a T3 Code thread's status",
+        tags: ["T3 Code"],
+      })
+      .errors({ CONFLICT: ERRORS.CONFLICT })
+      .input(T3ThreadStatusInput)
+      .output(T3ThreadStatusOutput),
+
+    heartbeat: base
+      .route({
+        method: "POST",
+        path: "/v1/t3/heartbeat",
+        successStatus: 204,
+        summary: "Mark the T3 bridge as alive",
+        tags: ["T3 Code"],
+      })
+      .input(T3HeartbeatInput)
+      .output(z.void()),
   },
 };
 

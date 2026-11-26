@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "c3fe23e9-cba8-43cf-80c1-822595274a14",
+  "id": "289f8473-7d6d-4d6f-9bb2-7a799168d861",
   "prevIds": [
     "f29816a8-dd07-4237-a586-608adf4d9b6e"
   ],
@@ -64,6 +64,10 @@
     },
     {
       "name": "subscription",
+      "entityType": "tables"
+    },
+    {
+      "name": "t3_bridge",
       "entityType": "tables"
     },
     {
@@ -889,6 +893,76 @@
       "entityType": "columns"
     },
     {
+      "table": "feature",
+      "name": "t3_title",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "feature",
+      "name": "t3_phase",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "feature",
+      "name": "t3_phase_at",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "feature",
+      "name": "t3_branch",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "feature",
+      "name": "t3_pull_request_url",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "feature",
+      "name": "t3_summary",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "feature",
+      "name": "t3_run_started_at",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
       "table": "invite",
       "name": "id",
       "type": "text",
@@ -1415,6 +1489,36 @@
       "notNull": true,
       "autoincrement": false,
       "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "t3_bridge",
+      "name": "user_id",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "t3_bridge",
+      "name": "environment_id",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "t3_bridge",
+      "name": "last_seen_at",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
       "generated": null,
       "entityType": "columns"
     },
@@ -3329,6 +3433,21 @@
       "entityType": "fks"
     },
     {
+      "table": "t3_bridge",
+      "name": "fk_t3_bridge_user_id_user_id_fk",
+      "columns": [
+        "user_id"
+      ],
+      "tableTo": "user",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "entityType": "fks"
+    },
+    {
       "table": "oauth_access_token",
       "name": "fk_oauth_access_token_client_id_oauth_client_client_id_fk",
       "columns": [
@@ -3534,6 +3653,16 @@
       "columns": [
         "project_id",
         "user_id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "table": "t3_bridge",
+      "name": "t3_bridge_pk",
+      "columns": [
+        "user_id",
+        "environment_id"
       ],
       "nameExplicit": false,
       "entityType": "pks"

@@ -14,6 +14,7 @@ import {
   toPublishOutput,
 } from "../lib/messages";
 import { listResponses } from "../lib/responses";
+import { recordT3Heartbeat, reportT3Status } from "../lib/t3-status";
 import { type ProjectRow, type TokenAuth, tokenCanPublish, tokenCanRead } from "./auth";
 import { type PublicContext, tokenAuthed } from "./base";
 
@@ -125,10 +126,35 @@ const upload = tokenAuthed.attachments.upload.handler(async ({ context, input, e
   }
 });
 
+/**
+ * A thread's status from the T3 bridge. The bridge may create the repo's project, so a
+ * token scoped to some projects only reports threads of those projects.
+ */
+const threadStatus = tokenAuthed.t3.threadStatus.handler(async ({ context, input }) => {
+  const { auth } = context;
+  if (auth.scope.kind === "projects" && !auth.scope.projects.includes(input.project.name)) {
+    throw appError("FORBIDDEN", "This token's scope does not include the project");
+  }
+  return await reportT3Status(context.db, {
+    userId: auth.user.id,
+    input,
+    dispatch: context.dispatch,
+    files: context.files,
+  });
+});
+
+const heartbeat = tokenAuthed.t3.heartbeat.handler(async ({ context, input }) => {
+  await recordT3Heartbeat(context.db, {
+    userId: context.auth.user.id,
+    environmentId: input.environmentId,
+  });
+});
+
 /** Implements all of `publicContract`. */
 export const publicRouter = {
   messages: tokenAuthed.messages.router({ publish, list, get, responses }),
   attachments: tokenAuthed.attachments.router({ upload }),
+  t3: tokenAuthed.t3.router({ threadStatus, heartbeat }),
 } satisfies Router<PublicContract, PublicContext>;
 
 export type PublicRouter = typeof publicRouter;

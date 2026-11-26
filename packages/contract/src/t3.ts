@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+import { Timestamp } from "./common";
+import { ProjectName } from "./project";
+
 /**
  * T3 Code threads. An agent running in a T3 Code thread passes its thread here
  * (`$T3CODE_THREAD_ID`, and the id in `~/.t3/userdata/environment-id`), so every message
@@ -37,3 +40,71 @@ export type T3ThreadLink = z.infer<typeof T3ThreadLink>;
 
 /** Label of the button that opens the thread in T3 Code. */
 export const OPEN_IN_T3_LABEL = "Open in T3";
+
+/**
+ * Where a T3 thread stands, as T3 Code's own notifications see it
+ * (`projectThreadAwarenessV2` in T3 Code): working, waiting on the user, or ended.
+ */
+export const T3Phase = z.enum([
+  "starting",
+  "running",
+  "waiting_for_approval",
+  "waiting_for_input",
+  "completed",
+  "failed",
+  "idle",
+]);
+export type T3Phase = z.infer<typeof T3Phase>;
+
+/** Phases where the agent waits for the user. */
+export const T3_WAITING_PHASES: readonly T3Phase[] = ["waiting_for_approval", "waiting_for_input"];
+
+export const T3_LIMITS = {
+  titleLength: 200,
+  branchLength: 255,
+  summaryLength: 500,
+  errorClassLength: 64,
+} as const;
+
+/**
+ * What the T3 bridge reports for one top-level thread whenever its phase, title, branch or
+ * pull request changes (`POST /v1/t3/threads`). The server keeps it on the thread's
+ * feature, creating the project and feature when missing, and decides whether the change
+ * is worth a push: a failure, or a long run that finished without the agent saying so.
+ */
+export const T3ThreadStatusInput = T3ThreadRef.extend({
+  /** The repo's project: `name` is the workspace folder as a slug, `title` T3's name. */
+  project: z.object({
+    name: ProjectName,
+    title: z.string().trim().min(1).max(80),
+  }),
+  title: z.string().trim().min(1).max(T3_LIMITS.titleLength),
+  phase: T3Phase,
+  branch: z.string().max(T3_LIMITS.branchLength).nullable().default(null),
+  pullRequestUrl: z
+    .url({ protocol: /^https$/u })
+    .max(2048)
+    .nullable()
+    .default(null),
+  /** The latest run's start and end, ISO 8601. */
+  runStartedAt: Timestamp.nullable().default(null),
+  runCompletedAt: Timestamp.nullable().default(null),
+  /** The user pressed Stop on the latest run: its end is no news. */
+  stopRequested: z.boolean().default(false),
+  /** When the user last opened the thread in T3 Code. */
+  lastVisitedAt: Timestamp.nullable().default(null),
+  /** One line: the agent's last reply for `completed`, the error for `failed`. */
+  summary: z.string().max(T3_LIMITS.summaryLength).nullable().default(null),
+  errorClass: z.string().max(T3_LIMITS.errorClassLength).nullable().default(null),
+});
+export type T3ThreadStatusInput = z.input<typeof T3ThreadStatusInput>;
+
+export const T3ThreadStatusOutput = z.object({
+  project: z.string(),
+  feature: z.string(),
+  /** Whether this report sent a push. */
+  pushed: z.boolean(),
+});
+
+/** The bridge is alive (`POST /v1/t3/heartbeat`); the app shows when it went quiet. */
+export const T3HeartbeatInput = z.object({ environmentId: T3Id });

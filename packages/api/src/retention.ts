@@ -131,9 +131,10 @@ async function deleteAttachmentsInBatches(
  *    rows whose message was deleted (`message_id` set null). Same order: R2, then rows.
  * 3. Expired messages (uses `message_expiresAt_idx`). Responses and read state go with
  *    them (`on delete cascade`).
- * 4. Features with no messages left whose last activity (last message, else creation) is
- *    over 30 days old. Nothing references a feature, so nothing cascades; projects and
- *    their icons are never deleted here.
+ * 4. Features with no messages left whose last activity (last message, else creation;
+ *    or the T3 bridge's last status change, if later) is over 30 days old. Nothing
+ *    references a feature, so nothing cascades; projects and their icons are never
+ *    deleted here.
  * 5. Invites that ended (accepted, revoked or expired) more than 30 days ago.
  * 6. Devices not seen for 60 days.
  *
@@ -174,7 +175,7 @@ export async function runRetention(
   });
   const features = await deleteInBatches(db, {
     table: feature,
-    where: sql`coalesce(${feature.lastMessageAt}, ${feature.createdAt}) < ${now.getTime() - IDLE_FEATURE_MS} and not exists (select 1 from ${message} where ${message.projectId} = ${feature.projectId} and ${message.conversationKey} = 'c:' || ${feature.slug})`,
+    where: sql`max(coalesce(${feature.lastMessageAt}, ${feature.createdAt}), coalesce(${feature.t3PhaseAt}, 0)) < ${now.getTime() - IDLE_FEATURE_MS} and not exists (select 1 from ${message} where ${message.projectId} = ${feature.projectId} and ${message.conversationKey} = 'c:' || ${feature.slug})`,
     size: batchSize,
     inBudget,
   });

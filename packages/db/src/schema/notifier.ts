@@ -81,6 +81,26 @@ export const feature = sqliteTable(
      */
     t3EnvironmentId: text("t3_environment_id"),
     t3ThreadId: text("t3_thread_id"),
+    /** The thread as the T3 bridge last reported it; `null` until it reports. */
+    t3Title: text("t3_title"),
+    t3Phase: text("t3_phase", {
+      enum: [
+        "starting",
+        "running",
+        "waiting_for_approval",
+        "waiting_for_input",
+        "completed",
+        "failed",
+        "idle",
+      ],
+    }),
+    /** When `t3Phase` last changed. */
+    t3PhaseAt: integer("t3_phase_at", { mode: "timestamp_ms" }),
+    t3Branch: text("t3_branch"),
+    t3PullRequestUrl: text("t3_pull_request_url"),
+    /** The agent's last reply or the error, one line, secrets masked. */
+    t3Summary: text("t3_summary"),
+    t3RunStartedAt: integer("t3_run_started_at", { mode: "timestamp_ms" }),
   },
   (table) => [
     uniqueIndex("feature_projectId_slug_uidx").on(table.projectId, table.slug),
@@ -93,6 +113,19 @@ export const feature = sqliteTable(
       sql`length(${table.slug}) between 1 and 63 and ${table.slug} not glob '*[^a-z0-9-]*' and substr(${table.slug}, 1, 1) <> '-'`,
     ),
   ],
+);
+
+/** A T3 bridge's last sign of life, per user and T3 environment. */
+export const t3Bridge = sqliteTable(
+  "t3_bridge",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    environmentId: text("environment_id").notNull(),
+    lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.environmentId] })],
 );
 
 export const projectMember = sqliteTable(
