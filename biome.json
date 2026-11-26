@@ -301,6 +301,22 @@
       }
     },
     {
+      "includes": ["apps/t3-bridge/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noNodejsModules": "off"
+          },
+          "style": {
+            "noProcessEnv": "off"
+          },
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["packages/api/test/**"],
       "linter": {
         "rules": {

@@ -112,6 +112,14 @@ describe("redactSecrets", () => {
     expect(redactSecrets(text)).toBe(text);
   });
 
+  it("drops markdown link targets and emphasis from summaries", () => {
+    expect(
+      summaryLine(
+        "## Done\n**Report**: [dashboard.json](/Users/me/x/dashboard.json) and `pnpm test`",
+      ),
+    ).toBe("Done Report: dashboard.json and pnpm test");
+  });
+
   it("makes summaries one masked line", () => {
     expect(summaryLine("Done.\n\nTOKEN=abcdefghij was set", 30)).toBe(
       "Done. TOKEN=[redacted] was set",

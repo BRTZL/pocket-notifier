@@ -36,13 +36,22 @@ export const RECENT_VISIT_MS = 5 * 60 * 1000;
 const PUSH_SUMMARY_LENGTH = 200;
 const FEATURE_NAME_LENGTH = 64;
 const LINE_BREAKS = /\s*\n\s*/gu;
+/** `[text](target)`: agents link local files, which mean nothing on a phone. */
+const MARKDOWN_LINK = /!?\[(?<text>[^\]]*)\]\([^)]*\)/gu;
+/** Emphasis, inline code and heading marks. */
+const MARKDOWN_MARKS = /\*\*|__|`|^#{1,6}\s+/gmu;
 
-/** The summary as one masked line, cut to `max` characters. */
+/** Agent markdown as plain text: link texts without targets, no emphasis marks. */
+function plainText(text: string): string {
+  return text.replace(MARKDOWN_LINK, "$<text>").replace(MARKDOWN_MARKS, "");
+}
+
+/** The summary as one masked plain-text line, cut to `max` characters. */
 export function summaryLine(text: string | null, max: number = T3_LIMITS.summaryLength) {
   if (!text) {
     return null;
   }
-  const line = redactSecrets(text).replace(LINE_BREAKS, " ").trim();
+  const line = plainText(redactSecrets(text)).replace(LINE_BREAKS, " ").trim();
   return line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line || null;
 }
 

@@ -1,0 +1,20 @@
+{
+  "name": "t3-bridge",
+  "private": true,
+  "type": "module",
+  "description": "Forwards T3 Code thread status to Pocket Notifier. Runs on the machine that runs T3 Code.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@notifier/config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  }
+}
