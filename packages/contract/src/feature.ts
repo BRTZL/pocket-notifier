@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { idSchema, Timestamp } from "./common";
 import { ProjectId } from "./project";
+import { T3ThreadLink } from "./t3";
 
 /**
  * Features. A feature is a named workstream inside a project, e.g. "Improving performance"
@@ -52,6 +53,8 @@ export const Feature = z.object({
   createdAt: Timestamp,
   updatedAt: Timestamp,
   lastMessageAt: Timestamp.nullable(),
+  /** The T3 Code thread the feature follows, when an agent in one sent to it. */
+  t3: T3ThreadLink.nullable(),
 });
 export type Feature = z.infer<typeof Feature>;
 

@@ -31,11 +31,12 @@ export const MESSAGE_LIMITS = {
 export const ATTACHMENT_MAX_BYTES = 95_000_000;
 
 /**
- * Links a subscriber may open from a message: web pages and notifier's own deep
- * links. Anything else (`javascript:`, `intent:`, `file:` …) is rejected at publish.
+ * Links a subscriber may open from a message: web pages, notifier's own deep links and
+ * T3 Code thread links (`t3code:`). Anything else (`javascript:`, `intent:`, `file:` …)
+ * is rejected at publish.
  */
 export const OpenableUrl = z
-  .url({ protocol: /^(?:https?|notifier)$/u })
+  .url({ protocol: /^(?:https?|notifier|t3code)$/u })
   .max(MESSAGE_LIMITS.urlLength);
 
 export const Tag = z

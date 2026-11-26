@@ -14,6 +14,7 @@ import { type Feature, type FeatureStatus, slugify } from "@notifier/contract/fe
 import type { Action, PublishInput } from "@notifier/contract/message";
 import { PublishInput as PublishInputSchema } from "@notifier/contract/message";
 import type { MyProject, ProjectRole } from "@notifier/contract/project";
+import { OPEN_IN_T3_LABEL, type T3ThreadRef, t3ThreadUrl } from "@notifier/contract/t3";
 import type { Database } from "@notifier/db";
 import { newId } from "@notifier/db/ids";
 import { user } from "@notifier/db/schema/auth";
@@ -34,6 +35,7 @@ import { deletePrefix, type Files } from "./files";
 import { swapIconUrl } from "./icons";
 import { announcePublished, type PublishedRow, publishMessage, toMessage } from "./messages";
 import { loadMyProject, loadMyProjects } from "./my-projects";
+import { ensureT3Feature, t3Link } from "./t3";
 
 export type ProjectRow = typeof project.$inferSelect;
 export type FeatureRow = typeof feature.$inferSelect;
@@ -293,6 +295,7 @@ export function toFeature(row: FeatureRow): Feature {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     lastMessageAt: row.lastMessageAt?.toISOString() ?? null,
+    t3: t3Link(row.t3EnvironmentId, row.t3ThreadId),
   };
 }
 
@@ -457,13 +460,22 @@ export function projectNotFound(name: string) {
 export async function resolveSendTarget(
   db: Database,
   userId: string,
-  target: { project?: string; feature?: string },
+  target: { project?: string; feature?: string; t3?: T3ThreadRef },
 ): Promise<{ access: ProjectAccess; feature?: FeatureRow; featureCreated: boolean }> {
   const access = await findProject(db, userId, target.project);
   if (!access) {
     throw projectNotFound(target.project ?? "");
   }
   requirePublisher(access);
+  if (target.t3) {
+    const ensured = await ensureT3Feature(db, {
+      projectId: access.project.id,
+      ref: target.t3,
+      name: target.feature,
+      userId,
+    });
+    return { access, feature: ensured.feature, featureCreated: ensured.created };
+  }
   if (!target.feature?.trim()) {
     return { access, featureCreated: false };
   }
@@ -500,9 +512,19 @@ export type SendNotificationInput = {
   attachmentId?: string;
 };
 
-/** Builds the message's actions: link buttons only. */
-function buildActions(input: SendNotificationInput): PublishInput["actions"] {
-  return (input.links ?? []).map(
+/** The T3 thread `row` follows, if any. */
+export function featureThread(row: FeatureRow | undefined): T3ThreadRef | null {
+  return row?.t3EnvironmentId && row.t3ThreadId
+    ? { environmentId: row.t3EnvironmentId, threadId: row.t3ThreadId }
+    : null;
+}
+
+/** Builds the message's actions: "Open in T3" for a thread's feature, then link buttons. */
+function buildActions(
+  input: SendNotificationInput,
+  t3: T3ThreadRef | null,
+): PublishInput["actions"] {
+  const links = (input.links ?? []).map(
     (link, index): Action => ({
       type: "view",
       key: `link${index}`,
@@ -511,6 +533,17 @@ function buildActions(input: SendNotificationInput): PublishInput["actions"] {
       clear: false,
     }),
   );
+  if (!t3) {
+    return links;
+  }
+  const open: Action = {
+    type: "view",
+    key: "t3",
+    label: OPEN_IN_T3_LABEL,
+    url: t3ThreadUrl(t3),
+    clear: false,
+  };
+  return [open, ...links];
 }
 
 /** The body with the question of `ask` appended, so it is visible in the notification. */
@@ -557,7 +590,7 @@ export async function sendNotification(
     priority: input.priority,
     tags: input.tags ?? [],
     clickUrl: input.url,
-    actions: buildActions(input),
+    actions: buildActions(input, featureThread(args.feature)),
     conversation: args.feature ? { id: args.feature.slug, title: args.feature.name } : undefined,
     sender: input.sender,
     attachmentId: input.attachmentId,

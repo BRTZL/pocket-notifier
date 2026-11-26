@@ -250,6 +250,67 @@ describe("MCP server", () => {
     expect(features.map((item) => item.slug)).toEqual(["org-repo", "improving-performance"]);
   });
 
+  it("keeps every send from one T3 thread in one feature with an Open in T3 button", async () => {
+    await call("create_project", { name: "rezme" });
+    const t3 = { environmentId: "env-1", threadId: "352b089c-3d43-4d8d-850b-47ea9c7a3699" };
+    const first = await call("send_notification", {
+      project: "rezme",
+      feature: "Login flow",
+      t3,
+      title: "Step 1/2: API",
+    });
+    expect(first.structuredContent).toMatchObject({
+      feature: { slug: "login-flow", name: "Login flow", created: true },
+    });
+    // A later send under another feature name still lands in the thread's feature.
+    const second = await call("send_notification", {
+      project: "rezme",
+      feature: "Something else",
+      t3,
+      title: "Login done",
+    });
+    expect(second.structuredContent).toMatchObject({
+      feature: { slug: "login-flow", created: false },
+    });
+    expect(published[1]?.actions[0]).toMatchObject({
+      type: "view",
+      label: "Open in T3",
+      url: "t3code://threads/env-1/352b089c-3d43-4d8d-850b-47ea9c7a3699",
+    });
+
+    // Another thread on the same workstream gets its own feature.
+    const other = await call("send_notification", {
+      project: "rezme",
+      feature: "Login flow",
+      t3: { environmentId: "env-1", threadId: "thread:delegated-task:9f00aa11" },
+      title: "Other thread",
+    });
+    expect(other.structuredContent).toMatchObject({
+      feature: { slug: "login-flow-9f00aa11", name: "Login flow", created: true },
+    });
+
+    const owner = clientFor(testDb.db, ada);
+    const { items } = await owner.conversations.list({});
+    const login = items.find((item) => item.key === "c:login-flow");
+    expect(login?.t3).toEqual({
+      ...t3,
+      url: "t3code://threads/env-1/352b089c-3d43-4d8d-850b-47ea9c7a3699",
+    });
+    const features = await call("list_features", { project: "rezme" });
+    expect(text(features)).toContain("login-flow");
+  });
+
+  it("refuses T3 ids with characters a thread id never has", async () => {
+    await call("create_project", { name: "rezme" });
+    const sent = await call("send_notification", {
+      project: "rezme",
+      t3: { environmentId: "env 1", threadId: "x/../y" },
+      title: "Bad ids",
+    });
+    expect(sent.isError).toBe(true);
+    expect(published).toHaveLength(0);
+  });
+
   it("sends to General when no project is given", async () => {
     const sent = await call("send_notification", { title: "Hello" });
     expect(sent.structuredContent).toMatchObject({ isGeneral: true, feature: null });

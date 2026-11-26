@@ -36,7 +36,13 @@ function describeThread(
   fallbackTitle?: string,
 ) {
   if (!summary) {
-    return { title: fallbackTitle ?? "Conversation", subtitle: "", avatar: null, linkUrl: null };
+    return {
+      title: fallbackTitle ?? "Conversation",
+      subtitle: "",
+      avatar: null,
+      linkUrl: null,
+      t3Url: null,
+    };
   }
   const { title, projectTitle, lastMessage } = summary;
   // A project-level thread is titled after its project: repeating the name adds nothing.
@@ -48,6 +54,7 @@ function describeThread(
     subtitle,
     avatar: conversationAvatar(summary),
     linkUrl: newest?.clickUrl ?? null,
+    t3Url: summary.t3?.url ?? null,
   };
 }
 
@@ -56,26 +63,42 @@ function ThreadHeader({
   subtitle,
   avatar,
   linkUrl,
+  t3Url = null,
 }: {
   title: string;
   subtitle: string;
   avatar: ChatAvatarSubject | null;
   linkUrl: string | null;
+  /** The feature's T3 Code thread: the user replies there. */
+  t3Url?: string | null;
 }) {
   const openLink = useOpenLink();
+  const hasButtons = linkUrl !== null || t3Url !== null;
   return (
     <StackHeader
       title={title}
       subtitle={subtitle}
       avatar={avatar}
       right={
-        linkUrl ? (
-          <HeaderIconButton
-            icon="open-in-new"
-            size={22}
-            label="Open link"
-            onPress={() => openLink(linkUrl)}
-          />
+        hasButtons ? (
+          <View className="flex-row">
+            {t3Url ? (
+              <HeaderIconButton
+                icon="reply"
+                size={22}
+                label="Open in T3"
+                onPress={() => openLink(t3Url)}
+              />
+            ) : null}
+            {linkUrl ? (
+              <HeaderIconButton
+                icon="open-in-new"
+                size={22}
+                label="Open link"
+                onPress={() => openLink(linkUrl)}
+              />
+            ) : null}
+          </View>
         ) : null
       }
     />
@@ -291,6 +314,7 @@ function Thread({
         subtitle={header.subtitle}
         avatar={header.avatar}
         linkUrl={header.linkUrl}
+        t3Url={header.t3Url}
       />
       <KeyboardAvoidingView behavior="padding" className="bg-surface-secondary flex-1">
         <ThreadMessages query={query} messages={messages} />

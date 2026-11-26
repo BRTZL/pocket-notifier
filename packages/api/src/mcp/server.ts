@@ -21,6 +21,7 @@ import {
 } from "@notifier/contract/message";
 import { Priority } from "@notifier/contract/priority";
 import { ProjectName } from "@notifier/contract/project";
+import { T3ThreadRef } from "@notifier/contract/t3";
 import type { Database } from "@notifier/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -346,6 +347,9 @@ const SendInput = z.object({
   feature: FeatureRef.optional().describe(
     "Feature (workstream) slug or name. Matched by slug, then by name; if none matches, a feature with this name is created.",
   ),
+  t3: T3ThreadRef.optional().describe(
+    "The T3 Code thread you run in: threadId from $T3CODE_THREAD_ID, environmentId from ~/.t3/userdata/environment-id. Every message from one thread lands in one feature (feature only names it the first time) and gets an Open in T3 button.",
+  ),
   title: z
     .string()
     .trim()
@@ -479,6 +483,7 @@ function registerSendTool(server: McpServer, caller: McpCaller) {
         const target = await resolveSendTarget(caller.db, caller.userId, {
           project: input.project,
           feature: input.feature,
+          t3: input.t3,
         });
         const { published, deliveredTo } = await sendNotification(caller.db, {
           access: target.access,

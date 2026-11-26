@@ -42,7 +42,7 @@ Feature slugs are unique per project: lowercase letters, digits and `-`, up to 6
 | `create_feature` | `project`, `name`, `slug?`, `description?` | Creates a feature. Idempotent by slug. Owners and publishers. |
 | `update_feature_status` | `project`, `feature`, `status` | Sets `active`, `done` or `archived`. Owners only. |
 | `create_upload` | `project?`, `fileName`, `contentType`, `size` | A one-time upload link for a file to attach. See below. Owners and publishers. |
-| `send_notification` | `project?`, `feature?`, `title`, `body?`, `priority?`, `tags?`, `url?`, `ask?`, `actions?`, `attachmentId?` | Sends a push. See below. Owners and publishers. |
+| `send_notification` | `project?`, `feature?`, `t3?`, `title`, `body?`, `priority?`, `tags?`, `url?`, `ask?`, `actions?`, `attachmentId?` | Sends a push. See below. Owners and publishers. |
 
 `project` is a project name as `list_projects` shows it. `general` also names your General project, unless you have a project actually called `general`. `feature` is a slug or a name (any case).
 
@@ -50,6 +50,7 @@ Feature slugs are unique per project: lowercase letters, digits and `-`, up to 6
 
 - **Where it goes.** `project` omitted: General. `feature` omitted: the project-level thread.
 - **Feature auto-create rule.** `feature` is matched by slug, then by name (any case), then by the slug of the given text. If nothing matches, a feature with that text as its name is created, and the result says `created: true`. Agents can send to their current workstream without creating it first.
+- **`t3`** `{ environmentId, threadId }` is the T3 Code thread the agent runs in: `threadId` from `$T3CODE_THREAD_ID`, `environmentId` from `~/.t3/userdata/environment-id`. Every message from one thread lands in one feature, found by the thread id. `feature` only names that feature the first time; when the named feature already follows another thread, a new one gets the thread's short id in its slug (`login-flow-9f00aa11`), and without `feature` it is `t3-<short id>`. Each message gets an **Open in T3** button (`t3code://threads/<environmentId>/<threadId>`), which opens the thread in T3 Code on the desktop or in T3's mobile app. The thread screen in the app has the same button. `list_features` shows the link as `t3`.
 - **`title`** is the outcome, at most 32 characters by convention (the API allows 250). **`body`** is one line.
 - **`priority`** 1 to 5: 2 low (FYI), 3 normal (the default for done), 4 high (blocked on a decision), 5 urgent (production or data at risk). Omitted: the project's default priority.
 - **`url`** is where to look (PR, CI run, deploy). The app shows it as an Open button on the message in its thread and as an action on the notification. Tapping the notification itself opens the thread: the feature's, or the project-level thread when `feature` is omitted.

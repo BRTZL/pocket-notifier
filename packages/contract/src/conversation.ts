@@ -3,6 +3,7 @@ import { AttachmentKind } from "./attachment-kind";
 import { idSchema, PageInput, Timestamp } from "./common";
 import { Priority } from "./priority";
 import { ProjectId, ProjectName } from "./project";
+import { T3ThreadLink } from "./t3";
 
 /**
  * Conversations group a project's messages for the chat-style inbox. Each is scoped to
@@ -71,6 +72,8 @@ export const ConversationSummary = z.object({
   /** The caller's subscription to the project is muted. */
   muted: z.boolean(),
   openAsk: OpenAsk.nullable(),
+  /** The T3 Code thread of the conversation's feature, for an "Open in T3" button. */
+  t3: T3ThreadLink.nullable(),
 });
 export type ConversationSummary = z.infer<typeof ConversationSummary>;
 

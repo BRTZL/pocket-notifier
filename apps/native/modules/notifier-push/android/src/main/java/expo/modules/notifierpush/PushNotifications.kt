@@ -30,7 +30,8 @@ object PushNotifications {
   const val REPLY_KEY = "reply_text"
   private const val ACCENT = 0xFFE94826.toInt()
   private const val MAX_ACTIONS = 3
-  private val OPENABLE_SCHEMES = setOf("http", "https", "notifier")
+  /** Web links, the app's own links, and T3 Code threads (opened in T3's app). */
+  private val OPENABLE_SCHEMES = setOf("http", "https", "notifier", "t3code")
   private val SCHEME = Regex("^([A-Za-z][A-Za-z0-9+.-]*):")
 
   /** Same as `notificationGroupKey` in `packages/contract/src/push.ts`. */

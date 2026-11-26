@@ -5,11 +5,11 @@ import { Linking } from "react-native";
 const WEB_PROTOCOLS = new Set(["https:", "http:"]);
 
 /**
- * Deep-link schemes the app may hand to the system. Everything else (`javascript:`,
- * `intent:`, `file:`, `content:`, `data:`, unknown schemes) comes from message
- * publishers and is refused.
+ * Deep-link schemes the app may hand to the system: its own links and T3 Code threads,
+ * which open T3's app. Everything else (`javascript:`, `intent:`, `file:`, `content:`,
+ * `data:`, unknown schemes) comes from message publishers and is refused.
  */
-const DEEP_LINK_PROTOCOLS = new Set(["notifier:"]);
+const DEEP_LINK_PROTOCOLS = new Set(["notifier:", "t3code:"]);
 
 /** A message link that is malformed or uses a scheme the app does not open. */
 export class UnopenableLinkError extends Error {

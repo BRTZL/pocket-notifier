@@ -75,9 +75,18 @@ export const feature = sqliteTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
     lastMessageAt: integer("last_message_at", { mode: "timestamp_ms" }),
+    /**
+     * The T3 Code thread this feature follows, when an agent in that thread sent to it.
+     * Messages from the same thread always land here, whatever feature name they pass.
+     */
+    t3EnvironmentId: text("t3_environment_id"),
+    t3ThreadId: text("t3_thread_id"),
   },
   (table) => [
     uniqueIndex("feature_projectId_slug_uidx").on(table.projectId, table.slug),
+    uniqueIndex("feature_projectId_t3Thread_uidx")
+      .on(table.projectId, table.t3EnvironmentId, table.t3ThreadId)
+      .where(sql`${table.t3ThreadId} is not null`),
     check("feature_status_check", sql`${table.status} in ('active', 'done', 'archived')`),
     check(
       "feature_slug_check",

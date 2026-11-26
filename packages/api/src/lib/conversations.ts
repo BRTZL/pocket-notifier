@@ -10,6 +10,7 @@ import { attachmentKind, MessageId } from "@notifier/contract/message";
 import type { Database } from "@notifier/db";
 import {
   attachment,
+  feature,
   message,
   messageRead,
   messageResponse,
@@ -20,6 +21,7 @@ import {
 import { and, desc, eq, lt, sql } from "drizzle-orm";
 
 import { notExpired, parseCursor, parseStored, toPage } from "./messages";
+import { t3Link } from "./t3";
 
 type MessageRow = typeof message.$inferSelect;
 
@@ -87,6 +89,8 @@ export function conversationsQuery(
         attachmentName: attachment.name,
         attachmentContentType: attachment.contentType,
         muted: subscription.muted,
+        t3EnvironmentId: feature.t3EnvironmentId,
+        t3ThreadId: feature.t3ThreadId,
       })
       .from(groups)
       .innerJoin(message, eq(message.id, groups.lastId))
@@ -96,6 +100,15 @@ export function conversationsQuery(
       .leftJoin(
         subscription,
         and(eq(subscription.projectId, groups.projectId), eq(subscription.userId, userId)),
+      )
+      // The feature behind a `c:<slug>` conversation, by `feature_projectId_slug_uidx`.
+      .leftJoin(
+        feature,
+        and(
+          eq(feature.projectId, groups.projectId),
+          sql`${groups.key} like 'c:%'`,
+          eq(feature.slug, sql`substr(${groups.key}, 3)`),
+        ),
       )
       .where(args.cursor ? lt(groups.lastId, args.cursor) : undefined)
       .orderBy(desc(groups.lastId))
@@ -138,6 +151,8 @@ type SummaryRow = {
   attachmentName: string | null;
   attachmentContentType: string | null;
   muted: boolean | null;
+  t3EnvironmentId: string | null;
+  t3ThreadId: string | null;
 };
 
 /** `projectId` and conversation key as one string, to match rows against a page. */
@@ -236,6 +251,7 @@ function toConversationSummary(row: SummaryRow, openAsk: OpenAsk | null): Conver
     unreadCount: Number(row.unreadCount),
     muted: row.muted ?? false,
     openAsk,
+    t3: t3Link(row.t3EnvironmentId, row.t3ThreadId),
   };
   const parsed = ConversationSummarySchema.safeParse(assembled);
   if (!parsed.success) {
