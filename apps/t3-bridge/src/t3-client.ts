@@ -130,7 +130,9 @@ export function subscribeShell(args: {
         case "Chunk": {
           const values = frame.values ?? [];
           queue = queue
-            .then(() => args.onItems(values))
+            // After a failure nothing more is handled: the next connection resumes from
+            // the last item that was.
+            .then(() => (settled ? undefined : args.onItems(values)))
             .then(() => send({ _tag: "Ack", requestId: frame.requestId }))
             .catch((error: unknown) =>
               finish(error instanceof Error ? error : new Error(String(error))),

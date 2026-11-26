@@ -59,11 +59,12 @@ const TOKEN_RENEW_MS = 24 * 60 * 60 * 1000;
 const TOKEN_TTL = "30d";
 const SUMMARY_LENGTH = 500;
 
-/** What the bridge last told the server about a thread. */
+/** What the bridge last told the server about a thread. No titles: they may hold secrets. */
 type Reported = {
+  /** A hash of what was reported (`signatureOf`). */
   signature: string;
-  /** The report itself when it reached the server: resent with `removed` on archive. */
-  report: StatusReport | null;
+  /** Its project when the server knows the thread and shows it: a removal is sent then. */
+  onBoard: StatusReport["project"] | null;
 };
 
 type State = {
@@ -348,6 +349,9 @@ class Bridge {
             // biome-ignore lint/performance/noAwaitInLoops: reports go out in stream order.
             await this.consider(thread, snapshot.snapshotSequence, { quietIfOld: firstRun });
           }
+          if (snapshot.threads.length > 0) {
+            await this.reconcile(snapshot.threads, snapshot.snapshotSequence);
+          }
           this.advance(snapshot.snapshotSequence);
           break;
         }
@@ -397,7 +401,7 @@ class Bridge {
     const updatedAt = thread.updatedAt ? Date.parse(thread.updatedAt) : 0;
     if (options.quietIfOld && Date.now() - updatedAt > FIRST_RUN_WINDOW_MS) {
       // First run: remember old threads without reporting them.
-      this.state.reported[thread.id] = { signature, report: null };
+      this.state.reported[thread.id] = { signature, onBoard: null };
       return;
     }
     if (report.phase === "completed") {
@@ -407,24 +411,53 @@ class Bridge {
       report.summary = report.summary.slice(0, SUMMARY_LENGTH);
     }
     if (await this.notifier.report(report)) {
-      // Kept without the summary: only the identity and labels are needed for a removal.
-      this.state.reported[thread.id] = { signature, report: { ...report, summary: null } };
+      this.state.reported[thread.id] = { signature, onBoard: report.project };
     }
   }
 
-  /** Tells the server a thread it knows about is gone from T3's list. */
+  /**
+   * After a full snapshot: threads the server shows but T3 no longer lists (archived or
+   * deleted while the bridge was away) are taken off the board.
+   */
+  private async reconcile(listed: readonly ThreadShell[], sequence: number) {
+    const ids = new Set(listed.map((thread) => thread.id));
+    for (const threadId of Object.keys(this.state.reported)) {
+      if (!ids.has(threadId)) {
+        // biome-ignore lint/performance/noAwaitInLoops: reports go out one at a time.
+        await this.remove(threadId, sequence);
+      }
+    }
+  }
+
+  /**
+   * Forgets a thread T3 no longer lists, telling the server first when it shows it. The
+   * server only clears the phase, so the labels here are placeholders.
+   */
   private async remove(threadId: string, sequence: number) {
-    const known = this.state.reported[threadId];
-    if (known?.report && !known.report.removed) {
-      const report: StatusReport = { ...known.report, removed: true, sequence };
-      if (await this.notifier.report(report)) {
-        this.state.reported[threadId] = { signature: signatureOf(report), report };
+    const project = this.state.reported[threadId]?.onBoard;
+    if (project) {
+      const report: StatusReport = {
+        environmentId: this.environmentId,
+        threadId,
+        project,
+        title: "Removed thread",
+        phase: "idle",
+        branch: null,
+        pullRequestUrl: null,
+        runStartedAt: null,
+        runCompletedAt: null,
+        stopRequested: false,
+        lastVisitedAt: null,
+        summary: null,
+        errorClass: null,
+        sequence,
+        removed: true,
+      };
+      if (!(await this.notifier.report(report))) {
         return;
       }
     }
-    if (known && !known.report) {
-      this.state.reported = withoutKey(this.state.reported, threadId);
-    }
+    this.state.reported = withoutKey(this.state.reported, threadId);
   }
 
   private async summaryOf(threadId: string): Promise<string | null> {

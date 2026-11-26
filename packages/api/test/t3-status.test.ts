@@ -297,6 +297,19 @@ describe("T3 bridge API", () => {
     expect(published).toHaveLength(1);
   });
 
+  it("applies a newer report that raced an older one instead of dropping it", async () => {
+    const api = publicClientFor(testDb.db, secret, dispatch);
+    await api.t3.threadStatus(status({ sequence: 20 }));
+    await Promise.all([
+      api.t3.threadStatus(status({ sequence: 21, phase: "waiting_for_input" })),
+      api.t3.threadStatus(status({ sequence: 22, removed: true })),
+    ]);
+    const [row] = await testDb.db.select().from(feature);
+    // Whichever ran first, the removal (newest) is what stays.
+    expect(row).toMatchObject({ t3Sequence: 22, t3Phase: null });
+    expect(row?.t3Title).toBe("Fix realtime stall");
+  });
+
   it("undoes the status when the push fails, so the retry pushes", async () => {
     const api = publicClientFor(testDb.db, secret, dispatch);
     await api.t3.threadStatus(status({ sequence: 1 }));

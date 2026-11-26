@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 /**
  * What the bridge reports for a T3 Code thread. The phase rules follow T3 Code's own
  * notifications (`projectThreadAwarenessV2` in packages/shared/src/agentAwareness.ts of
@@ -198,14 +200,19 @@ export function reportFor(
  * is no news, and the summary is fetched only after the phase changed.
  */
 export function signatureOf(report: StatusReport): string {
-  return JSON.stringify([
-    report.phase,
-    report.title,
-    report.project.name,
-    report.branch,
-    report.pullRequestUrl,
-    report.runStartedAt,
-    report.runCompletedAt,
-    report.removed,
-  ]);
+  // A hash: the bridge keeps it on disk, and titles or branches may hold secrets.
+  return createHash("sha256")
+    .update(
+      JSON.stringify([
+        report.phase,
+        report.title,
+        report.project.name,
+        report.branch,
+        report.pullRequestUrl,
+        report.runStartedAt,
+        report.runCompletedAt,
+        report.removed,
+      ]),
+    )
+    .digest("base64url");
 }

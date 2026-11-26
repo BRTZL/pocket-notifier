@@ -137,14 +137,19 @@ function masked(text: string | null): string | null {
   return text === null ? null : redactSecrets(text);
 }
 
-/** The feature's new T3 columns, and its name when it still carries T3's old title. */
+/**
+ * The feature's new T3 columns, and its name when it still carries T3's old title. A
+ * removal only takes the thread off the board: its labels stay as they were.
+ */
 function statusUpdate(row: FeatureRow, input: StatusInput, now: Date) {
+  if (input.removed) {
+    return { t3Phase: null, t3PhaseAt: now, t3Sequence: input.sequence };
+  }
   const t3Title = redactSecrets(input.title);
   const name = t3Title.slice(0, FEATURE_NAME_LENGTH);
   const namedAfterT3 =
     row.t3Title === null || row.name === row.t3Title.slice(0, FEATURE_NAME_LENGTH);
-  // A removed thread leaves the board: no phase.
-  const phase = input.removed ? null : input.phase;
+  const phase = input.phase;
   return {
     ...(namedAfterT3 && row.name !== name ? { name } : {}),
     t3Title,
@@ -181,6 +186,54 @@ function atSequence(id: string, sequence: number | null) {
   );
 }
 
+/** Compare-and-set attempts before a report gives up to concurrent ones. */
+const APPLY_ATTEMPTS = 5;
+
+/**
+ * Writes `input` onto the feature unless a report as new or newer is already there.
+ * `before` is the row it replaced; `null` when nothing was written.
+ */
+async function applyStatus(db: Database, row: FeatureRow, input: StatusInput, now: Date) {
+  let before = row;
+  for (let attempt = 0; attempt < APPLY_ATTEMPTS; attempt += 1) {
+    if (before.t3Sequence !== null && input.sequence <= before.t3Sequence) {
+      return null;
+    }
+    // biome-ignore lint/performance/noAwaitInLoops: each attempt depends on the row it read.
+    const [after] = await db
+      .update(feature)
+      .set(statusUpdate(before, input, now))
+      .where(atSequence(before.id, before.t3Sequence))
+      .returning();
+    if (after) {
+      return { before, after };
+    }
+    const [current] = await db.select().from(feature).where(eq(feature.id, row.id)).limit(1);
+    if (!current) {
+      return null;
+    }
+    before = current;
+  }
+  throw new Error(`thread ${input.threadId} changed too often to record its status`);
+}
+
+/** Whether the bridge stored a message in the feature at or after `since`. */
+async function bridgeMessageSince(db: Database, row: FeatureRow, since: Date) {
+  const [found] = await db
+    .select({ id: message.id })
+    .from(message)
+    .where(
+      and(
+        eq(message.projectId, row.projectId),
+        eq(message.conversationKey, `c:${row.slug}`),
+        gte(message.createdAt, since),
+        sql`json_extract(${message.senderJson}, '$.id') = ${T3_BRIDGE_SENDER.id}`,
+      ),
+    )
+    .limit(1);
+  return found !== undefined;
+}
+
 function pushContent(kind: "failed" | "completed", input: StatusInput) {
   const summary = summaryLine(input.summary, PUSH_SUMMARY_LENGTH);
   if (kind === "failed") {
@@ -204,10 +257,13 @@ function pushContent(kind: "failed" | "completed", input: StatusInput) {
  * Records a thread's status on its feature (creating the project and feature when
  * missing) and sends a push when `decidePush` says so.
  *
- * - A report older than the last accepted one (by T3 stream sequence) changes nothing.
- * - The update is a compare-and-set on the sequence it read, so of two concurrent reports
- *   only one moves the phase and pushes.
- * - When the push fails, the update is undone, so the bridge's retry pushes again.
+ * - A report not newer than the last accepted one (by T3 stream sequence) changes
+ *   nothing: it is stale, or a retry of one already applied.
+ * - The update is a compare-and-set on the sequence it read. A report that loses to a
+ *   concurrent one reads again and applies unless the winner was newer, so of two
+ *   reports of the same change only one moves the phase and pushes.
+ * - When the push fails before its message is stored, the update is undone, so the
+ *   bridge's retry pushes again. Delivery to devices is best effort, as for any message.
  */
 export async function reportT3Status(
   db: Database,
@@ -228,24 +284,16 @@ export async function reportT3Status(
     name: redactSecrets(input.title).slice(0, FEATURE_NAME_LENGTH),
     userId,
   });
-  const before = ensured.feature;
-  const result = (pushed: boolean, slug = before.slug) => ({
+  const result = (pushed: boolean, slug = ensured.feature.slug) => ({
     project: access.project.name,
     feature: slug,
     pushed,
   });
-  if (before.t3Sequence !== null && input.sequence < before.t3Sequence) {
+  const applied = await applyStatus(db, ensured.feature, input, now);
+  if (!applied) {
     return result(false);
   }
-  const [after] = await db
-    .update(feature)
-    .set(statusUpdate(before, input, now))
-    .where(atSequence(before.id, before.t3Sequence))
-    .returning();
-  if (!after) {
-    // A concurrent report won the compare-and-set; it pushes if anything does.
-    return result(false);
-  }
+  const { before, after } = applied;
 
   const decision = input.removed
     ? null
@@ -257,6 +305,7 @@ export async function reportT3Status(
       });
   if (decision) {
     const content = pushContent(decision.kind, input);
+    const sentFrom = new Date();
     try {
       await sendNotification(db, {
         access,
@@ -271,10 +320,13 @@ export async function reportT3Status(
         },
       });
     } catch (error) {
-      await db
-        .update(feature)
-        .set(previousStatus(before))
-        .where(atSequence(before.id, input.sequence));
+      // Stored but not announced (a later step failed): a retry must not store it again.
+      if (!(await bridgeMessageSince(db, after, sentFrom))) {
+        await db
+          .update(feature)
+          .set(previousStatus(before))
+          .where(atSequence(before.id, input.sequence));
+      }
       throw error;
     }
   }
