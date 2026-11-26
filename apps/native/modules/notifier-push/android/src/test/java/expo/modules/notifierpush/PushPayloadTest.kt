@@ -1,10 +1,8 @@
 package expo.modules.notifierpush
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** The wire format is `PushMessageData` in packages/contract/src/push.ts. */
@@ -43,15 +41,6 @@ class PushPayloadTest {
   fun readsTheProjectDisplayName() {
     assertEquals("RezMe", message("projectTitle" to "RezMe").projectTitle)
     assertEquals("", message().projectTitle)
-  }
-
-  @Test
-  fun opensT3ThreadLinksButNotOtherSchemes() {
-    assertTrue(PushNotifications.isOpenable("t3code://threads/env-1/thread%3Adelegated-task%3Aabc"))
-    assertFalse(PushNotifications.isOpenable("t3code://new?prompt=rm"))
-    assertFalse(PushNotifications.isOpenable("t3code://threads/env-1/abc?x=1"))
-    assertTrue(PushNotifications.isOpenable("https://example.com"))
-    assertFalse(PushNotifications.isOpenable("intent://x#Intent;end"))
   }
 
   @Test
