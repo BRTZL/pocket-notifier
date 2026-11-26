@@ -138,7 +138,7 @@ function masked(text: string | null): string | null {
 }
 
 /**
- * The feature's new T3 columns, and its name when it still carries T3's old title. A
+ * The feature's new T3 columns, and its name: always the T3 thread's title. A
  * removal only takes the thread off the board: its labels stay as they were.
  */
 function statusUpdate(row: FeatureRow, input: StatusInput, now: Date) {
@@ -146,12 +146,11 @@ function statusUpdate(row: FeatureRow, input: StatusInput, now: Date) {
     return { t3Phase: null, t3PhaseAt: now, t3Sequence: input.sequence };
   }
   const t3Title = redactSecrets(input.title);
+  // The thread is named after the T3 thread, whatever name an agent gave it first.
   const name = t3Title.slice(0, FEATURE_NAME_LENGTH);
-  const namedAfterT3 =
-    row.t3Title === null || row.name === row.t3Title.slice(0, FEATURE_NAME_LENGTH);
   const phase = input.phase;
   return {
-    ...(namedAfterT3 && row.name !== name ? { name } : {}),
+    ...(row.name === name ? {} : { name }),
     t3Title,
     t3Phase: phase,
     t3PhaseAt: row.t3Phase === phase && row.t3PhaseAt ? row.t3PhaseAt : now,

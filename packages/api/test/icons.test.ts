@@ -181,8 +181,18 @@ describe("project icons", () => {
         owner.projects.setIcon({ id: projectId, contentType: "image/png", data: base64(PNG) }),
       ),
     );
-    const urls = new Set(results.map((item) => item.iconUrl));
-    expect(urls.size).toBe(3);
+    // Each call reads the project back after its swap, so racing calls may report the
+    // same (latest) icon; every one is an uploaded icon of this project.
+    for (const { iconUrl } of results) {
+      expect(iconUrl).toContain(`/api/icons/${projectId}/`);
+    }
+    // The same bytes uploaded again get a new key.
+    const again = await owner.projects.setIcon({
+      id: projectId,
+      contentType: "image/png",
+      data: base64(PNG),
+    });
+    expect(new Set(results.map((item) => item.iconUrl)).has(again.iconUrl)).toBe(false);
     const current = (await owner.projects.get({ id: projectId })).iconUrl;
     expect((await iconFile(current)).status).toBe(200);
     // Every replaced upload is gone; only the current one is left.

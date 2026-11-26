@@ -11,7 +11,7 @@ import { ProjectName } from "./project";
  */
 
 /** T3 ids: UUIDs, or prefixed ids like `thread:delegated-task:…`. */
-const T3Id = z
+export const T3Id = z
   .string()
   .trim()
   .min(1)
@@ -32,6 +32,16 @@ export type T3ThreadRef = z.infer<typeof T3ThreadRef>;
  */
 export const T3_THREAD_URL =
   /^t3code:\/\/threads\/[A-Za-z0-9._~%-]{1,600}\/[A-Za-z0-9._~%-]{1,600}$/u;
+
+/**
+ * A T3 thread as an MCP client names it with the `X-T3-Thread-Id` header (from the
+ * agent's `$T3CODE_THREAD_ID`), and optionally `X-T3-Environment-Id`. Without the
+ * environment, the server matches the thread id alone, or takes the user's T3 bridge's.
+ */
+export type T3ThreadHint = { threadId: string; environmentId?: string };
+
+export const T3_THREAD_HEADER = "x-t3-thread-id";
+export const T3_ENVIRONMENT_HEADER = "x-t3-environment-id";
 
 /** Opens the thread in T3 Code: the desktop app, or T3's mobile app on a phone. */
 export function t3ThreadUrl(ref: T3ThreadRef): string {

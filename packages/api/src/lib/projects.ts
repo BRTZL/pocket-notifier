@@ -14,7 +14,12 @@ import { type Feature, type FeatureStatus, slugify } from "@notifier/contract/fe
 import type { Action, PublishInput } from "@notifier/contract/message";
 import { PublishInput as PublishInputSchema } from "@notifier/contract/message";
 import type { MyProject, ProjectRole } from "@notifier/contract/project";
-import { OPEN_IN_T3_LABEL, type T3ThreadRef, t3ThreadUrl } from "@notifier/contract/t3";
+import {
+  OPEN_IN_T3_LABEL,
+  type T3ThreadHint,
+  type T3ThreadRef,
+  t3ThreadUrl,
+} from "@notifier/contract/t3";
 import type { Database } from "@notifier/db";
 import { newId } from "@notifier/db/ids";
 import { user } from "@notifier/db/schema/auth";
@@ -24,6 +29,7 @@ import {
   project,
   projectMember,
   subscription,
+  t3Bridge,
 } from "@notifier/db/schema/notifier";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 
@@ -441,6 +447,47 @@ export async function findFeatureAccess(db: Database, userId: string, featureId:
   return { feature: row.feature, access: { project: row.project, role: row.role } };
 }
 
+/**
+ * The caller's feature that follows the T3 thread `hint` names, in any of their projects;
+ * the most recently active one if there are several.
+ */
+async function findThreadFeature(db: Database, userId: string, hint: T3ThreadHint) {
+  const [row] = await db
+    .select({ feature, project, role: projectMember.role })
+    .from(feature)
+    .innerJoin(project, eq(project.id, feature.projectId))
+    .innerJoin(
+      projectMember,
+      and(eq(projectMember.projectId, feature.projectId), eq(projectMember.userId, userId)),
+    )
+    .where(
+      and(
+        eq(feature.t3ThreadId, hint.threadId),
+        hint.environmentId ? eq(feature.t3EnvironmentId, hint.environmentId) : undefined,
+      ),
+    )
+    .orderBy(
+      desc(
+        sql`max(coalesce(${feature.t3PhaseAt}, 0), coalesce(${feature.lastMessageAt}, ${feature.createdAt}))`,
+      ),
+    )
+    .limit(1);
+  return row
+    ? { feature: row.feature, access: { project: row.project, role: row.role } }
+    : undefined;
+}
+
+/** The T3 environment of the caller's most recently seen bridge, if any. */
+async function latestBridgeEnvironment(db: Database, userId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ environmentId: t3Bridge.environmentId })
+    .from(t3Bridge)
+    .where(eq(t3Bridge.userId, userId))
+    .orderBy(desc(t3Bridge.lastSeenAt))
+    .limit(1);
+  return row?.environmentId ?? null;
+}
+
 export function projectNotFound(name: string) {
   return appError(
     "NOT_FOUND",
@@ -460,17 +507,26 @@ export function projectNotFound(name: string) {
 export async function resolveSendTarget(
   db: Database,
   userId: string,
-  target: { project?: string; feature?: string; t3?: T3ThreadRef },
+  target: { project?: string; feature?: string; t3?: T3ThreadHint },
 ): Promise<{ access: ProjectAccess; feature?: FeatureRow; featureCreated: boolean }> {
+  // A T3 thread that already has its feature: there, whatever project or name was given.
+  const linked = target.t3 ? await findThreadFeature(db, userId, target.t3) : undefined;
+  if (linked) {
+    requirePublisher(linked.access);
+    return { access: linked.access, feature: linked.feature, featureCreated: false };
+  }
   const access = await findProject(db, userId, target.project);
   if (!access) {
     throw projectNotFound(target.project ?? "");
   }
   requirePublisher(access);
-  if (target.t3) {
+  const environmentId = target.t3
+    ? (target.t3.environmentId ?? (await latestBridgeEnvironment(db, userId)))
+    : null;
+  if (target.t3 && environmentId) {
     const ensured = await ensureT3Feature(db, {
       projectId: access.project.id,
-      ref: target.t3,
+      ref: { environmentId, threadId: target.t3.threadId },
       name: target.feature,
       userId,
     });

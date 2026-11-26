@@ -48,7 +48,7 @@ Before the first notification in a session:
 1. `list_projects`. If the project is missing, `create_project` with `name` (and `displayName`). If the name is taken by someone else, pick another (for example `rezme-app`).
 2. `list_features` for the project. Reuse a matching feature; otherwise `create_feature`, or just pass the new name to `send_notification`, which creates a missing feature.
 3. Leave `project` out only for notifications that belong to no project; they go to the user's private General project.
-4. Running in T3 Code (`$T3CODE_THREAD_ID` is set)? Pass `t3: { environmentId, threadId }` on every `send_notification`: `threadId` is `$T3CODE_THREAD_ID`, `environmentId` is the contents of `~/.t3/userdata/environment-id`. Every message from one thread lands in one feature (your `feature` only names it the first time), and each gets an **Open in T3** button so the user can reply in your thread.
+4. Running in T3 Code? With the client set up to send `X-T3-Thread-Id` (see the API docs), every message lands in your T3 thread's own conversation automatically, named after the thread, with an **Open in T3** button so the user can reply there; `feature` is ignored then. Without that setup, pass `t3: { environmentId, threadId }`: `threadId` is `$T3CODE_THREAD_ID`, `environmentId` the contents of `~/.t3/userdata/environment-id`.
 
 When a workstream is finished, call `update_feature_status` with `done`.
 

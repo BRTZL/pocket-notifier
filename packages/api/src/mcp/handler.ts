@@ -8,6 +8,12 @@
  */
 
 import { createMcpHandler } from "@modelcontextprotocol/server";
+import {
+  T3_ENVIRONMENT_HEADER,
+  T3_THREAD_HEADER,
+  T3Id,
+  type T3ThreadHint,
+} from "@notifier/contract/t3";
 import type { Database } from "@notifier/db";
 import { oauthClient } from "@notifier/db/schema/oauth";
 import { eq } from "drizzle-orm";
@@ -48,6 +54,22 @@ async function findOAuthClientName(db: Database, clientId: string): Promise<stri
   return name ? name.slice(0, SENDER_NAME_LENGTH) : undefined;
 }
 
+/**
+ * The T3 thread an MCP client runs in, from the headers its config sets from the agent's
+ * environment (`X-T3-Thread-Id: ${T3CODE_THREAD_ID}`). Ids that are not T3 ids are
+ * ignored, and so is an empty header: a client outside T3 expands the variable to "".
+ */
+export function t3ThreadOf(request: Request): T3ThreadHint | null {
+  const thread = T3Id.safeParse(request.headers.get(T3_THREAD_HEADER) ?? "");
+  if (!thread.success) {
+    return null;
+  }
+  const environment = T3Id.safeParse(request.headers.get(T3_ENVIRONMENT_HEADER) ?? "");
+  return environment.success
+    ? { threadId: thread.data, environmentId: environment.data }
+    : { threadId: thread.data };
+}
+
 export type McpRequestDeps = {
   db: Database;
   dispatch: Dispatch;
@@ -79,6 +101,7 @@ export async function handleMcpRequest(
         db: deps.db,
         userId,
         sender,
+        t3Thread: t3ThreadOf(request),
         dispatch: deps.dispatch,
         files: deps.files,
       }),

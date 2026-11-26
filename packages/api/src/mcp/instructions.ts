@@ -17,6 +17,6 @@ How:
 6. When a workstream is finished, update_feature_status to "done".
 7. To attach a file (screenshot, log, video, PDF): create_upload with the same project, run the curl command it returns with the file's path, then send_notification with its attachmentId. One file per notification.
 8. update_project changes a project's display name, description or iconUrl (owners only).
-9. Running in T3 Code ($T3CODE_THREAD_ID is set): pass t3 { environmentId: contents of ~/.t3/userdata/environment-id, threadId: $T3CODE_THREAD_ID } on every send_notification. All messages from one thread land in one feature, and each gets an Open in T3 button where the user replies.
+9. Running in T3 Code: clients set up for it send the thread automatically (X-T3-Thread-Id header), so every message lands in that T3 thread's own conversation, named after it, with an Open in T3 button where the user replies. Without that setup, pass t3 { environmentId: contents of ~/.t3/userdata/environment-id, threadId: $T3CODE_THREAD_ID }.
 
 Never put secrets, tokens, passwords or private keys in a notification. Name the file or env var instead.`;

@@ -21,7 +21,7 @@ import {
 } from "@notifier/contract/message";
 import { Priority } from "@notifier/contract/priority";
 import { ProjectName } from "@notifier/contract/project";
-import { T3ThreadRef } from "@notifier/contract/t3";
+import { type T3ThreadHint, T3ThreadRef } from "@notifier/contract/t3";
 import type { Database } from "@notifier/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -56,6 +56,8 @@ export type McpCaller = {
   userId: string;
   /** Who sends: the OAuth client, e.g. `{ id: <client_id>, name: "Claude Code" }`. */
   sender: { id: string; name?: string };
+  /** The T3 thread the client runs in, from its `X-T3-Thread-Id` header; else `null`. */
+  t3Thread: T3ThreadHint | null;
   dispatch: Dispatch;
   files: Files;
 };
@@ -348,7 +350,7 @@ const SendInput = z.object({
     "Feature (workstream) slug or name. Matched by slug, then by name; if none matches, a feature with this name is created.",
   ),
   t3: T3ThreadRef.optional().describe(
-    "The T3 Code thread you run in: threadId from $T3CODE_THREAD_ID, environmentId from ~/.t3/userdata/environment-id. Every message from one thread lands in one feature (feature only names it the first time) and gets an Open in T3 button.",
+    "The T3 Code thread you run in. Usually not needed: clients set up for T3 send it automatically (X-T3-Thread-Id header). Every message from one thread lands in that thread's own conversation, named after the T3 thread, with an Open in T3 button.",
   ),
   title: z
     .string()
@@ -483,7 +485,8 @@ function registerSendTool(server: McpServer, caller: McpCaller) {
         const target = await resolveSendTarget(caller.db, caller.userId, {
           project: input.project,
           feature: input.feature,
-          t3: input.t3,
+          // The thread the client says it runs in, unless the agent named one itself.
+          t3: input.t3 ?? caller.t3Thread ?? undefined,
         });
         const { published, deliveredTo } = await sendNotification(caller.db, {
           access: target.access,

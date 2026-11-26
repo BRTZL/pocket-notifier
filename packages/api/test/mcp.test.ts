@@ -25,7 +25,10 @@ describe("MCP server", () => {
   let published: Message[];
   let mcp: Client;
 
-  async function connect(claims: McpTokenClaims): Promise<Client> {
+  async function connect(
+    claims: McpTokenClaims,
+    headers: Record<string, string> = {},
+  ): Promise<Client> {
     const dispatch: Dispatch = {
       messagePublished: (item) => {
         published.push(item);
@@ -33,6 +36,7 @@ describe("MCP server", () => {
       messagesRead: () => undefined,
     };
     const transport = new StreamableHTTPClientTransport(new URL(MCP_URL), {
+      requestInit: { headers },
       fetch: (input, init) =>
         handleMcpRequest(new Request(input, init), claims, {
           db: testDb.db,
@@ -300,6 +304,69 @@ describe("MCP server", () => {
     });
     const features = await call("list_features", { project: "rezme" });
     expect(text(features)).toContain("login-flow");
+  });
+
+  it("files sends from a T3 client into its thread's conversation by header", async () => {
+    const owner = clientFor(testDb.db, ada);
+    await owner.projects.create({ name: "rezme" });
+    await owner.projects.create({ name: "other" });
+    const { secret } = await owner.tokens.create({ name: "bridge", scope: { kind: "all" } });
+    const bridge = publicClientFor(testDb.db, secret);
+    // The bridge saw the thread first: its conversation exists, named after the T3 thread.
+    await bridge.t3.heartbeat({ environmentId: "env-9" });
+    await bridge.t3.threadStatus({
+      sequence: 1,
+      environmentId: "env-9",
+      threadId: "aaaa1111-thread",
+      project: { name: "rezme", title: "RezMe" },
+      title: "Fix realtime stall",
+      phase: "running",
+    });
+
+    const inThread = await connect(
+      { sub: ada.id, azp: CLIENT_ID },
+      { "X-T3-Thread-Id": "aaaa1111-thread" },
+    );
+    // Another project and a different feature name: the thread still wins.
+    const sent = (await inThread.callTool({
+      name: "send_notification",
+      arguments: { project: "other", feature: "Something else", title: "Stall fixed" },
+    })) as ToolResult;
+    expect(sent.structuredContent).toMatchObject({
+      project: "rezme",
+      feature: { slug: "fix-realtime-stall", name: "Fix realtime stall" },
+    });
+    expect(published.at(-1)?.actions[0]).toMatchObject({
+      label: "Open in T3",
+      url: "t3code://threads/env-9/aaaa1111-thread",
+    });
+
+    // A thread the bridge has not reported yet gets its own conversation in the named
+    // project, with the bridge's environment.
+    const fresh = await connect(
+      { sub: ada.id, azp: CLIENT_ID },
+      { "X-T3-Thread-Id": "bbbb2222-thread" },
+    );
+    const first = (await fresh.callTool({
+      name: "send_notification",
+      arguments: { project: "other", feature: "Login flow", title: "Step 1" },
+    })) as ToolResult;
+    expect(first.structuredContent).toMatchObject({
+      project: "other",
+      feature: { slug: "login-flow" },
+    });
+    expect(published.at(-1)?.actions[0]).toMatchObject({
+      url: "t3code://threads/env-9/bbbb2222-thread",
+    });
+
+    // An empty header (a client outside T3) changes nothing.
+    const outside = await connect({ sub: ada.id, azp: CLIENT_ID }, { "X-T3-Thread-Id": "" });
+    const plain = (await outside.callTool({
+      name: "send_notification",
+      arguments: { project: "other", title: "Plain" },
+    })) as ToolResult;
+    expect(plain.structuredContent).toMatchObject({ project: "other", feature: null });
+    await Promise.all([inThread.close(), fresh.close(), outside.close()]);
   });
 
   it("refuses T3 ids with characters a thread id never has", async () => {
