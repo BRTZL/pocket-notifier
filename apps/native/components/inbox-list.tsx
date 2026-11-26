@@ -7,6 +7,7 @@ import { ConversationRow } from "@/components/conversation-row";
 import { Icon } from "@/components/icon";
 import { EmptyState, ErrorState, LoadErrorBanner, LoadingState } from "@/components/query-state";
 import { ScreenHeader } from "@/components/screen-header";
+import { T3BoardSection } from "@/components/t3-board";
 import { ThemedRefreshControl } from "@/components/themed-refresh-control";
 import { useConversations, useMarkAllRead } from "@/hooks/use-conversations";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
@@ -65,8 +66,11 @@ function InboxMenu({ newestMessageId }: { newestMessageId: string | null }) {
   );
 }
 
+/** What opening a conversation needs. */
+export type ConversationTarget = Pick<ConversationSummary, "projectId" | "key" | "title">;
+
 /**
- * The inbox: search, the conversation list with unread counts, and its menu. `selected`
+ * The inbox: T3 threads at the top (when a T3 bridge reports), search, the conversation list with unread counts, and its menu. `selected`
  * is the conversation open next to it in a two-pane layout, highlighted.
  */
 export function InboxList({
@@ -74,7 +78,8 @@ export function InboxList({
   onSelect,
 }: {
   selected?: { projectId: string; key: string } | null;
-  onSelect: (conversation: ConversationSummary) => void;
+  /** Opens a conversation: an inbox row, or a T3 thread on the board. */
+  onSelect: (conversation: ConversationTarget) => void;
 }) {
   const { query, conversations } = useConversations();
   const [search, setSearch] = useState("");
@@ -163,13 +168,22 @@ export function InboxList({
           />
         )}
         ListHeaderComponent={
-          conversations.length > 0 && query.isRefetchError ? (
-            <LoadErrorBanner
-              title="Could not refresh"
-              description={errorMessage(query.error)}
-              onRetry={() => void refresh()}
-            />
-          ) : null
+          <>
+            {search.trim() ? null : (
+              <T3BoardSection
+                onOpenConversation={(thread) =>
+                  onSelect({ projectId: thread.projectId, key: thread.key, title: thread.name })
+                }
+              />
+            )}
+            {conversations.length > 0 && query.isRefetchError ? (
+              <LoadErrorBanner
+                title="Could not refresh"
+                description={errorMessage(query.error)}
+                onRetry={() => void refresh()}
+              />
+            ) : null}
+          </>
         }
         ListEmptyComponent={renderEmpty}
         ListFooterComponent={renderFooter()}

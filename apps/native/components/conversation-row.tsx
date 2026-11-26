@@ -4,8 +4,10 @@ import { View } from "react-native";
 
 import { ChatAvatar } from "@/components/chat-avatar";
 import { Icon } from "@/components/icon";
+import { T3PhaseChip } from "@/components/t3-phase-chip";
 import { conversationAvatar } from "@/lib/chat-avatar";
 import { chatTime } from "@/lib/format";
+import { T3_CHIP_PHASES } from "@/lib/t3";
 
 const ATTACHMENT_LABELS = { image: "Photo", video: "Video", pdf: "PDF" } as const;
 
@@ -66,6 +68,11 @@ export function ConversationRow({
   const project = conversation.kind === "conversation" ? conversation.projectTitle : null;
   const preview = previewText(conversation);
   const isUrgent = priority === 5;
+  // A T3 thread that works, waits or broke says so before its last message.
+  const t3Phase =
+    conversation.t3?.phase && T3_CHIP_PHASES.includes(conversation.t3.phase)
+      ? conversation.t3.phase
+      : null;
 
   return (
     <PressableFeedback
@@ -107,6 +114,7 @@ export function ConversationRow({
         <View className="mt-[3px] min-h-[22px] flex-row items-center gap-2.5">
           <View className="min-w-0 flex-1 flex-row items-center gap-1">
             {isUrgent ? <Icon name="error" size={17} color="danger" /> : null}
+            {t3Phase ? <T3PhaseChip phase={t3Phase} /> : null}
             <Typography
               numberOfLines={1}
               className={cn(
