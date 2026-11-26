@@ -31,16 +31,6 @@ export function t3ThreadUrl(ref: T3ThreadRef): string {
   return `t3code://threads/${encodeURIComponent(ref.environmentId)}/${encodeURIComponent(ref.threadId)}`;
 }
 
-/** A feature's T3 thread, as the app sees it. */
-export const T3ThreadLink = T3ThreadRef.extend({
-  /** `t3code://threads/<environmentId>/<threadId>`. */
-  url: z.string(),
-});
-export type T3ThreadLink = z.infer<typeof T3ThreadLink>;
-
-/** Label of the button that opens the thread in T3 Code. */
-export const OPEN_IN_T3_LABEL = "Open in T3";
-
 /**
  * Where a T3 thread stands, as T3 Code's own notifications see it
  * (`projectThreadAwarenessV2` in T3 Code): working, waiting on the user, or ended.
@@ -55,6 +45,23 @@ export const T3Phase = z.enum([
   "idle",
 ]);
 export type T3Phase = z.infer<typeof T3Phase>;
+
+/** A feature's T3 thread, as the app sees it. */
+export const T3ThreadLink = T3ThreadRef.extend({
+  /** `t3code://threads/<environmentId>/<threadId>`. */
+  url: z.string(),
+  /** Where the thread stands, from the T3 bridge; `null` without a bridge. */
+  phase: T3Phase.nullable(),
+  phaseAt: Timestamp.nullable(),
+  branch: z.string().nullable(),
+  pullRequestUrl: z.string().nullable(),
+  /** The agent's last reply or the error, one line. */
+  summary: z.string().nullable(),
+});
+export type T3ThreadLink = z.infer<typeof T3ThreadLink>;
+
+/** Label of the button that opens the thread in T3 Code. */
+export const OPEN_IN_T3_LABEL = "Open in T3";
 
 /** Phases where the agent waits for the user. */
 export const T3_WAITING_PHASES: readonly T3Phase[] = ["waiting_for_approval", "waiting_for_input"];
@@ -108,3 +115,30 @@ export const T3ThreadStatusOutput = z.object({
 
 /** The bridge is alive (`POST /v1/t3/heartbeat`); the app shows when it went quiet. */
 export const T3HeartbeatInput = z.object({ environmentId: T3Id });
+
+/** One thread on the board: the feature that follows it, and where it stands. */
+export const T3BoardThread = z.object({
+  projectId: z.string(),
+  project: ProjectName,
+  /** The project's display name, else its name. */
+  projectTitle: z.string(),
+  iconUrl: z.string().nullable(),
+  /** The feature's conversation key, `c:<slug>`. */
+  key: z.string(),
+  name: z.string(),
+  /** Whether the conversation has messages to open; else only T3 has something to show. */
+  hasMessages: z.boolean(),
+  t3: T3ThreadLink,
+});
+export type T3BoardThread = z.infer<typeof T3BoardThread>;
+
+export const T3Board = z.object({
+  /** The newest heartbeat of the caller's bridges; `null` when none ever reported. */
+  bridgeSeenAt: Timestamp.nullable(),
+  /**
+   * Threads waiting on the user first, then failed, running and finished ones; each group
+   * newest first. Running and waiting threads always show; ended ones for a day.
+   */
+  threads: z.array(T3BoardThread),
+});
+export type T3Board = z.infer<typeof T3Board>;

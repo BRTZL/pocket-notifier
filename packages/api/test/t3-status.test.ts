@@ -223,6 +223,33 @@ describe("T3 bridge API", () => {
     expect(published).toHaveLength(1);
   });
 
+  it("puts threads waiting on the user first on the board, with the bridge's last heartbeat", async () => {
+    const api = publicClientFor(testDb.db, secret, dispatch);
+    await api.t3.threadStatus(status({ threadId: "t-running", title: "Running one" }));
+    await api.t3.threadStatus(status({ threadId: "t-waiting", title: "Waiting one" }));
+    await api.t3.threadStatus(
+      status({ threadId: "t-waiting", title: "Waiting one", phase: "waiting_for_input" }),
+    );
+    await api.t3.heartbeat({ environmentId: "env-1" });
+
+    const board = await clientFor(testDb.db, ada).t3.board();
+    expect(board.bridgeSeenAt).not.toBeNull();
+    expect(board.threads.map((thread) => [thread.name, thread.t3.phase])).toEqual([
+      ["Waiting one", "waiting_for_input"],
+      ["Running one", "running"],
+    ]);
+    expect(board.threads[0]).toMatchObject({
+      project: "rezme",
+      projectTitle: "RezMe",
+      key: "c:waiting-one",
+      hasMessages: false,
+      t3: { url: "t3code://threads/env-1/t-waiting", branch: "fix/realtime" },
+    });
+    // Another user sees nothing of it.
+    const bob = await seedUser(testDb.db, "bob");
+    expect((await clientFor(testDb.db, bob).t3.board()).threads).toEqual([]);
+  });
+
   it("refuses a token scoped to other projects, and records heartbeats", async () => {
     const owner = clientFor(testDb.db, ada);
     await owner.projects.create({ name: "other" });

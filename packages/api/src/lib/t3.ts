@@ -13,13 +13,44 @@ import { ensureFeature } from "./features";
 type FeatureRow = typeof feature.$inferSelect;
 type Ensured = { feature: FeatureRow; created: boolean };
 
-/** The app's view of a feature's T3 thread columns; `null` when it follows none. */
-export function t3Link(environmentId: string | null, threadId: string | null): T3ThreadLink | null {
-  if (!(environmentId && threadId)) {
+/** A feature's T3 columns, as selected for `t3Link`. */
+export type T3Columns = Pick<
+  FeatureRow,
+  | "t3EnvironmentId"
+  | "t3ThreadId"
+  | "t3Phase"
+  | "t3PhaseAt"
+  | "t3Branch"
+  | "t3PullRequestUrl"
+  | "t3Summary"
+>;
+
+/** The feature's T3 columns, to select alongside other tables. */
+export const t3Columns = {
+  t3EnvironmentId: feature.t3EnvironmentId,
+  t3ThreadId: feature.t3ThreadId,
+  t3Phase: feature.t3Phase,
+  t3PhaseAt: feature.t3PhaseAt,
+  t3Branch: feature.t3Branch,
+  t3PullRequestUrl: feature.t3PullRequestUrl,
+  t3Summary: feature.t3Summary,
+};
+
+/** The app's view of a feature's T3 thread; `null` when it follows none. */
+export function t3Link(row: T3Columns): T3ThreadLink | null {
+  if (!(row.t3EnvironmentId && row.t3ThreadId)) {
     return null;
   }
-  const ref = { environmentId, threadId };
-  return { ...ref, url: t3ThreadUrl(ref) };
+  const ref = { environmentId: row.t3EnvironmentId, threadId: row.t3ThreadId };
+  return {
+    ...ref,
+    url: t3ThreadUrl(ref),
+    phase: row.t3Phase,
+    phaseAt: row.t3PhaseAt?.toISOString() ?? null,
+    branch: row.t3Branch,
+    pullRequestUrl: row.t3PullRequestUrl,
+    summary: row.t3Summary,
+  };
 }
 
 /** Characters of the thread id used in a generated slug, e.g. `t3-352b089c`. */

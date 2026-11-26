@@ -292,9 +292,11 @@ describe("MCP server", () => {
     const owner = clientFor(testDb.db, ada);
     const { items } = await owner.conversations.list({});
     const login = items.find((item) => item.key === "c:login-flow");
-    expect(login?.t3).toEqual({
+    // No bridge reported it, so it has a link but no phase.
+    expect(login?.t3).toMatchObject({
       ...t3,
       url: "t3code://threads/env-1/352b089c-3d43-4d8d-850b-47ea9c7a3699",
+      phase: null,
     });
     const features = await call("list_features", { project: "rezme" });
     expect(text(features)).toContain("login-flow");

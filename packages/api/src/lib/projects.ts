@@ -295,7 +295,7 @@ export function toFeature(row: FeatureRow): Feature {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     lastMessageAt: row.lastMessageAt?.toISOString() ?? null,
-    t3: t3Link(row.t3EnvironmentId, row.t3ThreadId),
+    t3: t3Link(row),
   };
 }
 

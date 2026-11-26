@@ -39,6 +39,7 @@ import {
   UpdateProjectInput,
 } from "./project";
 import { CreateResponseInput, MessageResponse } from "./response";
+import { T3Board } from "./t3";
 import { AccessToken, CreateTokenInput, CreateTokenOutput, TokenId } from "./token";
 
 /**
@@ -101,6 +102,11 @@ export const appContract = {
     list: authed.input(ListConversationsInput).output(pageOf(ConversationSummary)),
     /** One conversation's row; NOT_FOUND when it has no visible message for the caller. */
     get: authed.input(GetConversationInput).output(ConversationSummary),
+  },
+
+  t3: {
+    /** The caller's T3 Code threads as the bridge last reported them. */
+    board: authed.output(T3Board),
   },
 
   messages: {
